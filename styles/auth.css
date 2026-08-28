@@ -1,0 +1,264 @@
+.login-screen {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.login-card {
+  width: min(100%, 430px);
+  position: relative;
+  padding: 30px 32px 26px;
+  border: 1px solid var(--line-dark);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(90deg, rgba(47, 111, 94, 0.08) 0 1px, transparent 1px 100%),
+    var(--paper);
+  background-size: 26px 100%;
+  box-shadow: var(--shadow);
+}
+
+.logo {
+  margin-bottom: 24px;
+}
+
+.logo h1,
+.brand-mark {
+  font-family: var(--font-display);
+}
+
+.logo h1 {
+  font-size: 32px;
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+}
+
+.logo p,
+.login-text p {
+  color: var(--muted);
+}
+
+.logo p {
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.login-text {
+  margin-bottom: 18px;
+}
+
+.login-text h2 {
+  margin-bottom: 7px;
+  font-size: 25px;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+}
+
+.login-text p {
+  line-height: 1.55;
+}
+
+.login-form,
+.modal-form {
+  display: grid;
+}
+
+.login-form {
+  gap: 12px;
+}
+
+.modal-form {
+  gap: 14px;
+}
+
+.login-form label,
+.modal-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.password-field {
+  position: relative;
+  display: block;
+}
+
+.password-field input {
+  padding-right: 52px;
+}
+
+.icon-btn {
+  width: var(--control-height);
+  height: var(--control-height);
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--quiet);
+  transition:
+    background var(--transition),
+    color var(--transition),
+    transform var(--transition);
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 1px;
+  transform: translateY(-50%);
+}
+
+.icon-btn svg,
+.photo-placeholder svg {
+  width: 19px;
+  height: 19px;
+}
+
+.icon-btn:hover {
+  background: var(--paper-2);
+  color: var(--accent-dark);
+}
+
+.primary-btn,
+.modal-btn {
+  min-height: var(--control-height-lg);
+  border-radius: var(--radius);
+  font-weight: 800;
+  transition:
+    transform var(--transition),
+    background var(--transition),
+    color var(--transition),
+    border-color var(--transition);
+}
+
+.primary-btn,
+.modal-btn.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.primary-btn:hover:not(:disabled),
+.modal-btn.primary:hover:not(:disabled) {
+  background: var(--accent-dark);
+  transform: translateY(-1px);
+}
+
+:is(
+    .primary-btn,
+    .modal-btn,
+    .theme-toggle,
+    .logout-btn,
+    .week-btn,
+    .day-tab,
+    .edit-profile-btn,
+    .remove-photo-btn
+  ):active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.login-links {
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.login-links button {
+  min-height: 30px;
+  padding-inline: 8px;
+  background: transparent;
+  color: var(--accent-dark);
+  font-weight: 760;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.form-message {
+  padding: 10px 11px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.form-message.error {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.form-message.info {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
+.demo-entry {
+  display: grid;
+  gap: 3px;
+  margin-top: 18px;
+}
+
+.auth-divider {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 2px;
+  color: var(--quiet);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  height: 1px;
+  background: var(--line);
+}
+
+.auth-divider span {
+  padding-inline: 3px;
+}
+
+.presentation-trigger {
+  justify-self: center;
+  min-height: var(--control-height);
+  padding: 7px 10px;
+  background: transparent;
+  color: var(--accent-dark);
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition:
+    transform var(--transition),
+    color var(--transition);
+}
+
+.presentation-trigger:hover {
+  color: var(--accent);
+}
+
+.presentation-trigger:active {
+  transform: translateY(1px);
+}
+
+.demo-storage-note {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.demo-storage-note button {
+  min-height: var(--control-height);
+  margin: -12px -8px;
+  padding: 8px;
+  background: transparent;
+  color: var(--accent-dark);
+  font-size: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

@@ -1,0 +1,115 @@
+.connection-banner,
+.app-notification {
+  position: fixed;
+  z-index: 40;
+  border: 1px solid var(--line-dark);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.connection-banner {
+  right: var(--space-4);
+  bottom: calc(var(--space-4) + env(safe-area-inset-bottom));
+  left: var(--space-4);
+  max-width: 640px;
+  min-height: var(--control-height);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-inline: auto;
+  padding: 11px 14px;
+  border-color: var(--amber);
+}
+
+.connection-indicator {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border: 2px solid var(--paper);
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 0 2px var(--amber);
+}
+
+.app-notification {
+  top: var(--space-4);
+  right: var(--space-4);
+  width: min(360px, calc(100vw - 32px));
+  min-height: var(--control-height);
+  padding: 11px 14px;
+  border-left-width: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-10px);
+  transition:
+    opacity var(--transition),
+    transform var(--transition);
+}
+
+.app-notification.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.app-notification.info {
+  border-left-color: var(--accent);
+}
+
+.app-notification.success {
+  border-left-color: var(--success);
+}
+
+.app-notification.error {
+  border-left-color: var(--danger);
+}
+
+.student-photo.is-loading {
+  pointer-events: none;
+}
+
+.student-photo.is-loading::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  background: color-mix(in srgb, var(--paper) 72%, transparent);
+}
+
+.student-photo.is-loading::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  left: 50%;
+  width: 28px;
+  height: 28px;
+  margin: -14px;
+  border: 3px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: feedback-spin 700ms linear infinite;
+}
+
+@keyframes feedback-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 560px) {
+  .connection-banner {
+    right: var(--space-3);
+    bottom: calc(var(--space-3) + env(safe-area-inset-bottom));
+    left: var(--space-3);
+  }
+
+  .app-notification {
+    top: calc(var(--space-3) + env(safe-area-inset-top));
+    right: var(--space-3);
+    width: calc(100vw - 24px);
+  }
+}

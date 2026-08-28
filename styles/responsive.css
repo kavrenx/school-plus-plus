@@ -1,0 +1,731 @@
+@media (max-width: 980px) {
+  .journal-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .brief-copy {
+    min-height: 0;
+    padding-right: 0;
+  }
+
+  .student-sidebar {
+    position: static;
+    grid-template-columns: 1fr;
+    order: -1;
+    align-items: start;
+    padding-bottom: 18px;
+    padding-left: 0;
+    border-bottom: 1px solid var(--line-dark);
+    border-left: 0;
+  }
+
+  .student-card {
+    grid-template-columns: 140px minmax(0, 1fr);
+  }
+
+  .student-photo-area {
+    padding: 10px;
+    border-right: 1px solid var(--line-dark);
+    border-bottom: 0;
+  }
+
+  .student-photo {
+    width: 100%;
+    min-height: 168px;
+    aspect-ratio: 4 / 5;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1100px) and (orientation: portrait) {
+  :root {
+    --container: 920px;
+  }
+
+  .dashboard-screen {
+    padding: 18px 20px;
+  }
+
+  .brief-copy {
+    min-height: 128px;
+  }
+
+  .daily-brief h2 {
+    font-size: clamp(38px, 7vw, 56px);
+  }
+
+  .journal-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .student-sidebar {
+    position: static;
+    order: -1;
+    display: block;
+    padding-bottom: 18px;
+    padding-left: 0;
+    border-bottom: 1px solid var(--line-dark);
+    border-left: 0;
+  }
+
+  .student-card {
+    display: grid;
+    grid-template-columns: 130px minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .student-photo-area {
+    padding: 10px;
+    border-right: 1px solid var(--line-dark);
+    border-bottom: 0;
+  }
+
+  .student-photo {
+    width: 100%;
+    min-height: 156px;
+    aspect-ratio: 4 / 5;
+  }
+
+  .student-info {
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 0.9fr);
+    align-items: start;
+  }
+
+  .student-header-strip,
+  .teacher-line,
+  .edit-profile-btn {
+    grid-column: 1;
+  }
+
+  .account-disclosure {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+  }
+
+  .edit-profile-btn {
+    justify-self: start;
+    min-width: 180px;
+  }
+}
+
+@media (max-width: 760px) {
+  .dashboard-screen,
+  .login-screen {
+    padding: 14px;
+  }
+
+  .topbar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .topbar-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .theme-toggle,
+  .logout-btn,
+  .week-btn {
+    width: 100%;
+  }
+
+  .daily-brief h2 {
+    font-size: 38px;
+  }
+
+  .week-switcher,
+  .diary-panel {
+    padding-left: 18px;
+  }
+
+  .journal-main {
+    background: var(--paper);
+  }
+
+  .week-switcher-header {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .student-period-bar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .student-term-control {
+    width: 100%;
+  }
+
+  .week-title {
+    grid-column: 1 / -1;
+    order: -1;
+  }
+
+  .day-tabs {
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+  }
+
+  .day-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .day-tab {
+    flex: 0 0 76px;
+    border-right: 1px solid var(--line);
+  }
+
+  .panel-header {
+    grid-template-columns: 1fr;
+  }
+
+  .panel-note {
+    max-width: none;
+    text-align: left;
+  }
+
+  .student-sidebar {
+    grid-template-columns: 1fr;
+    order: -1;
+    padding-left: 12px;
+  }
+
+  .student-card {
+    grid-template-columns: 78px minmax(0, 1fr);
+    grid-template-rows: auto;
+    align-items: start;
+  }
+
+  .student-photo-area {
+    padding: 0 10px 0 0;
+    border-right: 1px solid var(--line-dark);
+    border-bottom: 0;
+    background: transparent;
+  }
+
+  .student-photo {
+    width: 66px;
+    min-height: 84px;
+    aspect-ratio: 4 / 5;
+  }
+
+  .remove-photo-btn {
+    min-height: var(--control-height);
+    padding-inline: 6px;
+    font-size: 11px;
+  }
+
+  .student-info {
+    padding: 0 0 0 12px;
+  }
+
+  .profile-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-form-grid .wide-field {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 760px),
+  (max-height: 560px) and (orientation: landscape) and (max-width: 950px) {
+  .diary-table-wrap:has(.diary-table) {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+
+  .diary-table {
+    min-width: 0;
+  }
+
+  .diary-table thead {
+    display: none;
+  }
+
+  .diary-table,
+  .diary-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .diary-table tbody {
+    display: grid;
+    gap: 10px;
+  }
+
+  .diary-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 14px;
+    border: 1px solid var(--line-dark);
+    background: var(--paper);
+  }
+
+  .diary-table tr:last-child {
+    border-bottom: 1px solid var(--line-dark);
+  }
+
+  .diary-table td {
+    padding: 8px 0;
+    border: 0;
+  }
+
+  .diary-table td:first-child,
+  .diary-table td:nth-child(2) {
+    grid-column: 1 / -1;
+  }
+
+  .diary-table td:first-child {
+    padding-top: 0;
+    padding-bottom: 11px;
+    border-bottom: 1px dashed var(--line);
+  }
+
+  .diary-table td:nth-child(2) {
+    padding-bottom: 11px;
+  }
+
+  .diary-table td:nth-child(3) {
+    justify-self: start;
+  }
+
+  .diary-table td:nth-child(4) {
+    justify-self: end;
+    text-align: right;
+  }
+
+  .diary-table td + td {
+    border-left: 0;
+  }
+
+  .diary-table th:nth-child(3),
+  .diary-table td:nth-child(3),
+  .diary-table th:nth-child(4),
+  .diary-table td:nth-child(4) {
+    width: auto;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .diary-table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    color: var(--quiet);
+    font-size: 11px;
+    font-weight: 820;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .diary-table td:first-child::before {
+    display: none;
+  }
+
+  .grade,
+  .attendance-mark {
+    margin: 0;
+  }
+}
+
+@media (max-height: 560px) and (orientation: landscape) {
+  .dashboard-screen {
+    padding: 10px 12px;
+  }
+
+  .topbar {
+    min-height: 48px;
+    grid-template-columns: auto minmax(320px, 1fr);
+    margin-bottom: 10px;
+  }
+
+  .brand-mark {
+    font-size: 26px;
+  }
+
+  .topbar-actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .daily-brief {
+    padding-bottom: 10px;
+  }
+
+  .brief-copy {
+    min-height: 82px;
+    padding-block: 6px;
+  }
+
+  .card-label {
+    margin-bottom: 5px;
+  }
+
+  .daily-brief h2 {
+    margin-bottom: 5px;
+    font-size: 32px;
+    line-height: 1;
+  }
+
+  .card-description {
+    font-size: 14px;
+    line-height: 1.35;
+  }
+
+  .journal-shell {
+    grid-template-columns: minmax(0, 1fr) 260px;
+    gap: 12px;
+  }
+
+  .student-photo-area {
+    display: none;
+  }
+
+  .student-card {
+    min-height: 0;
+  }
+
+  .student-info {
+    gap: 9px;
+    padding: 11px;
+  }
+
+  .teacher-line,
+  .account-detail {
+    font-size: 13px;
+  }
+
+  .week-switcher {
+    padding: 12px;
+  }
+
+  .diary-panel {
+    padding: 12px;
+  }
+
+  .day-tab {
+    min-height: 54px;
+  }
+}
+
+@media (max-width: 560px),
+  (max-height: 560px) and (orientation: landscape) and (max-width: 950px) {
+  .dashboard-screen,
+  .login-screen {
+    padding: 12px;
+  }
+
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    min-height: 56px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    margin-bottom: 12px;
+    background: var(--bg);
+  }
+
+  .topbar-actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  .theme-toggle,
+  .logout-btn {
+    width: var(--control-height);
+    min-width: var(--control-height);
+    padding: 0;
+  }
+
+  .theme-text,
+  .logout-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .demo-credential-list div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .demo-credential-list dd {
+    overflow-wrap: normal;
+  }
+
+  .login-card {
+    padding: 26px 20px 24px;
+  }
+
+  .login-card {
+    border-left-width: 1px;
+  }
+
+  .brand-mark {
+    font-size: 28px;
+  }
+
+  .dashboard-layout {
+    gap: 12px;
+  }
+
+  .daily-brief {
+    padding-bottom: 14px;
+  }
+
+  .brief-copy {
+    min-height: 0;
+    padding: 8px 2px 4px;
+  }
+
+  .card-label {
+    margin-bottom: 7px;
+  }
+
+  .daily-brief h2 {
+    margin-bottom: 8px;
+    font-size: clamp(32px, 10vw, 42px);
+    line-height: 0.98;
+  }
+
+  .card-description {
+    font-size: 14px;
+    line-height: 1.45;
+  }
+
+  .journal-shell {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .student-sidebar {
+    gap: 0;
+    order: -1;
+    padding: 12px;
+    border: 1px solid var(--line-dark);
+    background: var(--paper);
+  }
+
+  .student-card {
+    grid-template-columns: 68px minmax(0, 1fr);
+  }
+
+  .student-photo-area {
+    padding-right: 10px;
+  }
+
+  .student-photo {
+    width: 56px;
+    min-height: 70px;
+  }
+
+  .photo-placeholder {
+    gap: 0;
+  }
+
+  .photo-placeholder span {
+    display: none;
+  }
+
+  .remove-photo-btn {
+    width: 56px;
+    min-height: 32px;
+    padding: 0 3px;
+    font-size: 10px;
+  }
+
+  .student-info {
+    gap: 9px;
+    padding-left: 12px;
+  }
+
+  .student-badge {
+    font-size: 16px;
+  }
+
+  .teacher-line {
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  .account-disclosure > summary {
+    min-height: var(--control-height);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    color: var(--accent-dark);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 800;
+    list-style: none;
+  }
+
+  .account-disclosure > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .disclosure-icon::before {
+    content: "+";
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  .account-disclosure[open] .disclosure-icon::before {
+    content: "−";
+  }
+
+  .account-disclosure[open] .account-details {
+    margin-top: 7px;
+  }
+
+  .account-details {
+    border-top: 0;
+  }
+
+  .account-detail {
+    grid-template-columns: 64px minmax(0, 1fr);
+    font-size: 13px;
+  }
+
+  .edit-profile-btn {
+    min-height: var(--control-height);
+  }
+
+  .week-switcher {
+    padding: 12px;
+  }
+
+  .week-switcher-header {
+    grid-template-columns: var(--control-height) minmax(0, 1fr) var(
+        --control-height
+      );
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .week-title {
+    grid-column: auto;
+    order: 0;
+  }
+
+  .week-title h3 {
+    margin-top: 2px;
+    font-size: 18px;
+  }
+
+  .week-btn {
+    width: var(--control-height);
+    padding: 0;
+    font-size: 20px;
+  }
+
+  .week-btn-label {
+    display: none;
+  }
+
+  .day-tabs {
+    scroll-snap-type: x proximity;
+  }
+
+  .day-tab {
+    min-height: 60px;
+    flex-basis: 64px;
+    padding: 8px 6px;
+    scroll-snap-align: center;
+  }
+
+  .day-tab span {
+    font-size: 15px;
+  }
+
+  .diary-panel {
+    padding: 14px 12px 16px;
+  }
+
+  .panel-header {
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .panel-note {
+    font-size: 13px;
+  }
+
+  .modal-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-overlay {
+    place-items: end center;
+    padding: 16px 0 0;
+  }
+
+  .modal-card {
+    width: 100%;
+    max-height: calc(100dvh - 16px);
+    padding: 22px 18px calc(22px + env(safe-area-inset-bottom));
+    border: 0;
+    border-top: 6px solid var(--accent);
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+
+  .class-teacher-card {
+    grid-template-columns: 52px minmax(0, 1fr);
+    gap: 13px;
+    padding: 14px;
+  }
+
+  .class-teacher-avatar {
+    width: 52px;
+    height: 52px;
+    font-size: 15px;
+  }
+
+  .class-student-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .class-student-card {
+    min-height: 58px;
+  }
+}
+
+@media (max-height: 560px) and (orientation: landscape) and (max-width: 950px) {
+  .student-card {
+    grid-template-columns: 1fr;
+  }
+
+  .student-info {
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 12px;
+    padding: 0;
+  }
+
+  .student-header-strip,
+  .teacher-line {
+    grid-column: 1;
+  }
+
+  .account-disclosure {
+    grid-column: 1 / -1;
+  }
+
+  .edit-profile-btn {
+    min-width: 150px;
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: stretch;
+  }
+}

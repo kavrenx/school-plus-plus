@@ -1,0 +1,11 @@
+@import "./styles/base.css";
+@import "./styles/auth.css";
+@import "./styles/app-shell.css";
+@import "./styles/student-diary.css";
+@import "./styles/student-profile.css";
+@import "./styles/modals.css";
+@import "./styles/feedback.css";
+@import "./styles/presentation.css";
+@import "./styles/teacher.css";
+@import "./styles/motion.css";
+@import "./styles/responsive.css";

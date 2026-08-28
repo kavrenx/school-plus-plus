@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="School++ — электронный дневник для ученика: расписание, домашние задания и оценки в одном месте.">
+    <meta name="application-name" content="School++">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#eef1ed">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="ru_RU">
+    <meta property="og:site_name" content="School++">
+    <meta property="og:title" content="School++ — электронный дневник">
+    <meta property="og:description" content="Демонстрация электронного дневника с кабинетами ученика и учителя.">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="School++ — электронный дневник">
+    <meta name="twitter:description" content="Демонстрация электронного дневника с кабинетами ученика и учителя.">
+    <title>School++</title>
+    <link rel="icon" href="assets/favicon.svg?v=6" type="image/svg+xml">
+    <link rel="manifest" href="site.webmanifest">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app">
+        <section class="login-screen" id="loginScreen">
+            <div class="login-card">
+                <div class="logo">
+                    <div>
+                        <h1>School++</h1>
+                        <p>Электронный дневник · демо</p>
+                    </div>
+                </div>
+
+                <div class="login-text">
+                    <h2>Вход</h2>
+                    <p>Введите логин и пароль.</p>
+                </div>
+
+                <form class="login-form" id="loginForm" novalidate>
+                    <label>
+                        Логин
+                        <input type="text" id="loginInput" placeholder="Введите логин" autocomplete="username" aria-describedby="loginError">
+                    </label>
+
+                    <label>
+                        Пароль
+                        <span class="password-field">
+                            <input type="password" id="passwordInput" placeholder="Введите пароль" autocomplete="current-password" aria-describedby="loginError">
+                            <button class="icon-btn password-toggle" type="button" data-toggle-password="passwordInput" aria-label="Показать пароль"></button>
+                        </span>
+                    </label>
+
+                    <p class="form-message error hidden" id="loginError" aria-live="polite"></p>
+
+                    <button type="submit" class="primary-btn">Войти</button>
+
+                    <div class="login-links">
+                        <button type="button" id="forgotPasswordBtn">Забыли пароль?</button>
+                        <span>Новый пользователь? <button type="button" id="registerBtn">Регистрация</button></span>
+                    </div>
+                </form>
+
+                <section class="demo-entry" aria-label="О проекте">
+                    <div class="auth-divider" aria-hidden="true"><span>или</span></div>
+                    <button class="presentation-trigger" id="presentationTrigger" type="button">Что такое School++?</button>
+                    <p class="demo-storage-note">Изменения хранятся только в этом браузере. <button id="resetDemoBtn" type="button">Сбросить</button></p>
+                </section>
+            </div>
+        </section>
+
+        <section class="presentation-screen hidden" id="presentationScreen" data-scene="0" aria-hidden="true" aria-label="Знакомство со School++" tabindex="-1">
+            <button class="presentation-back" id="presentationBackBtn" type="button">
+                <span aria-hidden="true">←</span>
+                <span>Ко входу</span>
+            </button>
+
+            <div class="presentation-layout">
+                <div class="presentation-device-column" aria-hidden="true">
+                    <div class="presentation-laptop">
+                        <div class="presentation-laptop-lid">
+                            <div class="presentation-laptop-camera"></div>
+                            <div class="presentation-laptop-screen">
+                                <div class="presentation-mini-app">
+                                    <header class="mini-topbar">
+                                        <strong>SCHOOL++</strong>
+                                        <span class="mini-topbar-actions"><i></i><i></i></span>
+                                    </header>
+
+                                    <section class="mini-hero">
+                                        <small>ПРИВЕТ, ДАНИИЛ!</small>
+                                        <strong>1 сентября, понедельник</strong>
+                                        <span>Или 32 августа?</span>
+                                    </section>
+
+                                    <div class="mini-dashboard">
+                                        <main class="mini-journal">
+                                            <section class="mini-week presentation-focus-week">
+                                                <div class="mini-week-heading">
+                                                    <i>←</i>
+                                                    <span><small>НЕДЕЛЯ</small><strong>1–7 сентября</strong></span>
+                                                    <i>→</i>
+                                                </div>
+                                                <div class="mini-days">
+                                                    <span class="is-selected"><span>пн</span><small>1</small></span>
+                                                    <span><span>вт</span><small>2</small></span>
+                                                    <span><span>ср</span><small>3</small></span>
+                                                    <span><span>чт</span><small>4</small></span>
+                                                    <span><span>пт</span><small>5</small></span>
+                                                </div>
+                                            </section>
+
+                                            <section class="mini-diary">
+                                                <div class="mini-diary-heading">
+                                                    <span><small>ДНЕВНИК</small><strong>Понедельник, 1</strong></span>
+                                                    <small>6 уроков</small>
+                                                </div>
+                                                <div class="mini-lessons">
+                                                    <div class="mini-lesson">
+                                                        <span><strong>1. Биология</strong><small>14:00–14:45 · каб. 65</small></span>
+                                                        <span class="mini-homework">нет дз</span>
+                                                        <span class="mini-grade">—</span>
+                                                        <span class="mini-attendance">Не отмечено</span>
+                                                    </div>
+                                                    <div class="mini-lesson presentation-focus-lesson">
+                                                        <span><strong>2. Математика</strong><small>15:00–15:45 · каб. 59</small></span>
+                                                        <span class="mini-homework">§ 3, № 12–16</span>
+                                                        <span class="mini-grade presentation-result-grade">9</span>
+                                                        <span class="mini-attendance presentation-result-attendance">Посещено</span>
+                                                    </div>
+                                                    <div class="mini-lesson">
+                                                        <span><strong>3. Физика</strong><small>16:00–16:45 · каб. 79</small></span>
+                                                        <span class="mini-homework">§ 32, задача 4</span>
+                                                        <span class="mini-grade presentation-result-grade">8</span>
+                                                        <span class="mini-attendance presentation-result-attendance is-absent">Отсутствие</span>
+                                                    </div>
+                                                </div>
+                                            </section>
+                                        </main>
+
+                                        <aside class="mini-profile">
+                                            <div class="mini-photo">↥</div>
+                                            <strong>РОМАНОВ ДАНИИЛ</strong>
+                                            <span>11 "А" класс</span>
+                                            <small>Классный руководитель:<br>Орлова Марина Сергеевна</small>
+                                            <i></i><i></i><i></i>
+                                        </aside>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="presentation-laptop-base"><span></span></div>
+                    </div>
+                </div>
+
+                <div class="presentation-copy-column">
+                    <div class="presentation-copy-stack">
+                        <article class="presentation-copy is-active" data-presentation-copy="0" aria-hidden="false">
+                            <p class="presentation-eyebrow">Электронный дневник</p>
+                            <h2>SCHOOL++</h2>
+                            <p>— место, где расписание, задания и результаты собраны в понятную картину школьного дня.</p>
+                        </article>
+
+                        <article class="presentation-copy" data-presentation-copy="1" aria-hidden="true">
+                            <p class="presentation-eyebrow">Расписание</p>
+                            <h2>Вся неделя перед глазами</h2>
+                            <p>Переключайтесь между днями и сразу смотрите время, кабинет и порядок занятий.</p>
+                        </article>
+
+                        <article class="presentation-copy" data-presentation-copy="2" aria-hidden="true">
+                            <p class="presentation-eyebrow">Каждый урок</p>
+                            <h2>Всё нужное — рядом</h2>
+                            <p>Домашнее задание и материалы остаются связаны с конкретным уроком, поэтому понятно, что и к какому дню готовить.</p>
+                        </article>
+
+                        <article class="presentation-copy" data-presentation-copy="3" aria-hidden="true">
+                            <p class="presentation-eyebrow">Результаты</p>
+                            <h2>Без лишних догадок</h2>
+                            <p>Отметки и посещаемость появляются рядом с занятием. Видно не только результат, но и урок, к которому он относится.</p>
+                        </article>
+
+                        <article class="presentation-copy presentation-copy-final" data-presentation-copy="4" aria-hidden="true">
+                            <p class="presentation-eyebrow">Готово</p>
+                            <h2>Вот и всё. Начнём?</h2>
+                            <p>Вернитесь ко входу и откройте School++ самостоятельно.</p>
+                        </article>
+                    </div>
+
+                    <div class="presentation-progress" aria-hidden="true">
+                        <span class="is-active" data-presentation-dot="0"></span>
+                        <span data-presentation-dot="1"></span>
+                        <span data-presentation-dot="2"></span>
+                        <span data-presentation-dot="3"></span>
+                        <span data-presentation-dot="4"></span>
+                        <small id="presentationCounter">1 / 5</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="presentation-hint" id="presentationHint" aria-hidden="true">
+                <span class="presentation-mouse"><i></i></span>
+                <span class="presentation-hint-desktop">Прокрутите, чтобы продолжить</span>
+                <span class="presentation-hint-touch">Проведите вверх</span>
+                <span class="presentation-hint-arrow"><i></i><i></i></span>
+            </div>
+
+            <button class="presentation-final-action is-hidden" id="presentationFinalBtn" type="button" aria-hidden="true" tabindex="-1">Перейти ко входу</button>
+            <p class="sr-only" id="presentationAnnouncement" aria-live="polite"></p>
+        </section>
+
+        <section class="teacher-screen hidden" id="teacherScreen"></section>
+
+        <section class="dashboard-screen hidden" id="dashboardScreen">
+            <header class="topbar">
+                <span class="brand-mark">SCHOOL++</span>
+
+                <div class="topbar-actions">
+                    <button class="theme-toggle" id="themeToggle" type="button">
+                        <span class="theme-icon" id="themeIcon"></span>
+                        <span class="theme-text" id="themeText">Тёмная</span>
+                    </button>
+
+                    <button class="logout-btn" id="logoutBtn" type="button">
+                        <ion-icon name="log-out-outline" aria-hidden="true"></ion-icon>
+                        <span class="logout-text">Выйти</span>
+                    </button>
+                </div>
+            </header>
+
+            <main class="dashboard-layout" id="mainContent">
+                <section class="daily-brief" aria-labelledby="heroTitle">
+                    <div class="brief-copy">
+                        <p class="card-label" id="heroEyebrow">Сегодня</p>
+                        <h2 id="heroTitle">Привет!</h2>
+                        <p class="card-description" id="heroDescription"></p>
+                    </div>
+                </section>
+
+                <section class="journal-shell">
+                    <div class="journal-main">
+                        <section class="week-switcher" aria-labelledby="weekRangeTitle">
+                            <div class="student-period-bar">
+                                <label class="panel-label" for="studentTermSelect">Учебный период</label>
+                                <span class="student-term-control">
+                                    <select id="studentTermSelect" aria-label="Учебный период"></select>
+                                    <span class="student-term-arrow" aria-hidden="true"></span>
+                                </span>
+                            </div>
+
+                            <div class="week-switcher-header">
+                                <button class="week-btn" id="prevWeekBtn" type="button" aria-label="Прошлая неделя">
+                                    <span aria-hidden="true">←</span>
+                                    <span class="week-btn-label">Прошлая неделя</span>
+                                </button>
+                                <div class="week-title">
+                                    <p class="panel-label">Неделя</p>
+                                    <h3 id="weekRangeTitle">—</h3>
+                                </div>
+                                <button class="week-btn" id="nextWeekBtn" type="button" aria-label="Следующая неделя">
+                                    <span class="week-btn-label">Следующая неделя</span>
+                                    <span aria-hidden="true">→</span>
+                                </button>
+                            </div>
+
+                            <div class="day-tabs" id="dayTabs" role="tablist" aria-label="Дни недели"></div>
+                        </section>
+
+                        <section class="diary-panel" id="diaryPanel" role="tabpanel" aria-labelledby="diaryTitle">
+                            <div class="panel-header">
+                                <div>
+                                    <p class="panel-label">Дневник</p>
+                                    <h3 id="diaryTitle">—</h3>
+                                </div>
+                                <p class="panel-note" id="selectedDayNote" aria-live="polite">Выберите день недели</p>
+                            </div>
+
+                            <div class="diary-table-wrap" id="diaryTableWrap"></div>
+                        </section>
+                    </div>
+
+                    <aside class="student-sidebar" aria-label="Профиль ученика">
+                        <section class="student-card">
+                            <div class="student-photo-area">
+                                <label class="student-photo" id="studentPhotoLabel">
+                                    <input type="file" id="avatarInput" accept="image/jpeg,image/png,image/webp" aria-label="Загрузить фото">
+                                    <span class="photo-placeholder" id="photoPlaceholder"></span>
+                                    <img class="student-photo-img hidden" id="studentPhoto" alt="Фото ученика">
+                                </label>
+
+                                <button class="remove-photo-btn hidden" id="removeAvatarBtn" type="button">Убрать фото</button>
+                                <p class="form-message error avatar-message hidden" id="avatarMessage" aria-live="polite"></p>
+                            </div>
+
+                            <div class="student-info">
+                                <div class="student-header-strip">
+                                    <div class="student-name-row">
+                                        <p class="student-badge" id="studentFullName">Ученик</p>
+                                        <span class="online-status">онлайн</span>
+                                    </div>
+                                    <button class="class-link" id="studentClassBtn" type="button" aria-haspopup="dialog" aria-controls="classModal">Класс</button>
+                                </div>
+
+                                <p class="teacher-line">Классный руководитель: <span id="teacherName">—</span></p>
+
+                                <details class="account-disclosure" id="accountDisclosure" open>
+                                    <summary>
+                                        <span>Данные аккаунта</span>
+                                        <span class="disclosure-icon" aria-hidden="true"></span>
+                                    </summary>
+
+                                    <div class="account-details">
+                                        <div class="account-detail">
+                                            <span>Логин:</span>
+                                            <div class="masked-detail">
+                                                <strong id="accountLogin">••••••••</strong>
+                                                <button class="icon-btn detail-eye-btn" id="toggleLoginBtn" type="button" aria-label="Показать логин"></button>
+                                            </div>
+                                        </div>
+
+                                        <div class="account-detail">
+                                            <span>E-mail:</span>
+                                            <strong id="accountEmail">не указан</strong>
+                                        </div>
+
+                                        <div class="account-detail">
+                                            <span>Телефон:</span>
+                                            <strong id="accountPhone">не указан</strong>
+                                        </div>
+                                    </div>
+                                </details>
+
+                                <button class="edit-profile-btn" id="editProfileBtn" type="button">
+                                    <ion-icon name="create-outline" aria-hidden="true"></ion-icon>
+                                    Изменить
+                                </button>
+                            </div>
+                        </section>
+                    </aside>
+                </section>
+            </main>
+        </section>
+    </div>
+
+    <div class="connection-banner hidden" id="connectionStatus" role="status" aria-live="polite" aria-hidden="true">
+        <span class="connection-indicator" aria-hidden="true"></span>
+        <span id="connectionStatusText">Нет соединения. Дневник доступен, но внешние материалы могут не открыться.</span>
+    </div>
+
+    <div class="app-notification" id="appNotification" role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <div class="modal-overlay hidden" id="classModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="classModalTitle">
+        <div class="modal-card class-modal-card">
+            <button class="modal-close" data-close-modal="classModal" type="button" aria-label="Закрыть">×</button>
+            <p class="class-modal-eyebrow">Ваш класс</p>
+            <h3 id="classModalTitle">Класс</h3>
+            <p class="class-modal-summary" id="classModalSummary"></p>
+
+            <article class="class-teacher-card" id="classTeacherCard"></article>
+
+            <section class="class-students-section" aria-labelledby="classStudentsTitle">
+                <div class="class-section-heading">
+                    <h4 id="classStudentsTitle">Ученики</h4>
+                    <span id="classStudentCount"></span>
+                </div>
+                <div class="class-student-grid" id="classStudentList"></div>
+            </section>
+        </div>
+    </div>
+
+    <div class="modal-overlay hidden" id="logoutModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="logoutModalTitle">
+        <div class="modal-card">
+            <div class="modal-icon"><ion-icon name="help-outline"></ion-icon></div>
+            <h3 id="logoutModalTitle">Выйти из дневника?</h3>
+            <p>Вы вернётесь на экран входа. Данные аккаунта не удаляются.</p>
+            <div class="modal-actions">
+                <button class="modal-btn secondary" id="cancelLogoutBtn" type="button">Отмена</button>
+                <button class="modal-btn danger" id="confirmLogoutBtn" type="button">Выйти</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay hidden" id="removeAvatarModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="removeAvatarModalTitle">
+        <div class="modal-card">
+            <div class="modal-icon"><ion-icon name="alert-outline"></ion-icon></div>
+            <h3 id="removeAvatarModalTitle">Убрать фото профиля?</h3>
+            <p>Ваше фото будет удалено. Данные аккаунта и дневник останутся без изменений.</p>
+            <div class="modal-actions">
+                <button class="modal-btn secondary" id="cancelRemoveAvatarBtn" type="button">Отмена</button>
+                <button class="modal-btn danger" id="confirmRemoveAvatarBtn" type="button">Убрать</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay hidden" id="resetDemoModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="resetDemoModalTitle">
+        <div class="modal-card">
+            <div class="modal-icon"><ion-icon name="refresh-outline"></ion-icon></div>
+            <h3 id="resetDemoModalTitle">Сбросить изменения?</h3>
+            <p>Будут удалены изменённые оценки, профиль, фото и сохранённый вход. Исходные demo-данные останутся.</p>
+            <div class="modal-actions">
+                <button class="modal-btn secondary" id="cancelResetDemoBtn" type="button">Отмена</button>
+                <button class="modal-btn danger" id="confirmResetDemoBtn" type="button">Сбросить</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay hidden" id="forgotModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="forgotModalTitle">
+        <div class="modal-card register-modal">
+            <h3 id="forgotModalTitle">Не получается войти?</h3>
+            <p>Выберите один из готовых аккаунтов и используйте указанные данные.</p>
+            <div class="demo-access-card">
+                <p>Данные для входа:</p>
+                <dl class="demo-credential-list">
+                    <div>
+                        <dt>Ученик</dt>
+                        <dd><code>student</code><span> / </span><code>demo-student</code></dd>
+                    </div>
+                    <div>
+                        <dt>Учитель</dt>
+                        <dd><code>teacher</code><span> / </span><code>demo-teacher</code></dd>
+                    </div>
+                    <div>
+                        <dt>Администратор</dt>
+                        <dd><code>admin</code><span> / </span><code>demo-admin</code></dd>
+                    </div>
+                </dl>
+            </div>
+            <button class="modal-btn primary modal-primary-action" data-close-modal="forgotModal" type="button">Вернуться ко входу</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay hidden" id="registerModal" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Регистрация">
+        <div class="modal-card register-modal">
+            <button class="modal-close" data-close-modal="registerModal" type="button" aria-label="Закрыть">×</button>
+            <div id="registerStepCode">
+                <h3>Регистрация</h3>
+                <form class="modal-form" id="inviteForm" novalidate>
+                    <label>
+                        Пригласительный код
+                        <input type="text" id="inviteCodeInput" placeholder="Введите пригласительный код" maxlength="19" autocomplete="off" aria-describedby="inviteError">
+                    </label>
+                    <p class="form-message error hidden" id="inviteError" aria-live="polite"></p>
+                    <button class="modal-btn primary" type="submit">Продолжить</button>
+                </form>
+                <p class="helper-text"><strong>Код приглашения</strong><br>Его выдаёт школа. Для просмотра проекта используйте <code>DEMO-STUDENT-2026</code>.</p>
+            </div>
+
+            <div class="hidden" id="registerStepAccount">
+                <h3>Профиль найден</h3>
+                <div class="demo-access-card">
+                    <p>Код привязан к ученику:</p>
+                    <dl class="demo-access-details">
+                        <div>
+                            <dt>Профиль</dt>
+                            <dd id="demoAccountName">—</dd>
+                        </div>
+                        <div>
+                            <dt>Класс</dt>
+                            <dd id="demoAccountClass">—</dd>
+                        </div>
+                    </dl>
+                </div>
+                <p class="helper-text demo-access-warning">Изменения сохраняются только в этом браузере.</p>
+                <button class="modal-btn primary modal-primary-action" id="enterDemoBtn" type="button">Открыть дневник</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay hidden" id="profileModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="profileModalTitle">
+        <div class="modal-card profile-modal-card">
+            <button class="modal-close" data-close-modal="profileModal" type="button" aria-label="Закрыть">×</button>
+            <div class="modal-icon"><ion-icon name="create-outline"></ion-icon></div>
+            <h3 id="profileModalTitle">Профиль ученика</h3>
+            <form class="modal-form profile-form" id="profileForm" novalidate>
+                <div class="profile-form-grid">
+                    <label>
+                        <span id="profileFirstNameLabel">Имя</span>
+                        <input type="text" id="profileFirstNameInput" autocomplete="given-name" aria-describedby="profileError">
+                    </label>
+                    <label>
+                        <span id="profileLastNameLabel">Фамилия</span>
+                        <input type="text" id="profileLastNameInput" autocomplete="family-name" aria-describedby="profileError">
+                    </label>
+                    <label>
+                        <span id="profileClassNameLabel">Класс</span>
+                        <input type="text" id="profileClassNameInput">
+                    </label>
+                    <label>
+                        <span id="profileClassroomLabel">Кабинет</span>
+                        <input type="text" id="profileClassroomInput">
+                    </label>
+                    <label class="wide-field">
+                        <span id="profileTeacherLabel">Классный руководитель</span>
+                        <input type="text" id="profileTeacherInput">
+                    </label>
+                    <label>
+                        <span id="profileEmailLabel">E-mail</span>
+                        <input type="email" id="profileEmailInput" autocomplete="email" aria-describedby="profileError">
+                    </label>
+                    <label>
+                        <span id="profilePhoneLabel">Телефон</span>
+                        <input type="tel" id="profilePhoneInput" autocomplete="tel">
+                    </label>
+                </div>
+                <p class="form-message error hidden" id="profileError" aria-live="polite"></p>
+                <div class="modal-actions profile-actions">
+                    <button class="modal-btn secondary" id="resetProfileBtn" type="button">Сбросить</button>
+                    <button class="modal-btn primary" id="saveProfileBtn" type="submit">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script type="module" src="script.js"></script>
+    <script type="module" src="https://unpkg.com/ionicons/dist/ionicons/ionicons.esm.js"></script>
+    <script nomodule src="https://unpkg.com/ionicons/dist/ionicons/ionicons.js"></script>
+</body>
+</html>

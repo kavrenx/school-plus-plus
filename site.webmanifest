@@ -1,0 +1,19 @@
+{
+  "name": "School++ — электронный дневник",
+  "short_name": "School++",
+  "description": "Демонстрация электронного дневника с кабинетами ученика и учителя.",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#eef1ed",
+  "theme_color": "#2f6f5e",
+  "icons": [
+    {
+      "src": "assets/favicon.svg?v=6",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

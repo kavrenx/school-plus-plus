@@ -1,0 +1,229 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  color-scheme: light;
+  --font-body:
+    "Segoe UI", "IBM Plex Sans", system-ui, -apple-system, BlinkMacSystemFont,
+    sans-serif;
+  --font-display: Georgia, "Times New Roman", serif;
+  --font-mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  --bg: #e8f0eb;
+  --paper: #fffdf8;
+  --paper-2: #f5f1e8;
+  --paper-3: #e8e2d3;
+  --ink: #202721;
+  --muted: #627166;
+  --quiet: #5f6d63;
+  --line: #d8d0bf;
+  --line-dark: #958a74;
+  --accent: #357667;
+  --on-accent: #ffffff;
+  --accent-dark: #255c50;
+  --accent-soft: #dcefe6;
+  --amber: #986a3c;
+  --danger: #b94a40;
+  --on-danger: #ffffff;
+  --danger-soft: #f5ded9;
+  --success: #2f7957;
+  --row-hover: rgba(47, 111, 94, 0.07);
+  --shadow: 0 18px 50px rgba(36, 45, 38, 0.1);
+  --shadow-focus: 0 0 0 3px var(--accent-soft);
+  --radius-sm: 4px;
+  --radius-md: 7px;
+  --radius: var(--radius-md);
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --control-height: 44px;
+  --control-height-lg: 46px;
+  --container: 1240px;
+  --duration-fast: 140ms;
+  --duration-base: 180ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --transition: var(--duration-base) var(--ease-standard);
+}
+
+body.dark {
+  color-scheme: dark;
+  --bg: #151b18;
+  --paper: #202822;
+  --paper-2: #27312b;
+  --paper-3: #303a32;
+  --ink: #eef3ed;
+  --muted: #b9c2ba;
+  --quiet: #8e9a92;
+  --line: #3a453d;
+  --line-dark: #66736a;
+  --accent: #83bfa9;
+  --on-accent: #15241d;
+  --accent-dark: #a9d7c4;
+  --accent-soft: rgba(131, 191, 169, 0.14);
+  --amber: #d59b60;
+  --danger: #e1847b;
+  --on-danger: #24100e;
+  --danger-soft: rgba(185, 74, 64, 0.18);
+  --success: #92d0b4;
+  --row-hover: rgba(131, 191, 169, 0.09);
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.26);
+}
+
+html {
+  max-width: 100%;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+body {
+  --backdrop-x: 0px;
+  --backdrop-y: 0px;
+  min-height: 100vh;
+  max-width: 100%;
+  position: relative;
+  isolation: isolate;
+  overflow-x: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  text-rendering: optimizeLegibility;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  z-index: -1;
+  inset: -96px;
+  pointer-events: none;
+  background:
+    radial-gradient(rgba(32, 39, 33, 0.035) 0.7px, transparent 0.8px),
+    linear-gradient(90deg, rgba(32, 39, 33, 0.06) 1px, transparent 1px),
+    linear-gradient(rgba(32, 39, 33, 0.052) 1px, transparent 1px);
+  background-position:
+    0 0,
+    0 0,
+    0 0;
+  background-size:
+    8px 8px,
+    32px 32px,
+    32px 32px;
+  transform: translate3d(var(--backdrop-x), var(--backdrop-y), 0) scale(1.04);
+  transition: transform 1150ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+body.dark::before {
+  background:
+    radial-gradient(rgba(238, 243, 237, 0.018) 0.7px, transparent 0.8px),
+    linear-gradient(90deg, rgba(238, 243, 237, 0.035) 1px, transparent 1px),
+    linear-gradient(rgba(238, 243, 237, 0.026) 1px, transparent 1px);
+  background-size:
+    8px 8px,
+    32px 32px,
+    32px 32px;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  border: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  border: 1px solid var(--line-dark);
+  border-radius: var(--radius);
+  outline: 0;
+  background: var(--paper);
+  color: var(--ink);
+  transition:
+    border-color var(--transition),
+    box-shadow var(--transition),
+    background var(--transition);
+}
+
+input,
+select {
+  min-height: var(--control-height-lg);
+  padding: 11px var(--space-3);
+}
+
+textarea {
+  padding: var(--space-3);
+  resize: vertical;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-focus);
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 0;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--quiet);
+}
+
+input[aria-invalid="true"],
+select[aria-invalid="true"],
+textarea[aria-invalid="true"] {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-soft);
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.hidden {
+  display: none !important;
+}
+
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.app {
+  min-height: 100vh;
+}

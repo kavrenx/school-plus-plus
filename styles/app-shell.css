@@ -1,0 +1,121 @@
+.dashboard-screen,
+.teacher-screen {
+  min-height: 100dvh;
+  padding: 18px;
+}
+
+.login-screen,
+.dashboard-screen,
+.teacher-screen {
+  will-change: opacity, transform;
+}
+
+.screen-enter {
+  animation: screenEnter 220ms ease both;
+}
+
+.screen-exit {
+  pointer-events: none;
+  animation: screenExit 180ms ease both;
+}
+
+.topbar,
+.dashboard-layout,
+.teacher-layout {
+  width: min(100%, var(--container));
+  margin-inline: auto;
+}
+
+.topbar {
+  min-height: 64px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+  border-bottom: 2px solid var(--line-dark);
+}
+
+.brand-mark {
+  color: var(--ink);
+  font-family: var(--font-display);
+  text-decoration: none;
+  font-size: clamp(28px, 4vw, 42px);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.theme-toggle,
+.logout-btn,
+.week-btn {
+  min-height: var(--control-height);
+  padding: 0 12px;
+  border: 1px solid var(--line-dark);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-weight: 760;
+  transition:
+    transform var(--transition),
+    border-color var(--transition),
+    background var(--transition),
+    color var(--transition),
+    opacity var(--transition);
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  line-height: 1;
+}
+
+.logout-btn,
+.week-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.logout-btn ion-icon {
+  font-size: 18px;
+}
+
+.edit-profile-btn ion-icon,
+.modal-icon ion-icon {
+  font-size: 20px;
+  pointer-events: none;
+}
+
+.theme-icon {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  line-height: 0;
+}
+
+.theme-toggle:hover,
+.logout-btn:hover,
+.week-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
+.theme-toggle:hover:not(:disabled),
+.logout-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.week-btn:disabled {
+  opacity: 0.42;
+}
