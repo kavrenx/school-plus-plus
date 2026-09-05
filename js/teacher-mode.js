@@ -2,6 +2,7 @@ import { DAY_ORDER, TEXT } from "./app-config.js";
 import { createDateTools } from "./date-tools.js";
 import { getSafeMaterialUrl } from "./diary-view.js";
 import { setFieldInvalid } from "./ui-utils.js";
+import { selectLesson, renderLessonView } from "./teacher-lesson-view.js";
 import {
   calculateGradeStats,
   formatGradeAverage,
@@ -29,6 +30,8 @@ function mount(root, options) {
     syncTheme: options.syncTheme,
     notify: options.notify,
     view: "overview",
+    journalMode: root.ownerDocument.defaultView?.matchMedia?.("(max-width: 760px)").matches ? "lesson" : "quarter",
+    selectedLessonId: "",
     selectedAssignmentId: "",
     selectedTermId: "",
     registerScrollLeft: 0,
@@ -235,6 +238,8 @@ function renderJournalScreen(state, assignment) {
     : [];
   const students = state.model.getStudentsForAssignment(assignment);
   const audience = assignment.groupTitle || "весь класс";
+  const lesson = selectLesson(lessons, state.selectedLessonId, today);
+  state.selectedLessonId = lesson?.id || "";
 
   return `
     <main class="teacher-layout teacher-journal-view" id="teacherMainContent">
@@ -255,7 +260,7 @@ function renderJournalScreen(state, assignment) {
               <span class="teacher-select-arrow" aria-hidden="true"></span>
             </span>
           </label>
-          <div class="teacher-scroll-controls" aria-label="Прокрутка журнала">
+          <div class="teacher-scroll-controls" aria-label="Прокрутка журнала" ${state.journalMode === "lesson" ? "hidden" : ""}>
             <button type="button" data-register-scroll="start" aria-label="Перейти к началу четверти"><school-icon name="play-back-outline" aria-hidden="true"></school-icon></button>
             <button type="button" data-register-scroll="previous" aria-label="Показать предыдущие даты"><school-icon name="chevron-back-outline" aria-hidden="true"></school-icon></button>
             <button type="button" data-register-scroll="next" aria-label="Показать следующие даты"><school-icon name="chevron-forward-outline" aria-hidden="true"></school-icon></button>
@@ -264,7 +269,13 @@ function renderJournalScreen(state, assignment) {
         </div>
       </section>
 
-      <section class="teacher-journal-panel">
+      <div class="journal-mode-switch" role="group" aria-label="Вид журнала">
+        <button type="button" data-journal-mode="lesson" aria-pressed="${state.journalMode === "lesson"}">Один урок</button>
+        <button type="button" data-journal-mode="quarter" aria-pressed="${state.journalMode === "quarter"}">Вся четверть</button>
+      </div>
+      ${state.journalMode === "lesson"
+        ? renderLessonView({ lesson, lessons, students, store: state.store, dateTools: state.dateTools, today })
+        : `<section class="teacher-journal-panel">
         ${
           selectedTerm && lessons.length
             ? renderQuarterRegister(
@@ -276,13 +287,34 @@ function renderJournalScreen(state, assignment) {
               )
             : `<div class="teacher-empty"><p>В выбранной четверти занятий по этому предмету нет.</p></div>`
         }
-      </section>
+      </section>`}
     </main>
   `;
 }
 
 function bindRootEvents(state) {
   const handleClick = (event) => {
+    const modeButton = event.target.closest("[data-journal-mode]");
+    if (modeButton) {
+      state.registerScrollLeft = state.root.querySelector("[data-register-viewport]")?.scrollLeft || state.registerScrollLeft;
+      state.journalMode = modeButton.dataset.journalMode;
+      render(state);
+      state.root.querySelector(`[data-journal-mode="${state.journalMode}"]`)?.focus({ preventScroll: true });
+      return;
+    }
+    const stepButton = event.target.closest("[data-lesson-step]");
+    if (stepButton) {
+      const context = getJournalContext(state);
+      const index = context?.lessons.findIndex((lesson) => lesson.id === state.selectedLessonId);
+      const target = context?.lessons[index + Number(stepButton.dataset.lessonStep)];
+      if (target) {
+        state.selectedLessonId = target.id;
+        render(state);
+        const nextButton = state.root.querySelector(`[data-lesson-step="${stepButton.dataset.lessonStep}"]`);
+        (nextButton?.disabled ? state.root.querySelector("[data-lesson-select]") : nextButton)?.focus({ preventScroll: true });
+      }
+      return;
+    }
     const closeEditorButton = event.target.closest("[data-close-journal-editor]");
     if (closeEditorButton) {
       closeJournalEditor(state);
@@ -354,6 +386,8 @@ function bindRootEvents(state) {
     if (assignmentButton) {
       state.selectedAssignmentId = assignmentButton.dataset.openAssignment;
       state.selectedTermId = "";
+      state.selectedLessonId = "";
+      state.registerScrollLeft = 0;
       state.view = "journal";
       render(state);
       state.root.ownerDocument.defaultView?.scrollTo?.({
@@ -389,10 +423,17 @@ function bindRootEvents(state) {
   };
 
   const handleChange = (event) => {
+    if (event.target.matches("[data-lesson-select]")) {
+      state.selectedLessonId = event.target.value;
+      render(state);
+      state.root.querySelector("[data-lesson-select]")?.focus({ preventScroll: true });
+    }
     if (event.target.matches("[data-term-select]")) {
       state.selectedTermId = event.target.value;
+      state.selectedLessonId = "";
       state.registerScrollLeft = 0;
       render(state);
+      state.root.querySelector("[data-term-select]")?.focus({ preventScroll: true });
     }
     if (event.target.matches('[data-homework-editor-form] [name="noHomework"]')) {
       const textarea = event.target.form.elements.homework;
