@@ -1347,6 +1347,17 @@ body.journal-editor-open {
   .teacher-journal-route {
     grid-template-columns: 1fr;
     align-items: start;
+    gap: 12px;
+    padding: 4px 0 12px;
+  }
+
+  .teacher-journal-route h1 {
+    font-size: 30px;
+    margin: 5px 0;
+  }
+
+  .teacher-journal-view {
+    gap: 12px;
   }
 
   .teacher-journal-tools {
