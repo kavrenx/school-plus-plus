@@ -220,7 +220,7 @@
                     </button>
 
                     <button class="logout-btn" id="logoutBtn" type="button">
-                        <ion-icon name="log-out-outline" aria-hidden="true"></ion-icon>
+                        <school-icon name="log-out-outline" aria-hidden="true"></school-icon>
                         <span class="logout-text">Выйти</span>
                     </button>
                 </div>
@@ -239,7 +239,7 @@
                     <div class="journal-main">
                         <section class="week-switcher" aria-labelledby="weekRangeTitle">
                             <div class="student-period-bar">
-                                <label class="panel-label" for="studentTermSelect">Учебный период</label>
+                                <label class="panel-label" for="studentTermSelect" id="studentYearLabel">Учебный период</label>
                                 <span class="student-term-control">
                                     <select id="studentTermSelect" aria-label="Учебный период"></select>
                                     <span class="student-term-arrow" aria-hidden="true"></span>
@@ -278,6 +278,11 @@
                     </div>
 
                     <aside class="student-sidebar" aria-label="Профиль ученика">
+                        <details class="student-profile-disclosure" id="studentProfileDisclosure" open>
+                            <summary>
+                                <span>Профиль и класс</span>
+                                <span class="disclosure-icon" aria-hidden="true"></span>
+                            </summary>
                         <section class="student-card">
                             <div class="student-photo-area">
                                 <label class="student-photo" id="studentPhotoLabel">
@@ -329,11 +334,12 @@
                                 </details>
 
                                 <button class="edit-profile-btn" id="editProfileBtn" type="button">
-                                    <ion-icon name="create-outline" aria-hidden="true"></ion-icon>
+                                    <school-icon name="create-outline" aria-hidden="true"></school-icon>
                                     Изменить
                                 </button>
                             </div>
                         </section>
+                        </details>
                     </aside>
                 </section>
             </main>
@@ -368,7 +374,7 @@
 
     <div class="modal-overlay hidden" id="logoutModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="logoutModalTitle">
         <div class="modal-card">
-            <div class="modal-icon"><ion-icon name="help-outline"></ion-icon></div>
+            <div class="modal-icon"><school-icon name="help-outline"></school-icon></div>
             <h3 id="logoutModalTitle">Выйти из дневника?</h3>
             <p>Вы вернётесь на экран входа. Данные аккаунта не удаляются.</p>
             <div class="modal-actions">
@@ -380,7 +386,7 @@
 
     <div class="modal-overlay hidden" id="removeAvatarModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="removeAvatarModalTitle">
         <div class="modal-card">
-            <div class="modal-icon"><ion-icon name="alert-outline"></ion-icon></div>
+            <div class="modal-icon"><school-icon name="alert-outline"></school-icon></div>
             <h3 id="removeAvatarModalTitle">Убрать фото профиля?</h3>
             <p>Ваше фото будет удалено. Данные аккаунта и дневник останутся без изменений.</p>
             <div class="modal-actions">
@@ -392,7 +398,7 @@
 
     <div class="modal-overlay hidden" id="resetDemoModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="resetDemoModalTitle">
         <div class="modal-card">
-            <div class="modal-icon"><ion-icon name="refresh-outline"></ion-icon></div>
+            <div class="modal-icon"><school-icon name="refresh-outline"></school-icon></div>
             <h3 id="resetDemoModalTitle">Сбросить изменения?</h3>
             <p>Будут удалены изменённые оценки, профиль, фото и сохранённый вход. Исходные demo-данные останутся.</p>
             <div class="modal-actions">
@@ -467,7 +473,7 @@
     <div class="modal-overlay hidden" id="profileModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="profileModalTitle">
         <div class="modal-card profile-modal-card">
             <button class="modal-close" data-close-modal="profileModal" type="button" aria-label="Закрыть">×</button>
-            <div class="modal-icon"><ion-icon name="create-outline"></ion-icon></div>
+            <div class="modal-icon"><school-icon name="create-outline"></school-icon></div>
             <h3 id="profileModalTitle">Профиль ученика</h3>
             <form class="modal-form profile-form" id="profileForm" novalidate>
                 <div class="profile-form-grid">
@@ -510,7 +516,5 @@
     </div>
 
     <script type="module" src="script.js"></script>
-    <script type="module" src="https://unpkg.com/ionicons/dist/ionicons/ionicons.esm.js"></script>
-    <script nomodule src="https://unpkg.com/ionicons/dist/ionicons/ionicons.js"></script>
 </body>
 </html>

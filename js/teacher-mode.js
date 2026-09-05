@@ -1,6 +1,7 @@
 import { DAY_ORDER, TEXT } from "./app-config.js";
 import { createDateTools } from "./date-tools.js";
 import { getSafeMaterialUrl } from "./diary-view.js";
+import { setFieldInvalid } from "./ui-utils.js";
 import {
   calculateGradeStats,
   formatGradeAverage,
@@ -26,6 +27,7 @@ function mount(root, options) {
     onLogout: options.onLogout,
     onThemeToggle: options.onThemeToggle,
     syncTheme: options.syncTheme,
+    notify: options.notify,
     view: "overview",
     selectedAssignmentId: "",
     selectedTermId: "",
@@ -77,7 +79,7 @@ function renderTopbar(showBackButton) {
         ${
           showBackButton
             ? `<button class="teacher-back-btn" type="button" data-teacher-home>
-                <ion-icon name="chevron-back-outline" aria-hidden="true"></ion-icon>
+                <school-icon name="chevron-back-outline" aria-hidden="true"></school-icon>
                 <span class="teacher-back-label">К классам</span>
               </button>`
             : ""
@@ -87,7 +89,7 @@ function renderTopbar(showBackButton) {
           <span class="theme-text">Тема</span>
         </button>
         <button class="logout-btn" type="button" data-teacher-logout>
-          <ion-icon name="log-out-outline" aria-hidden="true"></ion-icon>
+          <school-icon name="log-out-outline" aria-hidden="true"></school-icon>
           <span class="logout-text">Выйти</span>
         </button>
       </div>
@@ -100,9 +102,10 @@ function renderOverview(state, assignments) {
   const dateLabel = state.dateTools.formatIsoDateLong(today);
   const weekdayLabel = state.dateTools.formatIsoWeekday(today);
   const groupedAssignments = groupAssignmentsByClass(assignments);
+  const currentTerm = state.model.getTermForDate(today);
   const todayLessons = assignments.flatMap((assignment) =>
-    state.model
-      .getLessonsForAssignment(assignment)
+    (currentTerm ? state.model
+      .getLessonsForAssignmentTerm(assignment, currentTerm.id) : [])
       .filter((lesson) => lesson.date === today),
   );
 
@@ -176,7 +179,7 @@ function renderSubjectButton(assignment) {
         <strong>${escapeHtml(assignment.subjectTitle)}</strong>
         <small>${escapeHtml(audience)} · ${formatStudentCount(assignment.studentCount)}</small>
       </span>
-      <span class="teacher-subject-arrow" aria-hidden="true"><ion-icon name="chevron-forward-outline"></ion-icon></span>
+      <span class="teacher-subject-arrow" aria-hidden="true"><school-icon name="chevron-forward-outline"></school-icon></span>
     </button>
   `;
 }
@@ -244,7 +247,7 @@ function renderJournalScreen(state, assignment) {
 
         <div class="teacher-journal-tools">
           <label class="teacher-term-select">
-            <span>Учебный период</span>
+            <span>Учебный период · ${escapeHtml(state.model.school.academicYear.title)}</span>
             <span class="teacher-select-control">
               <select data-term-select>
                 ${terms.map((term) => `<option value="${escapeHtml(term.id)}" ${term.id === selectedTerm?.id ? "selected" : ""}>${escapeHtml(term.title)}</option>`).join("")}
@@ -253,10 +256,10 @@ function renderJournalScreen(state, assignment) {
             </span>
           </label>
           <div class="teacher-scroll-controls" aria-label="Прокрутка журнала">
-            <button type="button" data-register-scroll="start" aria-label="Перейти к началу четверти"><ion-icon name="play-back-outline" aria-hidden="true"></ion-icon></button>
-            <button type="button" data-register-scroll="previous" aria-label="Показать предыдущие даты"><ion-icon name="chevron-back-outline" aria-hidden="true"></ion-icon></button>
-            <button type="button" data-register-scroll="next" aria-label="Показать следующие даты"><ion-icon name="chevron-forward-outline" aria-hidden="true"></ion-icon></button>
-            <button type="button" data-register-scroll="end" aria-label="Перейти к концу четверти"><ion-icon name="play-forward-outline" aria-hidden="true"></ion-icon></button>
+            <button type="button" data-register-scroll="start" aria-label="Перейти к началу четверти"><school-icon name="play-back-outline" aria-hidden="true"></school-icon></button>
+            <button type="button" data-register-scroll="previous" aria-label="Показать предыдущие даты"><school-icon name="chevron-back-outline" aria-hidden="true"></school-icon></button>
+            <button type="button" data-register-scroll="next" aria-label="Показать следующие даты"><school-icon name="chevron-forward-outline" aria-hidden="true"></school-icon></button>
+            <button type="button" data-register-scroll="end" aria-label="Перейти к концу четверти"><school-icon name="play-forward-outline" aria-hidden="true"></school-icon></button>
           </div>
         </div>
       </section>
@@ -414,9 +417,26 @@ function bindRootEvents(state) {
   };
 
   const handleKeydown = (event) => {
-    if (event.key === "Escape" && state.root.querySelector("[data-journal-editor]")) {
+    const editor = state.root.querySelector("[data-journal-editor]");
+    if (!editor) return;
+    if (event.key === "Escape") {
       event.preventDefault();
       closeJournalEditor(state, true);
+    }
+    if (event.key === "Tab") {
+      const controls = [...editor.querySelectorAll(
+        'button:not(:disabled), textarea:not(:disabled), input:not([type="hidden"]):not(:disabled)',
+      )];
+      const first = controls[0];
+      const last = controls.at(-1);
+      const active = state.root.ownerDocument.activeElement;
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first?.focus();
+      }
     }
   };
 
@@ -641,7 +661,7 @@ function openHomeworkEditor(state, lessonId, restoreFocus = false) {
         </label>
         <label class="teacher-editor-field">
           <span>Ссылки на материалы</span>
-          <textarea name="materials" rows="3" placeholder="По одной ссылке в строке">${escapeHtml((lessonWork.materials || []).join("\n"))}</textarea>
+          <textarea name="materials" rows="3" aria-describedby="journalEditorMessage" placeholder="По одной ссылке в строке">${escapeHtml((lessonWork.materials || []).join("\n"))}</textarea>
         </label>
         ${renderEditorFooter()}
       </form>
@@ -686,7 +706,7 @@ function renderGradePicker(selectedGrades, { single = false } = {}) {
         const widthClass = /^(?:10|[1-9])$/.test(value) ? "" : "is-wide";
         return `<button type="button" class="teacher-grade-choice ${widthClass} ${isSelected ? "is-selected" : ""}" data-editor-grade="${escapeHtml(value)}" aria-pressed="${isSelected}">${escapeHtml(toShortTermGrade(value))}</button>`;
       }).join("")}
-      <button class="teacher-clear-grade" type="button" data-clear-editor-grade aria-label="Убрать выбранные отметки"><ion-icon name="close-outline" aria-hidden="true"></ion-icon></button>
+      <button class="teacher-clear-grade" type="button" data-clear-editor-grade aria-label="Убрать выбранные отметки"><school-icon name="close-outline" aria-hidden="true"></school-icon></button>
     </div>
   `;
 }
@@ -696,19 +716,19 @@ function renderEditorHeader(title, subtitle) {
     <header class="teacher-editor-header">
       <div>
         <p class="panel-label">Редактирование</p>
-        <h2>${escapeHtml(title)}</h2>
+        <h2 id="journalEditorTitle">${escapeHtml(title)}</h2>
         <p>${escapeHtml(subtitle)}</p>
       </div>
-      <button type="button" class="teacher-editor-close" data-close-journal-editor aria-label="Отменить изменения"><ion-icon name="close-outline" aria-hidden="true"></ion-icon></button>
+      <button type="button" class="teacher-editor-close" data-close-journal-editor aria-label="Отменить изменения"><school-icon name="close-outline" aria-hidden="true"></school-icon></button>
     </header>
   `;
 }
 
 function renderEditorFooter() {
   return `
-    <p class="teacher-editor-message" data-editor-message aria-live="polite"></p>
+    <p class="teacher-editor-message" id="journalEditorMessage" data-editor-message aria-live="polite"></p>
     <footer class="teacher-editor-actions">
-      <button type="submit" class="is-primary"><ion-icon name="checkmark-outline" aria-hidden="true"></ion-icon><span>Сохранить</span></button>
+      <button type="submit" class="is-primary"><school-icon name="checkmark-outline" aria-hidden="true"></school-icon><span>Сохранить</span></button>
     </footer>
   `;
 }
@@ -719,7 +739,7 @@ function mountJournalEditor(state, html) {
   state.root.ownerDocument.body.classList.remove("journal-editor-open");
   state.root.insertAdjacentHTML(
     "beforeend",
-    `<div class="teacher-editor-backdrop" data-journal-editor-backdrop>${html}</div>`,
+    `<div class="teacher-editor-backdrop" data-journal-editor-backdrop role="dialog" aria-modal="true" aria-labelledby="journalEditorTitle">${html}</div>`,
   );
   state.root
     .querySelector(
@@ -830,9 +850,11 @@ function saveEntryEditor(state, form) {
 function saveHomeworkEditor(state, form) {
   const lessonId = form.elements.lessonId.value;
   const { materials, invalidCount } = parseMaterialInput(form.elements.materials.value);
+  setFieldInvalid(form.elements.materials, invalidCount > 0);
   if (invalidCount) {
     const message = form.querySelector("[data-editor-message]");
     message.textContent = "Проверьте ссылки: принимаются только адреса http и https.";
+    form.elements.materials.focus();
     return;
   }
   const result = state.store.saveLessonWork({
@@ -865,8 +887,14 @@ function finishEditorSave(state, form, persisted) {
   }
   state.registerScrollLeft =
     state.root.querySelector("[data-register-viewport]")?.scrollLeft || 0;
+  const trigger = { ...state.editorTrigger?.dataset };
   closeJournalEditor(state, false);
   render(state);
+  const buttons = state.root.querySelectorAll("[data-open-entry], [data-open-homework], [data-open-term-grade]");
+  if (Object.keys(trigger).length) [...buttons].find((button) => Object.entries(trigger).every(
+    ([key, value]) => button.dataset[key] === value,
+  ))?.focus({ preventScroll: true });
+  state.notify?.("Сохранено", { type: "success" });
 }
 
 function renderQuarterRegister(state, assignment, students, lessons, term) {

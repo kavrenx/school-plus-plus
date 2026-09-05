@@ -51,6 +51,20 @@
   gap: 8px;
 }
 
+school-icon {
+  display: inline-flex;
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+  vertical-align: middle;
+  pointer-events: none;
+}
+
+school-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
 .theme-toggle,
 .logout-btn,
 .week-btn {
@@ -85,12 +99,12 @@
   gap: 7px;
 }
 
-.logout-btn ion-icon {
+.logout-btn school-icon {
   font-size: 18px;
 }
 
-.edit-profile-btn ion-icon,
-.modal-icon ion-icon {
+.edit-profile-btn school-icon,
+.modal-icon school-icon {
   font-size: 20px;
   pointer-events: none;
 }

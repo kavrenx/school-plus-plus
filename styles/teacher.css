@@ -37,10 +37,10 @@
   transform: translateY(-1px);
 }
 
-.teacher-back-btn ion-icon,
-.teacher-subject-arrow ion-icon,
-.teacher-scroll-controls ion-icon,
-.teacher-editor button ion-icon {
+.teacher-back-btn school-icon,
+.teacher-subject-arrow school-icon,
+.teacher-scroll-controls school-icon,
+.teacher-editor button school-icon {
   flex: 0 0 auto;
   font-size: 19px;
   stroke-width: 2.2px;
@@ -51,11 +51,11 @@
 }
 
 .teacher-overview-hero {
-  min-height: 210px;
+  min-height: 150px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 24px 0 28px;
+  padding: 18px 0 22px;
   border-bottom: 1px solid var(--line-dark);
 }
 
@@ -66,8 +66,8 @@
 .teacher-overview-hero h1 {
   max-width: 1000px;
   margin-bottom: 12px;
-  font-size: clamp(42px, 6.4vw, 76px);
-  line-height: 0.96;
+  font-size: clamp(32px, 4vw, 50px);
+  line-height: 1.08;
   letter-spacing: -0.045em;
 }
 
@@ -418,7 +418,7 @@
     color var(--transition);
 }
 
-.teacher-scroll-controls button ion-icon {
+.teacher-scroll-controls button school-icon {
   font-size: 21px;
 }
 
@@ -768,7 +768,7 @@ body.journal-editor-open {
   font-size: 24px;
 }
 
-.teacher-editor-close ion-icon {
+.teacher-editor-close school-icon {
   font-size: 25px;
 }
 
@@ -942,7 +942,7 @@ body.journal-editor-open {
   gap: 7px;
 }
 
-.teacher-editor-actions ion-icon {
+.teacher-editor-actions school-icon {
   font-size: 22px;
 }
 

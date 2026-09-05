@@ -5,47 +5,47 @@ export const SCHOOL_DATA = {
     timezone: "Europe/Minsk",
     locale: "ru-BY",
     academicYear: {
-      id: "academic_year_2025_2026",
-      title: "2025/2026",
-      startsOn: "2025-09-01",
-      endsOn: "2026-08-31",
+      id: "academic_year_2026_2027",
+      title: "2026/2027",
+      startsOn: "2026-09-01",
+      endsOn: "2027-08-31",
       terms: [
         {
-          id: "term_2025_1",
+          id: "term_2026_1",
           title: "1 четверть",
           order: 1,
-          startsOn: "2025-09-01",
-          endsOn: "2025-10-31"
+          startsOn: "2026-09-01",
+          endsOn: "2026-10-30"
         },
         {
-          id: "term_2025_2",
+          id: "term_2026_2",
           title: "2 четверть",
           order: 2,
-          startsOn: "2025-11-10",
-          endsOn: "2025-12-24"
+          startsOn: "2026-11-09",
+          endsOn: "2026-12-24"
         },
         {
-          id: "term_2026_3",
+          id: "term_2027_3",
           title: "3 четверть",
           order: 3,
-          startsOn: "2026-01-12",
-          endsOn: "2026-03-20"
+          startsOn: "2027-01-11",
+          endsOn: "2027-03-19"
         },
         {
-          id: "term_2026_4",
+          id: "term_2027_4",
           title: "4 четверть",
           order: 4,
-          startsOn: "2026-03-30",
-          endsOn: "2026-05-31"
+          startsOn: "2027-03-29",
+          endsOn: "2027-05-31"
         }
       ],
       breaks: [
         {
-          id: "summer_2026",
+          id: "summer_2027",
           type: "summer",
           title: "Летние каникулы",
-          startsOn: "2026-06-01",
-          endsOn: "2026-08-31"
+          startsOn: "2027-06-01",
+          endsOn: "2027-08-31"
         }
       ]
     }
@@ -193,7 +193,7 @@ export const SCHOOL_DATA = {
   lessonTemplates: [
     {
       id: "template_8a_math_monday",
-      schoolYearId: "academic_year_2025_2026",
+      schoolYearId: "academic_year_2026_2027",
       classId: "class_8a",
       subjectId: "mathematics",
       teacherId: "teacher_demo",
@@ -205,7 +205,7 @@ export const SCHOOL_DATA = {
     },
     {
       id: "template_8a_math_wednesday",
-      schoolYearId: "academic_year_2025_2026",
+      schoolYearId: "academic_year_2026_2027",
       classId: "class_8a",
       subjectId: "mathematics",
       teacherId: "teacher_demo",
@@ -217,7 +217,7 @@ export const SCHOOL_DATA = {
     },
     {
       id: "template_8a_math_friday",
-      schoolYearId: "academic_year_2025_2026",
+      schoolYearId: "academic_year_2026_2027",
       classId: "class_8a",
       subjectId: "mathematics",
       teacherId: "teacher_demo",
@@ -229,7 +229,7 @@ export const SCHOOL_DATA = {
     },
     {
       id: "template_8a_informatics_2_tuesday",
-      schoolYearId: "academic_year_2025_2026",
+      schoolYearId: "academic_year_2026_2027",
       classId: "class_8a",
       groupId: "class_8a_informatics_2",
       subjectId: "informatics",
@@ -242,7 +242,7 @@ export const SCHOOL_DATA = {
     },
     {
       id: "template_11a_math_monday",
-      schoolYearId: "academic_year_2025_2026",
+      schoolYearId: "academic_year_2026_2027",
       classId: "class_11a",
       subjectId: "mathematics",
       teacherId: "teacher_demo",
@@ -254,7 +254,7 @@ export const SCHOOL_DATA = {
     },
     {
       id: "template_11a_math_tuesday",
-      schoolYearId: "academic_year_2025_2026",
+      schoolYearId: "academic_year_2026_2027",
       classId: "class_11a",
       subjectId: "mathematics",
       teacherId: "teacher_demo",
@@ -266,7 +266,7 @@ export const SCHOOL_DATA = {
     },
     {
       id: "template_11a_math_thursday",
-      schoolYearId: "academic_year_2025_2026",
+      schoolYearId: "academic_year_2026_2027",
       classId: "class_11a",
       subjectId: "mathematics",
       teacherId: "teacher_demo",
@@ -278,7 +278,7 @@ export const SCHOOL_DATA = {
     },
     {
       id: "template_11a_math_friday",
-      schoolYearId: "academic_year_2025_2026",
+      schoolYearId: "academic_year_2026_2027",
       classId: "class_11a",
       subjectId: "mathematics",
       teacherId: "teacher_demo",
@@ -290,7 +290,7 @@ export const SCHOOL_DATA = {
     },
     {
       id: "template_11a_informatics_1_wednesday",
-      schoolYearId: "academic_year_2025_2026",
+      schoolYearId: "academic_year_2026_2027",
       classId: "class_11a",
       groupId: "class_11a_informatics_1",
       subjectId: "informatics",

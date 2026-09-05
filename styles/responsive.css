@@ -233,6 +233,52 @@
 
 @media (max-width: 760px),
   (max-height: 560px) and (orientation: landscape) and (max-width: 950px) {
+  .student-profile-disclosure > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: var(--control-height);
+    gap: 12px;
+    color: var(--accent-dark);
+    font-weight: 800;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .student-profile-disclosure > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .student-profile-disclosure[open] > summary {
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .student-profile-disclosure > summary .disclosure-icon::before {
+    content: "+";
+    font-size: 20px;
+  }
+
+  .student-profile-disclosure[open] > summary .disclosure-icon::before {
+    content: "−";
+  }
+
+  .student-period-bar {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+  }
+
+  .student-term-control {
+    width: min(190px, 60%);
+  }
+
+  .student-term-control select {
+    min-height: var(--control-height);
+  }
+
   .diary-table-wrap:has(.diary-table) {
     overflow: visible;
     border: 0;
@@ -510,7 +556,7 @@
   .student-sidebar {
     gap: 0;
     order: -1;
-    padding: 12px;
+    padding: 4px 12px;
     border: 1px solid var(--line-dark);
     background: var(--paper);
   }

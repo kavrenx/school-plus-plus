@@ -10,6 +10,14 @@
   border-left: 1px solid var(--line-dark);
 }
 
+.student-profile-disclosure {
+  min-width: 0;
+}
+
+.student-profile-disclosure > summary {
+  display: none;
+}
+
 .student-card {
   align-self: start;
   display: grid;

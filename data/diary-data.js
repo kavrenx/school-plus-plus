@@ -1,4 +1,5 @@
 import { SCHOOL_DATA } from "./school-data.js";
+import { addIsoDays, parseIsoDateParts } from "../js/date-tools.js";
 
 const SUBJECT_HOMEWORK = {
   "Англ. яз.": "упр. 6, слова к уроку",
@@ -70,7 +71,7 @@ export const SCHOOL_DIARY = {
   schemaVersion: 2,
   meta: {
     schoolId: "school_demo",
-    schoolYear: "2025/2026",
+    schoolYear: SCHOOL_DATA.school.academicYear.title,
     locale: "ru-BY",
     timezone: "Europe/Minsk",
     classId: "class_7b",
@@ -96,9 +97,15 @@ function createLesson(number, subject, time, room) {
 
 function createDiaryWeeks(terms = []) {
   return terms.flatMap((term) => {
+    const parts = parseIsoDateParts(term.startsOn);
+    if (!parts || !parseIsoDateParts(term.endsOn) || term.startsOn > term.endsOn) {
+      return [];
+    }
+    const weekday = new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay();
+    const firstMonday = addIsoDays(term.startsOn, -((weekday + 6) % 7));
     const weeks = [];
     for (
-      let weekStart = term.startsOn;
+      let weekStart = firstMonday;
       weekStart <= term.endsOn;
       weekStart = addIsoDays(weekStart, 7)
     ) {
@@ -137,12 +144,6 @@ function createWeekSchedule(weekStart, term) {
   });
 
   return { days, dayInfo };
-}
-
-function addIsoDays(value, amount) {
-  const [year, month, day] = value.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day + amount));
-  return date.toISOString().slice(0, 10);
 }
 
 export { createDiaryWeeks };

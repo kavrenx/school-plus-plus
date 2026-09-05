@@ -34,6 +34,8 @@ function createStudentDashboardController({
     accountEmail: root.getElementById("accountEmail"),
     accountPhone: root.getElementById("accountPhone"),
     accountDisclosure: root.getElementById("accountDisclosure"),
+    profileDisclosure: root.getElementById("studentProfileDisclosure"),
+    yearLabel: root.getElementById("studentYearLabel"),
     toggleLoginButton: root.getElementById("toggleLoginBtn"),
     weekRangeTitle: root.getElementById("weekRangeTitle"),
     termSelect: root.getElementById("studentTermSelect"),
@@ -48,6 +50,9 @@ function createStudentDashboardController({
   };
   const mobileLayout = root.defaultView?.matchMedia?.(
     "(max-width: 560px), (max-height: 560px) and (orientation: landscape) and (max-width: 950px)",
+  );
+  const compactProfileLayout = root.defaultView?.matchMedia?.(
+    "(max-width: 760px), (max-height: 560px) and (orientation: landscape) and (max-width: 950px)",
   );
   const {
     formatIsoDateLong,
@@ -101,6 +106,7 @@ function createStudentDashboardController({
     });
     elements.dayTabs.addEventListener("keydown", handleDayTabKeydown);
     mobileLayout?.addEventListener?.("change", syncAccountDisclosure);
+    compactProfileLayout?.addEventListener?.("change", syncProfileDisclosure);
     elements.toggleLoginButton.addEventListener(
       "click",
       toggleLoginVisibility,
@@ -111,6 +117,7 @@ function createStudentDashboardController({
     currentUser = user;
     isLoginVisible = false;
     syncAccountDisclosure();
+    syncProfileDisclosure();
     renderStudent(user);
     renderHero(user);
     renderTermSelect();
@@ -146,6 +153,12 @@ function createStudentDashboardController({
     elements.accountDisclosure.open = shouldExpandAccountDetails(
       Boolean(event?.matches),
     );
+  }
+
+  function syncProfileDisclosure(event = compactProfileLayout) {
+    if (elements.profileDisclosure) {
+      elements.profileDisclosure.open = !event?.matches;
+    }
   }
 
   function toggleLoginVisibility() {
@@ -251,6 +264,17 @@ function createStudentDashboardController({
       "aria-labelledby",
       `dayTab-${selectedDayKey}`,
     );
+    root.defaultView?.requestAnimationFrame?.(() => {
+      const active = elements.dayTabs.querySelector('[aria-selected="true"]');
+      if (!active) return;
+      const bounds = elements.dayTabs.getBoundingClientRect();
+      const tabBounds = active.getBoundingClientRect();
+      if (tabBounds.right > bounds.right) {
+        elements.dayTabs.scrollLeft += tabBounds.right - bounds.right;
+      } else if (tabBounds.left < bounds.left) {
+        elements.dayTabs.scrollLeft -= bounds.left - tabBounds.left;
+      }
+    });
   }
 
   function selectDay(dayKey, shouldFocus = false) {
@@ -297,6 +321,9 @@ function createStudentDashboardController({
   }
 
   function renderTermSelect() {
+    if (elements.yearLabel) {
+      elements.yearLabel.textContent = diary.school.academicYear.title;
+    }
     if (!elements.termSelect) return;
     elements.termSelect.innerHTML = terms
       .map(

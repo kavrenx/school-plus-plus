@@ -21,6 +21,9 @@ import { createStudentClassController } from "./js/student-class-controller.js";
 import { mount as mountTeacherMode } from "./js/teacher-mode.js";
 import { createThemeController } from "./js/theme-controller.js";
 import { escapeHtml, hideMessage, showMessage } from "./js/ui-utils.js";
+import { registerIcons } from "./js/icons.js";
+
+registerIcons();
 
 document.addEventListener("DOMContentLoaded", () => {
   const loginScreen = document.getElementById("loginScreen");
@@ -213,6 +216,7 @@ document.addEventListener("DOMContentLoaded", () => {
       onLogout: () => openModal(logoutModal),
       onThemeToggle: themeController.toggle,
       syncTheme: () => themeController.syncControl(teacherScreen),
+      notify: notificationController.show,
     });
     screenController.show(teacherScreen);
     resetPageScroll();
