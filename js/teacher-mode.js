@@ -2,6 +2,7 @@ import { DAY_ORDER, TEXT } from "./app-config.js";
 import { createDateTools } from "./date-tools.js";
 import { getSafeMaterialUrl } from "./diary-view.js";
 import { setFieldInvalid } from "./ui-utils.js";
+import { getSubjectResult } from "./achievement-model.js";
 import {
   calculateGradeStats,
   formatGradeAverage,
@@ -228,7 +229,8 @@ function renderTeacherProfile(state, assignments) {
 function renderJournalScreen(state, assignment) {
   const terms = state.model.school.academicYear.terms || [];
   const today = state.dateTools.getSchoolDateIso(state.now());
-  const selectedTerm = getSelectedTerm(terms, state.selectedTermId, today);
+  const isAnnual = state.selectedTermId === state.model.school.academicYear.id;
+  const selectedTerm = isAnnual ? state.model.school.academicYear : getSelectedTerm(terms, state.selectedTermId, today);
   state.selectedTermId = selectedTerm?.id || "";
   const lessons = selectedTerm
     ? state.model.getLessonsForAssignmentTerm(assignment, selectedTerm.id)
@@ -242,7 +244,7 @@ function renderJournalScreen(state, assignment) {
         <div>
           <p class="panel-label">${escapeHtml(assignment.classTitle)} · ${escapeHtml(audience)}</p>
           <h1>${escapeHtml(assignment.subjectTitle)}</h1>
-          <p>${formatRegisterSummary(students.length, lessons.length)}</p>
+          <p>${isAnnual ? `${students.length} учеников · Итоги года` : formatRegisterSummary(students.length, lessons.length)}</p>
         </div>
 
         <div class="teacher-journal-tools">
@@ -251,11 +253,12 @@ function renderJournalScreen(state, assignment) {
             <span class="teacher-select-control">
               <select data-term-select>
                 ${terms.map((term) => `<option value="${escapeHtml(term.id)}" ${term.id === selectedTerm?.id ? "selected" : ""}>${escapeHtml(term.title)}</option>`).join("")}
+                <option value="${escapeHtml(state.model.school.academicYear.id)}" ${isAnnual ? "selected" : ""}>Итоги года</option>
               </select>
               <span class="teacher-select-arrow" aria-hidden="true"></span>
             </span>
           </label>
-          <div class="teacher-scroll-controls" aria-label="Прокрутка журнала">
+          <div class="teacher-scroll-controls" aria-label="Прокрутка журнала" ${isAnnual ? "hidden" : ""}>
             <button type="button" data-register-scroll="start" aria-label="Перейти к началу четверти"><school-icon name="play-back-outline" aria-hidden="true"></school-icon></button>
             <button type="button" data-register-scroll="previous" aria-label="Показать предыдущие даты"><school-icon name="chevron-back-outline" aria-hidden="true"></school-icon></button>
             <button type="button" data-register-scroll="next" aria-label="Показать следующие даты"><school-icon name="chevron-forward-outline" aria-hidden="true"></school-icon></button>
@@ -265,8 +268,10 @@ function renderJournalScreen(state, assignment) {
       </section>
 
       <section class="teacher-journal-panel">
+        <label class="teacher-student-search">Найти ученика<input type="search" data-student-search placeholder="Имя или фамилия" autocomplete="off"></label>
+        <p data-student-search-empty hidden role="status">Ученик не найден.</p>
         ${
-          selectedTerm && lessons.length
+          isAnnual ? renderAnnualRegister(state, assignment, students) : selectedTerm && lessons.length
             ? renderQuarterRegister(
                 state,
                 assignment,
@@ -283,6 +288,12 @@ function renderJournalScreen(state, assignment) {
 
 function bindRootEvents(state) {
   const handleClick = (event) => {
+    if (event.target.closest("[data-discard-editor]")) { closeJournalEditor(state, true, true); return; }
+    if (event.target.closest("[data-keep-editor]")) {
+      state.root.querySelector("[data-editor-message]").replaceChildren();
+      state.root.querySelector("[data-journal-editor] button")?.focus();
+      return;
+    }
     const closeEditorButton = event.target.closest("[data-close-journal-editor]");
     if (closeEditorButton) {
       closeJournalEditor(state);
@@ -393,6 +404,7 @@ function bindRootEvents(state) {
       state.selectedTermId = event.target.value;
       state.registerScrollLeft = 0;
       render(state);
+      state.root.querySelector("[data-term-select]")?.focus();
     }
     if (event.target.matches('[data-homework-editor-form] [name="noHomework"]')) {
       const textarea = event.target.form.elements.homework;
@@ -418,7 +430,16 @@ function bindRootEvents(state) {
 
   const handleKeydown = (event) => {
     const editor = state.root.querySelector("[data-journal-editor]");
-    if (!editor) return;
+    if (!editor) {
+      const cell = event.target.closest("[data-open-entry]");
+      if (!cell || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+      const cells = [...state.root.querySelectorAll("[data-open-entry]")].filter((button) => !button.closest("[hidden]"));
+      const candidates = cells.filter((button) => event.key === "ArrowLeft" || event.key === "ArrowRight" ? button.dataset.studentId === cell.dataset.studentId : button.dataset.openEntry === cell.dataset.openEntry);
+      const direction = event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 1;
+      event.preventDefault();
+      candidates[candidates.indexOf(cell) + direction]?.focus();
+      return;
+    }
     if (event.key === "Escape") {
       event.preventDefault();
       closeJournalEditor(state, true);
@@ -502,6 +523,15 @@ function bindRootEvents(state) {
     setStudentRowHighlight(state, rowCell.dataset.studentRow, false);
   };
 
+  const handleInput = (event) => {
+    if (!event.target.matches("[data-student-search]")) return;
+    const query = event.target.value.trim().toLocaleLowerCase("ru");
+    const context = getJournalContext(state);
+    const matches = new Set(context.students.filter((student) => `${student.lastName} ${student.firstName}`.toLocaleLowerCase("ru").includes(query)).map((student) => student.id));
+    state.root.querySelectorAll("[data-student-row]").forEach((row) => { row.hidden = !matches.has(row.dataset.studentRow); });
+    state.root.querySelector("[data-student-search-empty]").hidden = matches.size > 0;
+  };
+  state.root.addEventListener("input", handleInput);
   state.root.addEventListener("click", handleClick);
   state.root.addEventListener("change", handleChange);
   state.root.addEventListener("submit", handleSubmit);
@@ -515,6 +545,7 @@ function bindRootEvents(state) {
   state.root.addEventListener("wheel", handleWheel, { passive: false });
 
   return () => {
+    state.root.removeEventListener("input", handleInput);
     state.root.removeEventListener("click", handleClick);
     state.root.removeEventListener("change", handleChange);
     state.root.removeEventListener("submit", handleSubmit);
@@ -684,7 +715,8 @@ function openTermGradeEditor(
     state,
     `
       <form class="teacher-editor teacher-term-editor" data-journal-editor data-term-grade-editor-form>
-        ${renderEditorHeader("Отметка за четверть", `${student.lastName} ${student.firstName} · ${context.term.title}`)}
+        ${renderEditorHeader(termId === state.model.school.academicYear.id ? "Отметка за год" : "Отметка за четверть", `${student.lastName} ${student.firstName} · ${state.model.school.academicYear.terms.find((term) => term.id === termId)?.title || state.model.school.academicYear.title}`)}
+        <p class="achievement-note">${termId === state.model.school.academicYear.id ? "Среднее четвертных" : "Средний балл"}: ${formatGradeAverage(termId === state.model.school.academicYear.id ? getSubjectResult(state.model, state.store, context.assignment, studentId).quarterAverage : getSubjectResult(state.model, state.store, context.assignment, studentId).periods.find((period) => period.term.id === termId)?.average)}. Итоговую отметку выбирает учитель.</p>
         <input type="hidden" name="studentId" value="${escapeHtml(studentId)}">
         <input type="hidden" name="termId" value="${escapeHtml(termId)}">
         <input type="hidden" name="assignmentId" value="${escapeHtml(assignmentId)}">
@@ -747,9 +779,26 @@ function mountJournalEditor(state, html) {
     )
     ?.focus?.();
   state.root.ownerDocument.body.classList.add("journal-editor-open");
+  state.editorSnapshot = getEditorSnapshot(state);
 }
 
-function closeJournalEditor(state, restoreFocus = state.restoreEditorFocus) {
+function getEditorSnapshot(state) {
+  const editor = state.root.querySelector("[data-journal-editor]");
+  if (!editor) return "";
+  return JSON.stringify({
+    fields: [...editor.querySelectorAll("input, textarea")].map((field) => [field.name, field.value, field.checked]),
+    grades: [...editor.querySelectorAll("[data-editor-grade].is-selected")].map((button) => button.dataset.editorGrade),
+    absent: Boolean(editor.querySelector('[data-editor-absence].is-selected')),
+  });
+}
+
+function closeJournalEditor(state, restoreFocus = state.restoreEditorFocus, discard = false) {
+  if (!discard && state.editorSnapshot !== getEditorSnapshot(state)) {
+    const message = state.root.querySelector("[data-editor-message]");
+    message.innerHTML = 'Есть несохранённые изменения. <button type="button" data-keep-editor>Продолжить</button> <button type="button" data-discard-editor>Не сохранять</button>';
+    message.querySelector("button")?.focus();
+    return;
+  }
   state.root.querySelector("[data-journal-editor-backdrop]")?.remove();
   state.root.ownerDocument.body.classList.remove("journal-editor-open");
   clearStudentRowHighlights(state);
@@ -888,13 +937,23 @@ function finishEditorSave(state, form, persisted) {
   state.registerScrollLeft =
     state.root.querySelector("[data-register-viewport]")?.scrollLeft || 0;
   const trigger = { ...state.editorTrigger?.dataset };
-  closeJournalEditor(state, false);
+  closeJournalEditor(state, false, true);
   render(state);
   const buttons = state.root.querySelectorAll("[data-open-entry], [data-open-homework], [data-open-term-grade]");
   if (Object.keys(trigger).length) [...buttons].find((button) => Object.entries(trigger).every(
     ([key, value]) => button.dataset[key] === value,
   ))?.focus({ preventScroll: true });
   state.notify?.("Сохранено", { type: "success" });
+}
+
+function renderAnnualRegister(state, assignment, students) {
+  const year = state.model.school.academicYear;
+  const resultButton = (student, periodId, value, label) => `<button type="button" data-open-term-grade="${escapeHtml(student.id)}" data-term-id="${escapeHtml(periodId)}" data-assignment-id="${escapeHtml(assignment.id)}" aria-label="${escapeHtml(`${label}: ${student.lastName} ${student.firstName}`)}">${escapeHtml(value || "—")}</button>`;
+  return `<h2>Итоги года</h2><p class="achievement-note">Под итогом четверти — средний балл текущих отметок. Нажмите на итог, чтобы изменить его.</p>
+    <div class="achievement-scroll" tabindex="0" role="region" aria-label="Итоги года"><table class="achievement-table"><thead><tr><th scope="col">Ученик</th>${year.terms.map((term) => `<th scope="col">${escapeHtml(term.title)}</th>`).join("")}<th scope="col">Среднее четвертных</th><th scope="col">Год</th></tr></thead><tbody>${students.map((student) => {
+      const result = getSubjectResult(state.model, state.store, assignment, student.id);
+      return `<tr data-student-row="${escapeHtml(student.id)}"><th scope="row">${escapeHtml(`${student.lastName} ${student.firstName}`)}</th>${result.periods.map((period) => `<td>${resultButton(student, period.term.id, period.final, period.term.title)}<small>Ср. ${formatGradeAverage(period.average)}</small></td>`).join("")}<td>${formatGradeAverage(result.quarterAverage)}</td><td>${resultButton(student, year.id, result.annual, "Годовая отметка")}</td></tr>`;
+    }).join("")}</tbody></table></div>`;
 }
 
 function renderQuarterRegister(state, assignment, students, lessons, term) {

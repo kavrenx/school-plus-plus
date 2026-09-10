@@ -6,6 +6,8 @@ import {
   renderDiaryTable,
 } from "./diary-view.js";
 import { getEyeIcon } from "./ui-utils.js";
+import { getStudentSubjects, getSubjectResult } from "./achievement-model.js";
+import { renderAchievementTable, renderSubjectDetails } from "./achievement-view.js";
 import {
   ATTENDANCE_STATUS,
   resolveLessonProgress,
@@ -92,8 +94,69 @@ function createStudentDashboardController({
   );
   let isLoginVisible = false;
   let currentUser = null;
+  let selectedSubjectId = "";
+  let achievementTermId = selectedTermId;
+  const achievementPanel = root.getElementById("studentAchievements");
+  const diaryButton = root.getElementById("studentDiaryButton");
+  const achievementButton = root.getElementById("studentAchievementsButton");
+  const todayButton = root.getElementById("studentTodayButton");
+
+  function showSection(achievements) {
+    if (!achievementPanel) return;
+    achievementPanel.hidden = !achievements;
+    elements.diaryPanel.hidden = achievements;
+    root.querySelector(".week-switcher").hidden = achievements;
+    diaryButton.setAttribute("aria-pressed", String(!achievements));
+    achievementButton.setAttribute("aria-pressed", String(achievements));
+    todayButton.hidden = achievements;
+    if (achievements) {
+      elements.journalMain?.classList.remove("is-empty-day", "is-quiet-empty");
+      renderAchievements();
+    } else renderDiary();
+  }
+
+  function renderAchievements(focus = false) {
+    const studentId = currentUser?.id || currentUser?.userId;
+    const results = getStudentSubjects(diary, studentId).map((assignment) => getSubjectResult(diary, journalStore, assignment, studentId));
+    const subject = results.find((item) => item.assignment.id === selectedSubjectId);
+    achievementPanel.innerHTML = subject
+      ? renderSubjectDetails(subject, achievementTermId, { formatIsoDateLong }, (lesson) => diary.lessons.some((item) => item.id === lesson.id))
+      : renderAchievementTable(results, diary.school.academicYear);
+    if (focus) achievementPanel.querySelector("[data-achievement-heading]")?.focus();
+  }
 
   function bind() {
+    diaryButton?.addEventListener("click", () => showSection(false));
+    achievementButton?.addEventListener("click", () => { selectedSubjectId = ""; showSection(true); });
+    todayButton?.addEventListener("click", () => {
+      const today = getSchoolDateIso(now());
+      selectedTermId = findInitialTermId(terms, today);
+      renderTermSelect();
+      selectTerm({ target: { value: selectedTermId } });
+    });
+    achievementPanel?.addEventListener("click", (event) => {
+      const subject = event.target.closest("[data-achievement-subject]");
+      if (subject) { selectedSubjectId = subject.dataset.achievementSubject; renderAchievements(true); }
+      if (event.target.closest("[data-achievement-back]")) { selectedSubjectId = ""; renderAchievements(true); }
+      const link = event.target.closest("[data-achievement-lesson]");
+      if (link) {
+        const lesson = diary.lessons.find((item) => item.id === link.dataset.achievementLesson);
+        if (!lesson) return;
+        selectedTermId = diary.getTermForDate(lesson.date)?.id || selectedTermId;
+        termWeekIndexes = getWeekIndexesForTerm(diary.weeks, terms.find((term) => term.id === selectedTermId));
+        selectedWeekIndex = diary.weeks.findIndex((week) => week.id === lesson.weekId);
+        selectedDayKey = lesson.dayKey;
+        renderTermSelect();
+        showSection(false);
+        elements.dayTabs.querySelector(`[data-day="${selectedDayKey}"]`)?.focus();
+      }
+    });
+    achievementPanel?.addEventListener("change", (event) => {
+      if (!event.target.matches("[data-achievement-term]")) return;
+      achievementTermId = event.target.value;
+      renderAchievements();
+      achievementPanel.querySelector("select")?.focus();
+    });
     elements.themeToggle.addEventListener("click", onThemeToggle);
     elements.logoutButton.addEventListener("click", onLogout);
     elements.previousWeekButton.addEventListener("click", () => moveWeek(-1));
@@ -122,6 +185,7 @@ function createStudentDashboardController({
     renderHero(user);
     renderTermSelect();
     renderDiary();
+    showSection(false);
   }
 
   function updateUser(user) {

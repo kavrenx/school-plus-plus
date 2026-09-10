@@ -237,6 +237,12 @@
 
                 <section class="journal-shell">
                     <div class="journal-main">
+                        <nav class="student-section-nav" aria-label="Разделы дневника">
+                            <button type="button" id="studentDiaryButton" aria-pressed="true">Дневник</button>
+                            <button type="button" id="studentAchievementsButton" aria-pressed="false">Успеваемость</button>
+                            <button type="button" id="studentTodayButton">Сегодня</button>
+                        </nav>
+                        <section id="studentAchievements" class="achievement-panel" hidden aria-label="Успеваемость"></section>
                         <section class="week-switcher" aria-labelledby="weekRangeTitle">
                             <div class="student-period-bar">
                                 <label class="panel-label" for="studentTermSelect" id="studentYearLabel">Учебный период</label>
