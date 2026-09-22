@@ -69,6 +69,42 @@ test("shows inferred presence and lesson-level materials", () => {
   assert.match(html, /https:\/\/example\.test\/task/);
 });
 
+test("does not render a room label when a lesson has no room", () => {
+  const html = renderDiaryTable(
+    [
+      {
+        number: 1,
+        subject: "Физическая культура",
+        time: "09:00–09:45",
+        room: "",
+        homework: "",
+        attendance: "",
+      },
+    ],
+    translate,
+  );
+
+  assert.match(html, /09:00–09:45/);
+  assert.doesNotMatch(html, /каб\./);
+});
+
+test("renders lesson zero and a plain clickable subject name", () => {
+  const html = renderDiaryTable(
+    [
+      {
+        number: 0,
+        subjectId: "english",
+        subject: "Англ. язык",
+        time: "07:05–07:50",
+      },
+    ],
+    translate,
+  );
+
+  assert.match(html, /<strong>0\. <button class="lesson-subject-link"/);
+  assert.match(html, /data-diary-subject="english"/);
+});
+
 test("accepts only web links as lesson materials", () => {
   assert.equal(
     getSafeMaterialUrl("https://example.test/file.pdf"),

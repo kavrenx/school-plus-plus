@@ -1,6 +1,12 @@
 function renderDiaryTable(lessons, translate) {
   return `
     <table class="diary-table">
+      <colgroup>
+        <col class="diary-lesson-col">
+        <col class="diary-homework-col">
+        <col class="diary-grade-col">
+        <col class="diary-attendance-col">
+      </colgroup>
       <thead>
         <tr>
           <th>${translate("lessonHeader")}</th>
@@ -40,13 +46,20 @@ function renderLessonRow(lesson, translate) {
         ? '<span class="attendance-mark is-present">Присутствовал</span>'
       : '<span class="attendance-mark is-unmarked">Не отмечено</span>';
   const details = renderJournalDetails(lesson.journalEntry, lesson.lessonWork);
+  const lessonMeta = [
+    lesson.time,
+    lesson.room ? `${translate("room")} ${lesson.room}` : "",
+  ]
+    .filter(Boolean)
+    .map(escapeHtml)
+    .join(" · ");
 
   return `
     <tr>
       <td data-label="${translate("lessonHeader")}">
         <div class="lesson-cell">
-          <strong>${lesson.number}. ${escapeHtml(lesson.subject)}</strong>
-          <span>${escapeHtml(lesson.time)} · ${translate("room")} ${escapeHtml(lesson.room)}</span>
+          <strong>${lesson.number}. <button class="lesson-subject-link" type="button" data-diary-subject="${escapeHtml(lesson.subjectId || "")}" data-diary-group="${escapeHtml(lesson.groupId || "")}">${escapeHtml(lesson.subject)}</button></strong>
+          ${lessonMeta ? `<span>${lessonMeta}</span>` : ""}
         </div>
       </td>
       <td data-label="${translate("homeworkHeader")}">

@@ -22,10 +22,103 @@ import { mount as mountTeacherMode } from "./js/teacher-mode.js";
 import { createThemeController } from "./js/theme-controller.js";
 import { escapeHtml, hideMessage, showMessage } from "./js/ui-utils.js";
 import { registerIcons } from "./js/icons.js";
+import { createLocalPreviewData, createPreviewStorage } from "./js/local-preview-data.js";
+import {
+  notifyExtensionImported,
+  requestExtensionSnapshot,
+  subscribeToExtensionSnapshots,
+} from "./js/extension-import.js";
+import { adaptESchoolsSnapshot } from "./js/e-schools-adapter.js";
+import {
+  ONBOARDING_KEY,
+  createOnboardingController,
+} from "./js/onboarding-controller.js";
+import { EXTENSION_STORE_URLS } from "./js/release-config.js";
+import { createSupabaseServices } from "./js/supabase-services.js";
+import { createSupportController } from "./js/support-controller.js";
 
 registerIcons();
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
+  const mode = import.meta.env.VITE_APP_MODE || "local";
+  const services = createSupabaseServices();
+  let cloudUserPromise = null;
+  let supportOwnerLabel = "Пользователь";
+
+  async function ensureCloudUser() {
+    if (!services) throw new Error("Подключение сервера не настроено.");
+    if (!cloudUserPromise) {
+      cloudUserPromise = (async () => {
+        const current = await services.auth.getUser();
+        if (current) return current;
+        const result = await services.auth.signInAnonymously();
+        return result.user;
+      })().catch((error) => {
+        cloudUserPromise = null;
+        throw error;
+      });
+    }
+    return cloudUserPromise;
+  }
+
+  const relayParams = new URLSearchParams(window.location.search);
+  const relayAction = relayParams.get("extension-action");
+  const relayImport = relayParams.get("extension-sync") === "background";
+  if (mode === "cloud" && (relayImport || relayAction === "delete")) {
+    document.body.innerHTML =
+      '<main class="relay-status" role="status">Обновляем School++…</main>';
+    try {
+      await ensureCloudUser();
+      if (relayAction === "delete") {
+        await services.diary.remove();
+      } else {
+        const snapshot = await requestExtensionSnapshot(window, 4_000);
+        if (!snapshot) throw new Error("Расширение не передало данные.");
+        await services.diary.save(snapshot);
+      }
+      notifyExtensionImported(window);
+      document.querySelector(".relay-status").textContent = "Готово";
+    } catch (error) {
+      console.warn("Не удалось сохранить фоновое обновление.", error);
+      document.querySelector(".relay-status").textContent =
+        "Не удалось обновить данные";
+    }
+    return;
+  }
+
+  const presentationController = createPresentationController({
+    root: document,
+    windowRef: window,
+  });
+  presentationController.bind();
+
+  const supportController = createSupportController({
+    root: document,
+    windowRef: window,
+    repositoryProvider: async () => {
+      await ensureCloudUser();
+      return services.support;
+    },
+    ownerLabelProvider: () => supportOwnerLabel,
+  });
+  supportController.bind();
+
+  const onboarding = createOnboardingController({
+    root: document,
+    windowRef: window,
+    storeUrls: EXTENSION_STORE_URLS,
+  });
+  if (
+    mode === "local" &&
+    new URLSearchParams(window.location.search).get("preview") === "diary"
+  ) {
+    onboarding.complete();
+    try {
+      window.localStorage.removeItem(ONBOARDING_KEY);
+    } catch {
+      /* Preview mode must not affect the next real onboarding check. */
+    }
+  } else await onboarding.start();
   const loginScreen = document.getElementById("loginScreen");
   const loginInput = document.getElementById("loginInput");
   const dashboardScreen = document.getElementById("dashboardScreen");
@@ -44,19 +137,50 @@ document.addEventListener("DOMContentLoaded", () => {
   const cancelResetDemoButton = document.getElementById("cancelResetDemoBtn");
   const confirmResetDemoButton = document.getElementById("confirmResetDemoBtn");
 
-  const schoolData = SCHOOL_DATA || {};
-  const diary = normalizeDiaryData(SCHOOL_DIARY || { weeks: [] }, DAY_ORDER, schoolData);
+  if (mode === "cloud") {
+    document.getElementById("logoutModalTitle").textContent =
+      "Вернуться к подключению?";
+    logoutModal.querySelector("p").textContent =
+      "Сохранённые данные останутся в School++ и в расширении.";
+    confirmLogoutBtn.textContent = "Продолжить";
+  }
+
+  const localData = await loadAppData();
+  let lastExtensionRefresh = 0;
+  subscribeToExtensionSnapshots(window, async (snapshot) => {
+    if (Date.now() - lastExtensionRefresh < 2_000) return;
+    lastExtensionRefresh = Date.now();
+    if (mode === "cloud" && services) {
+      try {
+        await ensureCloudUser();
+        await services.diary.save(snapshot);
+        notifyExtensionImported(window);
+      } catch (error) {
+        console.warn("Не удалось сохранить обновление дневника.", error);
+        return;
+      }
+    }
+    window.location.reload();
+  });
+  const schoolData = localData.school;
+  const diary = normalizeDiaryData(localData.diary, DAY_ORDER, schoolData);
   const accounts = createAuthAccounts(diary.school.users);
-  const storage = createSafeStorage(getBrowserStorage(window), {
+  const syncedStudent = accounts.find((account) => account.role === "student");
+  supportOwnerLabel =
+    syncedStudent?.displayName ||
+    [syncedStudent?.firstName, syncedStudent?.lastName].filter(Boolean).join(" ") ||
+    "Ученик";
+  const storage = createPreviewStorage(createSafeStorage(getBrowserStorage(window), {
     onError: ({ operation, error }) =>
       console.warn(`Не удалось выполнить операцию с хранилищем: ${operation}`, error),
-  });
+  }));
   const repositories = createDemoRepositories({
     storage,
     storageKeys: STORAGE_KEYS,
   });
   const userStore = repositories.users;
   const journalStore = repositories.journal;
+  importJournalEntries(journalStore, localData.journalEntries);
   const modalController = createModalController();
   connectionStatusText.textContent = t("connectionOffline");
   const notificationController = createNotificationController({
@@ -118,9 +242,6 @@ document.addEventListener("DOMContentLoaded", () => {
     feedback: { hide: hideMessage, show: showMessage },
     onAuthenticated: showAppForUser,
   });
-  const presentationController = createPresentationController({
-    root: document,
-  });
   let teacherMode = null;
 
   init();
@@ -135,10 +256,12 @@ document.addEventListener("DOMContentLoaded", () => {
     studentClassController.bind();
     profileController.bind();
     authController.bind();
-    presentationController.bind();
     bindEvents();
 
-    const savedUser = userStore.getSavedUser(accounts);
+    const savedUser =
+      mode === "cloud"
+        ? syncedStudent || accounts[0]
+        : userStore.getSavedUser(accounts);
     if (savedUser) {
       showAppForUser(savedUser);
     } else {
@@ -229,6 +352,10 @@ document.addEventListener("DOMContentLoaded", () => {
       <header class="topbar teacher-topbar">
         <span class="brand-mark">SCHOOL++</span>
         <div class="topbar-actions">
+          <button class="support-btn" type="button" data-open-support>
+            <school-icon name="headset-outline" aria-hidden="true"></school-icon>
+            <span>Поддержка</span>
+          </button>
           <button class="theme-toggle" type="button" data-admin-theme>
             <span class="theme-icon"></span>
             <span class="theme-text"></span>
@@ -267,6 +394,15 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function logout() {
+    if (mode === "cloud") {
+      try {
+        window.localStorage.removeItem(ONBOARDING_KEY);
+      } catch {
+        /* Reload still returns to the first-run route for this visit. */
+      }
+      window.location.reload();
+      return;
+    }
     userStore.clearUser();
     profileController.setUser(null);
     authController.resetLogin();
@@ -290,4 +426,35 @@ document.addEventListener("DOMContentLoaded", () => {
     );
   }
 
+  async function loadAppData() {
+    try {
+      const snapshot = await requestExtensionSnapshot(window, 900);
+      if (snapshot) {
+        if (mode === "cloud" && services) {
+          await ensureCloudUser();
+          await services.diary.save(snapshot);
+          notifyExtensionImported(window);
+        }
+        const imported = adaptESchoolsSnapshot(snapshot);
+        if (imported?.diary?.weeks?.length) return imported;
+      }
+    } catch (error) {
+      console.warn("Не удалось получить данные расширения.", error);
+    }
+    if (mode === "cloud" && services) {
+      try {
+        await ensureCloudUser();
+        const saved = await services.diary.load();
+        const imported = adaptESchoolsSnapshot(saved?.payload);
+        if (imported?.diary?.weeks?.length) return imported;
+      } catch (error) {
+        console.warn("Не удалось загрузить сохранённый дневник.", error);
+      }
+    }
+    return createLocalPreviewData(SCHOOL_DIARY, SCHOOL_DATA);
+  }
+
+  function importJournalEntries(store, entries = []) {
+    entries.forEach((entry) => store.saveJournalEntry(entry));
+  }
 });

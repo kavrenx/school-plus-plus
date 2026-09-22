@@ -35,12 +35,27 @@
   padding: 20px;
   min-width: 0;
   background: var(--paper);
-  border: 1px solid var(--line-dark);
 }
 
 .achievement-panel h2 {
   margin: 12px 0;
   font-size: 28px;
+}
+
+.result-legend {
+  margin: -2px 0 16px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.result-legend-forecast {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.result-legend strong {
+  color: var(--ink);
 }
 
 .achievement-note {
@@ -97,6 +112,8 @@
 
 .achievement-table button {
   width: 100%;
+  border: 0;
+  border-radius: 8px;
   text-align: inherit;
 }
 
@@ -178,6 +195,244 @@
   white-space: nowrap;
 }
 
+body.subject-detail-open {
+  overflow: hidden;
+}
+
+.subject-detail-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  width: 100%;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border: 0;
+  border-radius: 0;
+  background: rgb(20 28 24 / 42%) !important;
+  animation: subject-backdrop-in 180ms ease-out both;
+}
+
+.subject-detail-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 81;
+  width: min(520px, 100%);
+  overflow-y: auto;
+  padding: 28px;
+  border-left: 1px solid var(--line-dark);
+  background: var(--paper);
+  box-shadow: -18px 0 48px rgb(20 28 24 / 22%);
+  animation: subject-drawer-in 240ms cubic-bezier(0.2, 0.75, 0.2, 1) both;
+}
+
+.subject-detail-drawer h2 {
+  max-width: 430px;
+  margin: 18px 44px 24px 0;
+  line-height: 1.15;
+}
+
+.subject-detail-drawer h2 span {
+  color: var(--muted);
+}
+
+.subject-detail-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 44px;
+  min-height: 44px;
+  padding: 0 !important;
+  border: 1px solid var(--line-dark);
+  border-radius: 50%;
+  background: var(--paper-2) !important;
+  color: var(--ink) !important;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.subject-average-card,
+.grade-goal-card,
+.subject-grade-history {
+  margin-top: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper-2);
+}
+
+.subject-average-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 20px;
+}
+
+.subject-average-card span {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.subject-average-card strong {
+  font-size: 30px;
+}
+
+.grade-goal-card,
+.subject-grade-history {
+  padding: 20px;
+}
+
+.grade-goal-card h3,
+.subject-grade-history h3 {
+  margin: 0;
+}
+
+.grade-goal-card > p {
+  margin: 8px 0 16px;
+  color: var(--muted);
+}
+
+.grade-goal-card form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.grade-goal-card label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.grade-goal-card input {
+  width: 100%;
+  min-height: 44px;
+}
+
+.grade-goal-card button {
+  min-height: 44px;
+  border: 1px solid var(--accent-dark);
+  border-radius: 10px;
+  background: var(--accent) !important;
+  color: var(--on-accent) !important;
+}
+
+.grade-goal-card small {
+  display: block;
+  margin-top: 12px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.goal-message {
+  margin: 14px 0 0;
+  padding: 12px;
+  border-radius: 10px;
+  line-height: 1.45;
+}
+
+.goal-message.is-success {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
+.goal-message.is-warning {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.subject-grade-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.subject-grade-heading ul {
+  display: flex;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.subject-grade-heading li {
+  padding: 4px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.subject-grade-history .subject-grade-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 10px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.subject-grade-history .subject-grade-tile {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 6px;
+  aspect-ratio: 1;
+  min-height: 72px;
+  padding: 9px;
+  border: 1px solid currentColor;
+  border-radius: 12px;
+}
+
+.subject-grade-history .subject-grade-tile time {
+  color: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.72;
+}
+
+.subject-grade-history .subject-grade-tile strong {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.grade-tone-low {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.grade-tone-middle {
+  background: #f3e6b8;
+  color: #6f5512;
+}
+
+.grade-tone-high {
+  background: var(--accent-soft);
+  color: var(--success);
+}
+
+.grade-tone-neutral {
+  background: var(--paper-3);
+  color: var(--ink);
+}
+
+@keyframes subject-backdrop-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes subject-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+}
+
 @media (max-width: 760px) {
   .achievement-panel {
     padding: 12px;
@@ -197,4 +452,29 @@
   .achievement-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .subject-detail-drawer {
+    padding: 20px 16px;
+    border-left: 0;
+  }
+
+  .grade-goal-card form {
+    grid-template-columns: 1fr;
+  }
+
+  .grade-goal-card button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subject-detail-backdrop,
+  .subject-detail-drawer {
+    animation: none;
+  }
+}
+
+html[data-theme="dark"] .grade-tone-middle {
+  background: rgb(138 108 33 / 28%);
+  color: #f0cf75;
 }

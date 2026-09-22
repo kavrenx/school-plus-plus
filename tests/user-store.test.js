@@ -22,7 +22,7 @@ function createStorage(initialEntries = {}) {
   };
 }
 
-test("restores the canonical student and applies saved profile fields", () => {
+test("restores current school data without stale profile overrides", () => {
   const storage = createStorage();
   const store = createUserStore(storage, STORAGE_KEYS);
   const canonicalStudent = {
@@ -48,11 +48,7 @@ test("restores the canonical student and applies saved profile fields", () => {
     className: "7А",
   });
 
-  assert.deepEqual(store.getSavedUser([canonicalStudent]), {
-    ...canonicalStudent,
-    email: "student@example.test",
-    className: "7А",
-  });
+  assert.equal(store.getSavedUser([canonicalStudent]), canonicalStudent);
 });
 
 test("migrates a legacy full-user session to a safe reference", () => {

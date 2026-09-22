@@ -1,0 +1,67 @@
+{
+  "manifest_version": 3,
+  "name": "School++ — синхронизация дневника",
+  "short_name": "School++",
+  "version": "1.0.0",
+  "description": "Переносит расписание, задания и отметки из e.school.by в School++.",
+  "icons": {
+    "16": "assets/icon16.png",
+    "32": "assets/icon32.png",
+    "48": "assets/icon48.png",
+    "128": "assets/icon128.png"
+  },
+  "permissions": ["storage", "alarms", "notifications"],
+  "host_permissions": [
+    "https://diary.e-schools.by/*",
+    "https://schoolpp.com/*"
+  ],
+  "background": {
+    "scripts": [
+      "shared/snapshot-store.js",
+      "shared/extension-settings.js",
+      "background.js"
+    ]
+  },
+  "action": {
+    "default_title": "Синхронизировать с School++",
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "assets/icon16.png",
+      "32": "assets/icon32.png",
+      "48": "assets/icon48.png",
+      "128": "assets/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://diary.e-schools.by/*"],
+      "js": ["page-hook.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://diary.e-schools.by/*"],
+      "js": [
+        "shared/e-schools-parser.js",
+        "shared/sync-engine.js",
+        "content/e-schools.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://schoolpp.com/*",
+        "http://127.0.0.1:5173/*",
+        "http://localhost:5173/*"
+      ],
+      "js": ["content/schoolpp.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "sync@schoolpp.com",
+      "strict_min_version": "128.0"
+    }
+  }
+}

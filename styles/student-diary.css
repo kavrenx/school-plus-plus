@@ -270,8 +270,18 @@ body.dark .journal-main {
 .diary-table {
   width: 100%;
   min-width: 700px;
+  table-layout: fixed;
   border-collapse: collapse;
   font-variant-numeric: tabular-nums;
+}
+
+.diary-lesson-col {
+  width: 220px;
+}
+
+.diary-grade-col,
+.diary-attendance-col {
+  width: 112px;
 }
 
 .diary-table th,
@@ -330,6 +340,23 @@ body.dark .journal-main {
 .lesson-cell strong {
   font-size: 16px;
   font-weight: 820;
+}
+
+.lesson-subject-link {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lesson-subject-link:hover,
+.lesson-subject-link:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .lesson-cell span {

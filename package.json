@@ -1,9 +1,9 @@
 {
   "name": "school-plus-plus",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Демонстрационный прототип электронного дневника School++",
+  "description": "Электронный дневник School++",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -11,13 +11,19 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node --test"
+    "test": "node --test",
+    "extension:build": "node scripts/build-extension.mjs",
+    "extension:package": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/package-extension.ps1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "eslint": "^10.9.0",
     "globals": "^17.11.0",
+    "happy-dom": "^20.14.5",
     "prettier": "^3.9.6",
     "vite": "^8.2.2"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.116.0"
   }
 }

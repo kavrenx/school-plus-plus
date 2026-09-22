@@ -1,4 +1,5 @@
 import { addIsoDays, parseIsoDateParts } from "./date-tools.js";
+import { shortSubjectName } from "./subject-names.js";
 
 function normalizeDiaryData(rawDiary, dayOrder, schoolData = {}) {
     const source = rawDiary && Array.isArray(rawDiary.weeks) ? rawDiary : { weeks: [] };
@@ -88,7 +89,9 @@ function normalizeDiaryData(rawDiary, dayOrder, schoolData = {}) {
             subjectId,
             classId,
             groupId,
-            subject: lesson.subject,
+            subject: shortSubjectName(
+              school.subjectsById[subjectId]?.title || lesson.subject,
+            ),
             time: lesson.time,
             startsAt: time.startsAt,
             endsAt: time.endsAt,
@@ -161,7 +164,7 @@ function normalizeDiaryData(rawDiary, dayOrder, schoolData = {}) {
   function normalizeSchoolData(schoolData = {}, diaryMeta = {}) {
     const school = {
       id: schoolData.school?.id || diaryMeta?.schoolId || "school_demo",
-      name: schoolData.school?.name || "Демо-школа",
+      name: schoolData.school?.name || "Школа",
       timezone:
         schoolData.school?.timezone || diaryMeta?.timezone || "Europe/Minsk",
       locale: schoolData.school?.locale || diaryMeta?.locale || "ru-BY"
@@ -197,7 +200,9 @@ function normalizeDiaryData(rawDiary, dayOrder, schoolData = {}) {
       classesById: indexById(classes),
       studentsById: indexById(students),
       subjectsById: indexById(subjects),
-      groupsById: indexById(groups)
+      groupsById: indexById(groups),
+      schedule: schoolData.schedule || {},
+      messages: Array.isArray(schoolData.messages) ? schoolData.messages : []
     };
   }
 
@@ -455,7 +460,8 @@ function normalizeDiaryData(rawDiary, dayOrder, schoolData = {}) {
       startsOn: parseIsoDateParts(source.startsOn) ? source.startsOn : "",
       endsOn: parseIsoDateParts(source.endsOn) ? source.endsOn : "",
       breaks,
-      terms
+      terms,
+      halfYears: Array.isArray(source.halfYears) ? source.halfYears : []
     };
   }
 

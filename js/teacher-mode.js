@@ -85,6 +85,10 @@ function renderTopbar(showBackButton) {
               </button>`
             : ""
         }
+        <button class="support-btn" type="button" data-open-support>
+          <school-icon name="headset-outline" aria-hidden="true"></school-icon>
+          <span>Поддержка</span>
+        </button>
         <button class="theme-toggle" type="button" data-teacher-theme>
           <span class="theme-icon"></span>
           <span class="theme-text">Тема</span>

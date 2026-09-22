@@ -36,7 +36,7 @@ function createUserStore(storage, storageKeys) {
       }
 
       saveUser(canonicalUser);
-      return applyProfileOverrides(canonicalUser);
+      return canonicalUser;
     } catch {
       clearUser();
       return null;

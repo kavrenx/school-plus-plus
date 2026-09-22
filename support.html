@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#eef1ed" />
+    <title>Поддержка · School++</title>
+    <link rel="icon" href="assets/favicon.svg?v=6" type="image/svg+xml" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body class="support-console-page">
+    <main class="support-console-login" id="supportConsoleLogin">
+      <form class="support-console-card" id="supportConsoleForm">
+        <p class="card-label">School++</p>
+        <h1>Вход в поддержку</h1>
+        <p>Раздел доступен только оператору.</p>
+        <label
+          >Логин<input
+            id="supportConsoleLoginInput"
+            autocomplete="username"
+            required
+        /></label>
+        <label
+          >Пароль<input
+            id="supportConsolePassword"
+            type="password"
+            autocomplete="current-password"
+            required
+        /></label>
+        <p
+          class="form-message error"
+          id="supportConsoleError"
+          role="status"
+          hidden
+        ></p>
+        <button class="primary-btn" type="submit">Войти</button>
+      </form>
+    </main>
+
+    <section
+      class="support-console-workspace"
+      id="supportConsoleWorkspace"
+      hidden
+    >
+      <header class="support-console-topbar">
+        <strong class="brand-mark">SCHOOL++ · ПОДДЕРЖКА</strong>
+        <button class="secondary-btn" id="supportConsoleLogout" type="button">
+          Выйти
+        </button>
+      </header>
+      <button type="button" data-open-support hidden>Открыть поддержку</button>
+      <button
+        class="support-backdrop"
+        id="supportBackdrop"
+        type="button"
+        aria-label="Фон"
+        hidden
+      ></button>
+      <aside
+        class="support-panel"
+        id="supportPanel"
+        aria-hidden="true"
+        aria-labelledby="supportTitle"
+        hidden
+      >
+        <header class="support-header">
+          <button
+            class="support-icon-button"
+            type="button"
+            data-support-menu
+            aria-label="Открыть список бесед"
+          >
+            <school-icon name="menu-outline"></school-icon>
+          </button>
+          <span class="support-avatar"
+            ><school-icon name="headset-outline"></school-icon
+          ></span>
+          <div>
+            <strong id="supportTitle">Поддержка</strong><small>School++</small>
+          </div>
+          <span></span>
+        </header>
+        <section class="support-menu" id="supportMenu">
+          <div class="support-menu-heading">
+            <strong>Обращения</strong
+            ><button type="button" data-support-new hidden>Новая</button>
+          </div>
+          <div
+            class="support-conversation-list"
+            id="supportConversationList"
+          ></div>
+        </section>
+        <div class="support-chat">
+          <div class="support-messages" id="supportMessages"></div>
+          <section class="support-empty" id="supportEmpty">
+            <p>Выберите обращение слева.</p>
+          </section>
+        </div>
+        <p class="support-status" id="supportStatus" role="status" hidden></p>
+        <form class="support-form" id="supportForm">
+          <input
+            id="supportInput"
+            maxlength="2000"
+            autocomplete="off"
+            placeholder="Напишите сообщение"
+            aria-label="Сообщение"
+          />
+          <button
+            id="supportSend"
+            type="submit"
+            aria-label="Отправить"
+            disabled
+          >
+            <school-icon name="send-outline"></school-icon>
+          </button>
+        </form>
+        <button
+          class="support-close-conversation"
+          id="supportCloseConversation"
+          type="button"
+          hidden
+        >
+          Закрыть беседу
+        </button>
+      </aside>
+    </section>
+    <script type="module" src="/js/support-console.js"></script>
+  </body>
+</html>

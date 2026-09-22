@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>School++</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <header class="popup-header">
+        <div class="brand-copy">
+          <strong>School++</strong><small>Синхронизация данных</small>
+        </div>
+        <button
+          class="settings-button"
+          id="settingsButton"
+          type="button"
+          aria-label="Настройки"
+          aria-controls="settingsPanel"
+          aria-expanded="false"
+          title="Настройки"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" />
+            <path
+              d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.86 2.86-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.55v-.1A1.7 1.7 0 0 0 8.5 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.86-2.86.06-.06A1.7 1.7 0 0 0 4.1 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H2.3V9.55h.1A1.7 1.7 0 0 0 4.1 8.5a1.7 1.7 0 0 0-.34-1.88l-.06-.06L6.56 3.7l.06.06A1.7 1.7 0 0 0 8.5 4.1a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1v-.1h4.05v.1A1.7 1.7 0 0 0 15 4.1a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.86 2.86-.06.06A1.7 1.7 0 0 0 19.4 8.5a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1.1.4h.1v4.05h-.1A1.7 1.7 0 0 0 19.4 15Z"
+            />
+          </svg>
+        </button>
+      </header>
+      <section class="settings-panel" id="settingsPanel" hidden>
+        <div>
+          <strong>Фоновое обновление</strong>
+          <p id="backgroundSyncDescription">
+            Когда дневник закрыт, расширение ненадолго откроет его в фоне и
+            обновит данные.
+          </p>
+        </div>
+        <label class="switch">
+          <input
+            id="backgroundSyncToggle"
+            type="checkbox"
+            role="switch"
+            aria-describedby="backgroundSyncDescription"
+          />
+          <span aria-hidden="true"></span>
+        </label>
+      </section>
+      <section class="status is-checking" aria-live="polite">
+        <span class="status-dot" aria-hidden="true"></span>
+        <div>
+          <strong id="statusTitle">Проверяем подключение…</strong>
+          <p id="statusText"></p>
+        </div>
+      </section>
+      <button class="sync-button" id="syncButton" type="button" disabled>
+        <span class="sync-top"
+          ><span id="syncLabel">Синхронизировать</span></span
+        >
+        <span class="sync-progress" id="syncProgress" hidden><i></i></span>
+        <small id="syncDetail" hidden></small>
+      </button>
+      <details class="sources" id="sources" hidden>
+        <summary>
+          <span>Данные <strong id="sourcesCount"></strong></span>
+          <i class="sources-arrow" aria-hidden="true"></i>
+        </summary>
+        <ol id="sourcesList"></ol>
+      </details>
+      <div class="actions">
+        <button
+          class="secondary open-schoolpp"
+          id="openSchoolppButton"
+          type="button"
+          hidden
+        >
+          Открыть School++
+        </button>
+        <button class="secondary" id="diagnosticsButton" type="button" hidden>
+          Сохранить файл проверки
+        </button>
+        <button class="delete" id="clearButton" type="button" hidden>
+          Удалить данные
+        </button>
+      </div>
+      <footer>
+        <button class="help" id="helpButton" type="button">Справка</button>
+        <p class="privacy">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M7 10V7a5 5 0 0 1 10 0v3m-9 0h8a2 2 0 0 1 2 2v7H6v-7a2 2 0 0 1 2-2Z"
+            /></svg
+          ><span>Логины и пароли не сохраняются</span>
+        </p>
+      </footer>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

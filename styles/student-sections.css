@@ -1,0 +1,363 @@
+.student-section-nav {
+  --nav-inset: 8px;
+  --active-section: 0;
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  border-bottom: 1px solid var(--line-dark);
+  padding: 8px;
+  background: var(--paper);
+}
+.student-section-nav::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  left: var(--nav-inset);
+  top: var(--nav-inset);
+  bottom: var(--nav-inset);
+  width: calc((100% - 2 * var(--nav-inset)) / 3);
+  border-radius: var(--radius);
+  background: var(--accent);
+  transform: translateX(calc(var(--active-section) * 100%));
+  transition: transform 280ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  pointer-events: none;
+}
+.student-section-nav button {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+  transition: color 180ms ease;
+  border: 0;
+  border-radius: var(--radius);
+}
+.student-section-nav button[aria-pressed="true"] {
+  background: transparent;
+}
+.student-section-nav button:not([aria-pressed="true"]):hover {
+  background: var(--accent-soft);
+}
+.student-period-bar {
+  justify-content: flex-start;
+  gap: 10px;
+}
+#studentYearLabel {
+  margin-right: auto;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+.student-period-bar .student-term-control {
+  width: 142px;
+  flex: 0 0 142px;
+}
+.student-term-control select {
+  min-height: 44px;
+}
+.student-calendar-control {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--line-dark);
+  background: var(--paper);
+  color: var(--accent-dark);
+}
+.student-calendar-control school-icon {
+  width: 21px;
+  height: 21px;
+}
+.student-calendar-control input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.student-calendar-control:focus-within {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+.student-calendar-control input::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.current-week-link {
+  padding: 4px 6px;
+  margin-top: 4px;
+  background: transparent;
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  animation: fadeIn 0.18s ease;
+}
+.diary-day-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 18px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.diary-day-footer .panel-label {
+  margin-bottom: 6px;
+}
+.diary-day-footer.is-messages-only {
+  grid-template-columns: 1fr;
+}
+#studentClassMessages {
+  overflow-wrap: anywhere;
+}
+.result-table {
+  table-layout: fixed;
+  min-width: 480px;
+}
+.result-table td {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.result-period-value {
+  padding: 10px 0;
+}
+.result-mark-col {
+  width: 56px;
+}
+.result-table th,
+.result-table td {
+  min-width: 0;
+  padding: 12px 6px;
+  height: 52px;
+  font-variant-numeric: tabular-nums;
+}
+.result-table th:first-child {
+  min-width: 200px;
+  max-width: none;
+  padding: 12px;
+}
+.result-table .is-half-year {
+  background: var(--paper-2);
+  border-left: 2px solid var(--line-dark);
+}
+.result-table small {
+  font-size: 10px;
+  margin-top: 2px;
+}
+.result-forecast {
+  color: var(--muted);
+}
+.result-summary th,
+.result-summary td {
+  font-weight: 800;
+  background: var(--paper-2);
+}
+.schedule-panel {
+  min-width: 0;
+  background: var(--paper);
+}
+.schedule-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 16px;
+  border-bottom: 1px solid var(--line-dark);
+}
+.schedule-tabs button {
+  min-height: 44px;
+  padding: 10px 12px;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  font-weight: 700;
+}
+.schedule-tabs button[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-dark);
+}
+.schedule-content {
+  min-width: 0;
+  padding: 20px 18px;
+}
+.schedule-content h2 {
+  font-size: 26px;
+  margin-bottom: 20px;
+}
+.schedule-content h3,
+.schedule-content h4 {
+  margin: 14px 0;
+}
+.schedule-card-grid.is-bells {
+  gap: 0;
+}
+.schedule-card-grid.is-bells .schedule-card {
+  padding-right: 18px;
+}
+.schedule-card-grid.is-bells .schedule-card + .schedule-card {
+  padding-right: 0;
+  padding-left: 18px;
+  border-left: 1px solid var(--line-dark);
+}
+.schedule-card-grid.is-bells .schedule-card > h3 {
+  margin-top: 2px;
+  margin-bottom: 8px;
+}
+.schedule-card-grid.is-bells .schedule-card section > h4 {
+  margin-top: 8px;
+}
+.schedule-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.schedule-card {
+  min-width: 0;
+}
+.schedule-table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--line-dark);
+}
+.schedule-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+.schedule-table th {
+  background: var(--paper-2);
+}
+.schedule-table td,
+.schedule-table th {
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.schedule-table td p {
+  color: var(--muted);
+  margin-top: 6px;
+  line-height: 1.5;
+}
+.schedule-table td:last-child {
+  white-space: normal;
+}
+.schedule-time-cell,
+.schedule-room-cell,
+.schedule-holiday-dates,
+.schedule-subjects-table td:last-child,
+.schedule-subjects-table th:last-child {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.lesson-time-col {
+  width: 100px;
+}
+.lesson-room-col {
+  width: 54px;
+}
+.schedule-room-cell p {
+  min-height: 1.5em;
+  margin-top: 0 !important;
+}
+.schedule-room-cell p + p {
+  margin-top: 6px !important;
+}
+.holiday-name-col {
+  width: 36%;
+}
+.holiday-date-col {
+  width: 42%;
+}
+.holiday-duration-col {
+  width: 22%;
+}
+.schedule-holidays-table td:first-child p {
+  font-size: 12px;
+}
+.subjects-name-col {
+  width: 31%;
+}
+.subjects-teacher-col {
+  width: 49%;
+}
+.subjects-level-col {
+  width: 20%;
+}
+.schedule-empty {
+  text-align: center;
+}
+.schedule-date-separator {
+  display: block;
+  color: var(--muted);
+}
+@media (max-width: 760px) {
+  .schedule-card-grid {
+    grid-template-columns: 1fr;
+  }
+  .schedule-card-grid.is-bells .schedule-card,
+  .schedule-card-grid.is-bells .schedule-card + .schedule-card {
+    padding: 0;
+    border-left: 0;
+  }
+  .schedule-card-grid.is-bells .schedule-card + .schedule-card {
+    padding-top: 18px;
+    border-top: 1px solid var(--line-dark);
+  }
+  .schedule-content {
+    padding: 16px 12px;
+  }
+  .result-table th:first-child {
+    min-width: 200px;
+    max-width: none;
+  }
+}
+@media (max-width: 560px) {
+  .student-period-bar {
+    gap: 8px;
+  }
+  .student-section-nav {
+    --nav-inset: 6px;
+    padding: 6px;
+  }
+  .student-section-nav button {
+    padding: 8px;
+    font-size: 13px;
+  }
+  .diary-day-footer {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .schedule-tabs {
+    padding: 12px;
+  }
+  .schedule-tabs button {
+    font-size: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .student-section-nav::before,
+  .student-section-nav button {
+    transition: none;
+  }
+  .current-week-link {
+    animation: none;
+  }
+}

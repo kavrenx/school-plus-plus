@@ -1,14 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  calculateGradeGoal,
   getSubjectResult,
   getStudentSubjects,
 } from "../js/achievement-model.js";
 import { createJournalStore } from "../js/journal-store.js";
 import {
   renderAchievementTable,
+  renderGradeGoalResult,
   renderSubjectDetails,
 } from "../js/achievement-view.js";
+import { getCurrentResultPeriod } from "../js/result-periods.js";
 
 function fixture() {
   const data = new Map();
@@ -66,15 +69,22 @@ test("subject report counts both grades, excludes cancelled lessons and separate
   assert.equal(result.periods[0].records.length, 3);
   assert.equal(result.periods[1].average, null);
   assert.equal(result.annual, "");
-  const html = renderSubjectDetails(
+  const period = getCurrentResultPeriod(
     result,
+    model.school.academicYear,
     "q1",
-    { formatIsoDateLong: (date) => date },
-    () => true,
+    "2026-09-02",
   );
-  assert.ok(html.includes("8 / 9"));
-  assert.ok(html.includes("&lt;script&gt;"));
-  assert.ok(html.includes('data-achievement-lesson="l1"'));
+  const html = renderSubjectDetails(result, period, {
+    formatIsoDateLong: (date) => date,
+  });
+  assert.ok(html.includes("&lt;Математика&gt; <span>•</span> I четверть"));
+  assert.match(html, /grade-tone-high[^>]*>[\s\S]*?<strong>8<\/strong>/);
+  assert.match(html, /grade-tone-high[^>]*>[\s\S]*?<strong>9<\/strong>/);
+  assert.ok(html.includes("2026-09-01"));
+  assert.equal(html.includes("Пропуск"), false);
+  assert.equal(html.includes("&lt;script&gt;"), false);
+  assert.equal(period.remainingLessons.length, 0);
 });
 
 test("annual result persists separately and is never inferred from averages", () => {
@@ -103,7 +113,9 @@ test("annual result persists separately and is never inferred from averages", ()
   assert.equal(result.periods[0].final, "8");
   const html = renderAchievementTable([result], model.school.academicYear);
   assert.ok(html.includes("&lt;Математика&gt;"));
-  assert.ok(html.includes("8,5"));
+  assert.ok(html.includes("Успеваемость 2026/2027"));
+  assert.equal(html.includes("data-achievement-subject"), true);
+  assert.equal(html.includes("Среднее<br>четвертных"), false);
   assert.equal(getSubjectResult(model, store, assignment, "other").annual, "");
   store.saveTermGrade({
     termId: "year",
@@ -112,6 +124,22 @@ test("annual result persists separately and is never inferred from averages", ()
     value: "",
   });
   assert.equal(getSubjectResult(model, store, assignment, "s").annual, "");
+});
+
+test("grade goal uses no more future grades than scheduled lessons", () => {
+  assert.deepEqual(calculateGradeGoal([8], 9, 2), {
+    status: "possible",
+    target: 9,
+    suggestedGrades: [9],
+    projectedAverage: 8.5,
+    remainingLessons: 2,
+  });
+  const impossible = calculateGradeGoal([2, 2, 2], 10, 2);
+  assert.equal(impossible.status, "impossible");
+  assert.equal(impossible.remainingLessons, 2);
+  assert.ok(renderGradeGoalResult(impossible).includes("каждом из 2"));
+  assert.equal(calculateGradeGoal([9, 9], 9, 2).status, "reached");
+  assert.equal(calculateGradeGoal([], 11, 2).status, "invalid");
 });
 
 test("student subjects include unassigned subjects but exclude other classes and groups", () => {
@@ -137,4 +165,31 @@ test("student subjects include unassigned subjects but exclude other classes and
   assert.equal(subjects.length, 2);
   assert.ok(subjects.some((item) => item.id === "a"));
   assert.deepEqual(getStudentSubjects(model, "unknown"), []);
+});
+
+test("student results merge parallel groups of the same subject", () => {
+  const model = {
+    school: {
+      classes: [{ id: "c", studentIds: ["s"] }],
+      studentsById: { s: { groupIds: ["g1", "g2"] } },
+      teacherAssignments: [
+        { id: "info-1", classId: "c", subjectId: "info", groupId: "g1" },
+        { id: "info-2", classId: "c", subjectId: "info", groupId: "g2" },
+      ],
+      subjectsById: { info: { title: "Информатика" } },
+    },
+    subjects: [],
+    lessonTemplates: [
+      { id: "t1", classId: "c", subjectId: "info", groupId: "g1" },
+      { id: "t2", classId: "c", subjectId: "info", groupId: "g2" },
+    ],
+  };
+
+  const subjects = getStudentSubjects(model, "s");
+  assert.equal(subjects.length, 1);
+  assert.equal(subjects[0].title, "Информатика");
+  assert.deepEqual(
+    subjects[0].variants.map((item) => item.id),
+    ["info-1", "info-2"],
+  );
 });

@@ -41,7 +41,6 @@ function createPresentationController({
 }) {
   const page = root.documentElement;
   const elements = {
-    trigger: root.getElementById("presentationTrigger"),
     loginScreen: root.getElementById("loginScreen"),
     screen: root.getElementById("presentationScreen"),
     backButton: root.getElementById("presentationBackBtn"),
@@ -63,9 +62,11 @@ function createPresentationController({
   let touchStartY = null;
   let transitionTimer = null;
   let wheelResetTimer = null;
+  let originScreen = elements.loginScreen;
+  let originTrigger = root.getElementById("presentationTrigger");
 
   function bind() {
-    elements.trigger?.addEventListener("click", open);
+    root.addEventListener("click", handleTriggerClick);
     elements.backButton?.addEventListener("click", close);
     elements.finalButton?.addEventListener("click", close);
     elements.screen?.addEventListener("wheel", handleWheel, { passive: false });
@@ -79,8 +80,14 @@ function createPresentationController({
     renderScene(0);
   }
 
-  function open() {
-    if (active || locked || !elements.screen || !elements.loginScreen) return;
+  function open(trigger = null) {
+    if (active || locked || !elements.screen) return;
+
+    originTrigger =
+      trigger?.closest?.("[data-presentation-trigger]") ||
+      root.getElementById("presentationTrigger");
+    originScreen = originTrigger?.closest("section") || elements.loginScreen;
+    if (!originScreen) return;
 
     active = true;
     locked = true;
@@ -90,15 +97,15 @@ function createPresentationController({
 
     page?.classList.add("presentation-active");
     body.classList.add("presentation-active", "presentation-opening");
-    elements.loginScreen.classList.add("is-leaving-presentation");
-    elements.loginScreen.setAttribute("aria-hidden", "true");
+    originScreen.classList.add("is-leaving-presentation");
+    originScreen.setAttribute("aria-hidden", "true");
     elements.screen.classList.remove("hidden", "is-leaving-presentation");
     elements.screen.classList.add("is-entering-presentation");
     elements.screen.setAttribute("aria-hidden", "false");
 
     setTransitionTimer(() => {
-      elements.loginScreen.classList.add("hidden");
-      elements.loginScreen.classList.remove("is-leaving-presentation");
+      originScreen.classList.add("hidden");
+      originScreen.classList.remove("is-leaving-presentation");
       elements.screen.classList.remove("is-entering-presentation");
       body.classList.remove("presentation-opening");
       locked = false;
@@ -107,7 +114,7 @@ function createPresentationController({
   }
 
   function close() {
-    if (!active || locked || !elements.screen || !elements.loginScreen) return;
+    if (!active || locked || !elements.screen || !originScreen) return;
 
     locked = true;
     wheelAccumulator = 0;
@@ -115,9 +122,9 @@ function createPresentationController({
     body.classList.remove("presentation-active");
     page?.classList.remove("presentation-active");
     page?.classList.add("presentation-closing");
-    elements.loginScreen.classList.remove("hidden");
-    elements.loginScreen.classList.add("is-returning-presentation");
-    elements.loginScreen.setAttribute("aria-hidden", "false");
+    originScreen.classList.remove("hidden");
+    originScreen.classList.add("is-returning-presentation");
+    originScreen.setAttribute("aria-hidden", "false");
     elements.screen.classList.add("is-leaving-presentation");
     elements.screen.setAttribute("aria-hidden", "true");
 
@@ -129,7 +136,7 @@ function createPresentationController({
         "is-forward",
         "is-backward",
       );
-      elements.loginScreen.classList.remove("is-returning-presentation");
+      originScreen.classList.remove("is-returning-presentation");
       body.classList.remove("presentation-closing");
       page?.classList.remove("presentation-closing");
       delete body.dataset.presentationScene;
@@ -137,7 +144,7 @@ function createPresentationController({
       locked = false;
       currentScene = 0;
       renderScene(0);
-      elements.trigger?.focus({ preventScroll: true });
+      originTrigger?.focus({ preventScroll: true });
     }, motionDuration(transitionMs));
   }
 
@@ -266,6 +273,11 @@ function createPresentationController({
     }, 180);
 
     if (intent.direction) navigate(intent.direction);
+  }
+
+  function handleTriggerClick(event) {
+    const trigger = event.target.closest?.("[data-presentation-trigger]");
+    if (trigger) open(trigger);
   }
 
   function handleKeydown(event) {

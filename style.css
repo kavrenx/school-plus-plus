@@ -1,12 +1,16 @@
 @import "./styles/base.css";
 @import "./styles/auth.css";
+@import "./styles/onboarding.css";
 @import "./styles/app-shell.css";
 @import "./styles/student-diary.css";
 @import "./styles/student-profile.css";
 @import "./styles/modals.css";
 @import "./styles/feedback.css";
+@import "./styles/support.css";
 @import "./styles/presentation.css";
 @import "./styles/teacher.css";
 @import "./styles/motion.css";
 @import "./styles/responsive.css";
 @import url("./styles/achievements.css");
+@import "./styles/student-sections.css";
+@import "./styles/legal.css";

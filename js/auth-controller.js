@@ -43,10 +43,10 @@ function createAuthController({
     elements.forgotButton.addEventListener("click", () =>
       modal.open(elements.forgotModal),
     );
-    elements.registerButton.addEventListener("click", openRegister);
-    elements.inviteCodeInput.addEventListener("input", formatInviteInput);
-    elements.inviteForm.addEventListener("submit", handleInviteSubmit);
-    elements.enterDemoButton.addEventListener("click", enterDemoAccount);
+    elements.registerButton?.addEventListener("click", openRegister);
+    elements.inviteCodeInput?.addEventListener("input", formatInviteInput);
+    elements.inviteForm?.addEventListener("submit", handleInviteSubmit);
+    elements.enterDemoButton?.addEventListener("click", enterDemoAccount);
 
     renderPasswordToggles();
   }
@@ -115,7 +115,7 @@ function createAuthController({
   }
 
   function authenticateAccount(account) {
-    const user = userStore.applyProfileOverrides(account);
+    const user = account;
     userStore.saveUser(user);
     clearLoginError();
     onAuthenticated(user);
