@@ -107,6 +107,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     root: document,
     windowRef: window,
     storeUrls: EXTENSION_STORE_URLS,
+    requestSubmitter: async (request) => {
+      await ensureCloudUser();
+      return services.support.createDiaryRequest(request);
+    },
   });
   if (
     mode === "local" &&

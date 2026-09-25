@@ -44,8 +44,16 @@
       hidden
     >
       <header class="support-console-topbar">
-        <strong class="brand-mark">SCHOOL++ · ПОДДЕРЖКА</strong>
-        <button class="secondary-btn" id="supportConsoleLogout" type="button">
+        <div class="support-console-brand">
+          <strong class="brand-mark">SCHOOL++</strong>
+          <span aria-hidden="true"></span>
+          <h1>Поддержка</h1>
+        </div>
+        <button
+          class="support-console-logout"
+          id="supportConsoleLogout"
+          type="button"
+        >
           Выйти
         </button>
       </header>
@@ -64,7 +72,7 @@
         aria-labelledby="supportTitle"
         hidden
       >
-        <header class="support-header">
+        <header class="support-header" id="supportWorkspaceHeader">
           <button
             class="support-icon-button"
             type="button"
@@ -82,16 +90,39 @@
           <span></span>
         </header>
         <section class="support-menu" id="supportMenu">
-          <div class="support-menu-heading">
-            <strong>Обращения</strong
-            ><button type="button" data-support-new hidden>Новая</button>
+          <nav class="support-console-tabs" aria-label="Раздел поддержки">
+            <button
+              class="is-active"
+              type="button"
+              data-support-console-view="conversations"
+            >
+              Обращения
+            </button>
+            <button type="button" data-support-console-view="requests">
+              Заявки
+            </button>
+          </nav>
+          <div id="supportConversationSection">
+            <div class="support-menu-heading">
+              <strong>Обращения</strong
+              ><button type="button" data-support-new hidden>Новая</button>
+            </div>
+            <div
+              class="support-conversation-list"
+              id="supportConversationList"
+            ></div>
           </div>
-          <div
-            class="support-conversation-list"
-            id="supportConversationList"
-          ></div>
+          <div id="supportRequestSection" hidden>
+            <div class="support-menu-heading">
+              <strong>Новые дневники</strong>
+            </div>
+            <div
+              class="support-conversation-list"
+              id="supportRequestList"
+            ></div>
+          </div>
         </section>
-        <div class="support-chat">
+        <div class="support-chat" id="supportWorkspaceChat">
           <div class="support-messages" id="supportMessages"></div>
           <section class="support-empty" id="supportEmpty">
             <p>Выберите обращение слева.</p>
@@ -123,6 +154,53 @@
         >
           Закрыть беседу
         </button>
+        <section class="support-request-view" id="supportRequestView" hidden>
+          <div class="support-request-empty" id="supportRequestEmpty">
+            <school-icon name="documents-outline"></school-icon>
+            <h2>Выберите заявку</h2>
+            <p>
+              Здесь появятся предложения о подключении других электронных
+              дневников.
+            </p>
+          </div>
+          <article class="support-request-card" id="supportRequestCard" hidden>
+            <header>
+              <div>
+                <p class="card-label">Заявка на подключение</p>
+                <h2 id="supportRequestName"></h2>
+              </div>
+              <span id="supportRequestState"></span>
+            </header>
+            <dl>
+              <div>
+                <dt>Адрес дневника</dt>
+                <dd id="supportRequestUrl"></dd>
+              </div>
+              <div>
+                <dt>Связь</dt>
+                <dd id="supportRequestContact"></dd>
+              </div>
+              <div>
+                <dt>Отправлена</dt>
+                <dd id="supportRequestDate"></dd>
+              </div>
+            </dl>
+            <div class="support-request-actions">
+              <button type="button" data-request-status="in_review">
+                Взять в работу
+              </button>
+              <button type="button" data-request-status="closed">
+                Закрыть заявку
+              </button>
+            </div>
+            <p
+              class="support-request-feedback"
+              id="supportRequestFeedback"
+              role="status"
+              hidden
+            ></p>
+          </article>
+        </section>
       </aside>
     </section>
     <script type="module" src="/js/support-console.js"></script>

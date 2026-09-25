@@ -119,8 +119,6 @@ function createPresentationController({
     locked = true;
     wheelAccumulator = 0;
     body.classList.add("presentation-closing");
-    body.classList.remove("presentation-active");
-    page?.classList.remove("presentation-active");
     page?.classList.add("presentation-closing");
     originScreen.classList.remove("hidden");
     originScreen.classList.add("is-returning-presentation");
@@ -137,8 +135,8 @@ function createPresentationController({
         "is-backward",
       );
       originScreen.classList.remove("is-returning-presentation");
-      body.classList.remove("presentation-closing");
-      page?.classList.remove("presentation-closing");
+      body.classList.remove("presentation-active", "presentation-closing");
+      page?.classList.remove("presentation-active", "presentation-closing");
       delete body.dataset.presentationScene;
       active = false;
       locked = false;

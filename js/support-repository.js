@@ -78,6 +78,49 @@ function createSupportRepository(client) {
           .single(),
       );
     },
+    async createDiaryRequest({ name, diaryUrl, contact }) {
+      const user = await getUser();
+      return unwrap(
+        await client
+          .from("diary_requests")
+          .insert({
+            owner_id: user.id,
+            requester_name: String(name || "").trim().slice(0, 80),
+            diary_url: String(diaryUrl || "").trim().slice(0, 300),
+            contact: String(contact || "").trim().slice(0, 200),
+          })
+          .select(
+            "id, owner_id, requester_name, diary_url, contact, status, created_at, updated_at",
+          )
+          .single(),
+      );
+    },
+    async listDiaryRequests() {
+      await getUser();
+      return (
+        unwrap(
+          await client
+            .from("diary_requests")
+            .select(
+              "id, owner_id, requester_name, diary_url, contact, status, created_at, updated_at",
+            )
+            .order("created_at", { ascending: false }),
+        ) || []
+      );
+    },
+    async updateDiaryRequestStatus(requestId, nextStatus) {
+      await getUser();
+      return unwrap(
+        await client
+          .from("diary_requests")
+          .update({ status: nextStatus })
+          .eq("id", requestId)
+          .select(
+            "id, owner_id, requester_name, diary_url, contact, status, created_at, updated_at",
+          )
+          .single(),
+      );
+    },
     subscribe(onChange) {
       const channel = client
         .channel(`schoolpp-support-${crypto.randomUUID()}`)
@@ -89,6 +132,11 @@ function createSupportRepository(client) {
         .on(
           "postgres_changes",
           { event: "*", schema: "public", table: "support_messages" },
+          onChange,
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "diary_requests" },
           onChange,
         )
         .subscribe();

@@ -38,6 +38,9 @@ function createOnboardingController({
   root,
   windowRef,
   storeUrls,
+  requestSubmitter = async () => {
+    throw new Error("DIARY_REQUEST_UNAVAILABLE");
+  },
   presenceCheck = requestExtensionPresence,
   snapshotRequest = requestExtensionSnapshot,
   subscribe = subscribeToExtensionSnapshots,
@@ -46,6 +49,7 @@ function createOnboardingController({
   const content = root.getElementById("onboardingContent");
   const storage = windowRef.localStorage;
   const session = windowRef.sessionStorage;
+  const requestUi = createDiaryRequestPanel(root, screen);
   let finish;
   let unsubscribe = () => {};
   let completePromise;
@@ -99,7 +103,30 @@ function createOnboardingController({
         return;
       }
     }
-    showDeviceConfirmation(detectDevice(windowRef.navigator));
+    showDiaryConfirmation();
+  }
+
+  function showDiaryConfirmation() {
+    content.innerHTML = `
+      <p class="onboarding-eyebrow">Подключение дневника</p>
+      <h1>Ваш дневник — e-schools.by?</h1>
+      <p>Сейчас School++ переносит данные из электронного дневника e-schools.by.</p>
+      <div class="onboarding-actions">
+        <button class="primary-btn" type="button" data-diary-confirm>Да</button>
+        <button class="onboarding-secondary" type="button" data-diary-unsupported>Нет, другой дневник</button>
+        <button class="onboarding-about" type="button" data-presentation-trigger>Что такое School++?</button>
+      </div>`;
+  }
+
+  function showUnsupportedDiary() {
+    content.innerHTML = `
+      <p class="onboarding-eyebrow">Другой дневник</p>
+      <h1>Пока мы работаем с e-schools.by</h1>
+      <p>Хотите поддержку другого дневника? Оставьте заявку — она поможет понять, что подключать следующим.</p>
+      <div class="onboarding-actions onboarding-actions-single">
+        <button class="primary-btn" type="button" data-open-diary-request>Оставить заявку</button>
+        <button class="onboarding-secondary" type="button" data-diary-back>Вернуться</button>
+      </div>`;
   }
 
   function showDeviceConfirmation(device) {
@@ -141,7 +168,7 @@ function createOnboardingController({
       <p class="onboarding-eyebrow">Мобильная версия</p>
       <h1>Сейчас School++ подключается на компьютере</h1>
       <p>Поддержку телефона и планшета добавим отдельно. Для подключения данных пока понадобится компьютер.</p>
-      <div class="onboarding-actions"><button class="onboarding-secondary" type="button" data-device-change>Выбрать другое устройство</button></div>`;
+      <div class="onboarding-actions onboarding-actions-single"><button class="onboarding-secondary" type="button" data-device-change>Выбрать другое устройство</button></div>`;
   }
 
   function showExtensionStores(message = "") {
@@ -205,14 +232,44 @@ function createOnboardingController({
       <button class="primary-btn" type="button" data-onboarding-complete>Открыть дневник</button>`;
   }
 
-  content.addEventListener("click", (event) => {
+  screen.addEventListener("click", (event) => {
     const target = event.target.closest("button");
     if (!target) return;
+    if (target.matches("[data-diary-confirm]"))
+      showDeviceConfirmation(detectDevice(windowRef.navigator));
+    if (target.matches("[data-diary-unsupported]")) showUnsupportedDiary();
+    if (target.matches("[data-diary-back]")) showDiaryConfirmation();
+    if (target.matches("[data-open-diary-request]")) requestUi.open();
+    if (target.matches("[data-close-diary-request]")) requestUi.close();
     if (target.matches("[data-device-change]")) showDeviceChoice();
     if (target.dataset.deviceConfirm === "desktop") void showDesktopFlow();
     if (target.dataset.deviceConfirm === "mobile") showMobileNotice();
     if (target.matches("[data-extension-installed]")) void checkInstalled();
     if (target.matches("[data-onboarding-complete]")) complete();
+  });
+
+  requestUi.form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (requestUi.submitting) return;
+    requestUi.setSubmitting(true);
+    requestUi.showStatus("Отправляем заявку…");
+    const formData = new windowRef.FormData(requestUi.form);
+    try {
+      await requestSubmitter({
+        name: formData.get("name"),
+        diaryUrl: formData.get("diaryUrl"),
+        contact: formData.get("contact"),
+      });
+      requestUi.form.reset();
+      requestUi.showSuccess();
+    } catch {
+      requestUi.showStatus(
+        "Не удалось отправить заявку. Проверьте соединение и попробуйте ещё раз.",
+        true,
+      );
+    } finally {
+      requestUi.setSubmitting(false);
+    }
   });
 
   return { complete, isComplete, start };
@@ -234,7 +291,76 @@ function storeCard(store, url, recommended) {
 function deviceIllustration(device) {
   return device === "desktop"
     ? '<svg viewBox="0 0 180 120"><rect x="24" y="14" width="132" height="78" rx="7"></rect><path d="M72 106h36M82 92v14m16-14v14"></path><path class="accent" d="M53 40h74M53 55h48M53 70h60"></path></svg>'
-    : '<svg viewBox="0 0 180 120"><rect x="60" y="8" width="60" height="104" rx="10"></rect><path d="M82 18h16M85 101h10"></path><path class="accent" d="M73 42h34M73 56h24M73 70h29"></path></svg>';
+    : '<svg viewBox="0 0 180 120"><rect x="35" y="17" width="92" height="82" rx="9"></rect><path d="M73 25h16M76 89h10"></path><rect class="device-phone" x="92" y="8" width="54" height="104" rx="10"></rect><path d="M110 18h18M112 101h14"></path><path class="accent" d="M103 43h32M103 57h23M103 71h28"></path></svg>';
+}
+
+function createDiaryRequestPanel(root, screen) {
+  const wrapper = root.createElement("div");
+  wrapper.innerHTML = `
+    <button class="diary-request-backdrop" type="button" data-close-diary-request aria-label="Закрыть заявку" hidden></button>
+    <aside class="diary-request-panel" role="dialog" aria-modal="true" aria-labelledby="diaryRequestTitle" hidden>
+      <header>
+        <div>
+          <p class="onboarding-eyebrow">Новый дневник</p>
+          <h2 id="diaryRequestTitle">Оставить заявку</h2>
+        </div>
+        <button class="support-icon-button" type="button" data-close-diary-request aria-label="Закрыть"><school-icon name="close-outline"></school-icon></button>
+      </header>
+      <form class="diary-request-form">
+        <p>Расскажите, какой дневник нужно добавить. Мы свяжемся с вами, если понадобятся подробности.</p>
+        <label><span>Как вас называть</span><input name="name" maxlength="80" autocomplete="name" placeholder="Имя или имя и фамилия" required></label>
+        <label><span>Адрес дневника</span><input name="diaryUrl" type="url" maxlength="300" inputmode="url" autocomplete="url" placeholder="https://…" required></label>
+        <label><span>Как с вами связаться</span><input name="contact" maxlength="200" autocomplete="email" placeholder="Telegram, почта или телефон" required></label>
+        <p class="diary-request-status" role="status" hidden></p>
+        <button class="primary-btn" type="submit">Отправить заявку</button>
+      </form>
+      <section class="diary-request-success" hidden>
+        <span aria-hidden="true">✓</span>
+        <h3>Заявка отправлена</h3>
+        <p>Спасибо! Она появилась у команды поддержки.</p>
+        <button class="primary-btn" type="button" data-close-diary-request>Готово</button>
+      </section>
+    </aside>`;
+  const backdrop = wrapper.firstElementChild;
+  const panel = wrapper.lastElementChild;
+  screen.append(backdrop, panel);
+  const form = panel.querySelector("form");
+  const success = panel.querySelector(".diary-request-success");
+  const status = panel.querySelector(".diary-request-status");
+  const submit = form.querySelector('[type="submit"]');
+  let submitting = false;
+
+  return {
+    form,
+    get submitting() {
+      return submitting;
+    },
+    open() {
+      form.hidden = false;
+      success.hidden = true;
+      status.hidden = true;
+      backdrop.hidden = false;
+      panel.hidden = false;
+      form.querySelector("input")?.focus();
+    },
+    close() {
+      backdrop.hidden = true;
+      panel.hidden = true;
+    },
+    setSubmitting(value) {
+      submitting = value;
+      submit.disabled = value;
+    },
+    showStatus(message, error = false) {
+      status.textContent = message;
+      status.hidden = false;
+      status.classList.toggle("is-error", error);
+    },
+    showSuccess() {
+      form.hidden = true;
+      success.hidden = false;
+    },
+  };
 }
 
 export {

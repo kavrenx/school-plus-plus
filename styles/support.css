@@ -345,6 +345,39 @@
   background: var(--paper);
 }
 
+.support-console-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.support-console-brand > span {
+  width: 1px;
+  height: 28px;
+  background: var(--line-dark);
+}
+
+.support-console-brand h1 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  letter-spacing: -0.025em;
+}
+
+.support-console-logout {
+  min-height: 40px;
+  padding: 8px 16px;
+  border: 1px solid var(--line-dark);
+  background: var(--paper);
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.support-console-logout:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
 .support-console-workspace .support-panel {
   inset: 82px 18px 18px;
   width: auto;
@@ -367,6 +400,28 @@
   box-shadow: none;
 }
 
+.support-console-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 18px;
+  padding: 4px;
+  background: var(--paper-2);
+}
+
+.support-console-tabs button {
+  min-height: 38px;
+  padding: 7px 10px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.support-console-tabs button.is-active {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
 .support-console-workspace .support-chat,
 .support-console-workspace .support-status,
 .support-console-workspace .support-form,
@@ -376,6 +431,141 @@
 
 .support-console-workspace .support-backdrop {
   display: none;
+}
+
+.support-console-request-hidden {
+  display: none !important;
+}
+
+.support-request-view {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: clamp(20px, 4vw, 48px);
+  background: var(--canvas);
+}
+
+.support-request-view[hidden] {
+  display: none;
+}
+
+.support-request-empty {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 9px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.support-request-empty school-icon {
+  font-size: 34px;
+  color: var(--accent);
+}
+
+.support-request-empty h2,
+.support-request-card h2 {
+  color: var(--ink);
+  font-family: var(--font-display);
+}
+
+.support-request-empty p {
+  max-width: 440px;
+  line-height: 1.55;
+}
+
+.support-request-card {
+  width: min(760px, 100%);
+  margin-inline: auto;
+  border: 1px solid var(--line-dark);
+  background: var(--paper);
+}
+
+.support-request-card[hidden],
+.support-request-empty[hidden] {
+  display: none;
+}
+
+.support-request-card > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px;
+  border-bottom: 1px solid var(--line-dark);
+  background: var(--paper-2);
+}
+
+.support-request-card > header > span {
+  padding: 6px 9px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.support-request-card > header > span[data-status="closed"] {
+  background: var(--paper);
+  color: var(--muted);
+}
+
+.support-request-card dl {
+  display: grid;
+  margin: 0;
+}
+
+.support-request-card dl > div {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.38fr) minmax(0, 1fr);
+  gap: 18px;
+  padding: 17px 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.support-request-card dt {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.support-request-card dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-weight: 720;
+}
+
+.support-request-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  padding: 18px 22px;
+}
+
+.support-request-actions button {
+  min-height: 40px;
+  padding: 8px 13px;
+  border: 1px solid var(--line-dark);
+  background: var(--paper);
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.support-request-actions button:first-child {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.support-request-actions button:disabled {
+  opacity: 0.45;
+}
+
+.support-request-feedback {
+  padding: 0 22px 18px;
+  color: var(--danger);
+  font-size: 13px;
 }
 
 @media (max-width: 760px) {
@@ -397,5 +587,15 @@
     top: 64px;
     bottom: 0;
     width: min(320px, 86%);
+  }
+
+  .support-request-view {
+    grid-column: 1;
+    padding: 16px;
+  }
+
+  .support-request-card dl > div {
+    grid-template-columns: 1fr;
+    gap: 5px;
   }
 }

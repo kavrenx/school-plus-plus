@@ -66,6 +66,7 @@ test("an installed extension with data completes the first-run flow", async () =
   const completion = controller.start();
   await new Promise((resolve) => setImmediate(resolve));
 
+  window.document.querySelector("[data-diary-confirm]").click();
   window.document.querySelector('[data-device-confirm="desktop"]').click();
   await new Promise((resolve) => setImmediate(resolve));
   await new Promise((resolve) => setImmediate(resolve));
@@ -77,5 +78,40 @@ test("an installed extension with data completes the first-run flow", async () =
   window.document.querySelector("[data-onboarding-complete]").click();
   await completion;
   assert.equal(window.localStorage.getItem(ONBOARDING_KEY), "true");
+  window.close();
+});
+
+test("unsupported diary flow sends a structured request", async () => {
+  const window = createWindow();
+  let submitted = null;
+  const controller = createOnboardingController({
+    root: window.document,
+    windowRef: window,
+    storeUrls: {},
+    requestSubmitter: async (request) => {
+      submitted = request;
+    },
+  });
+  void controller.start();
+  await new Promise((resolve) => setImmediate(resolve));
+
+  window.document.querySelector("[data-diary-unsupported]").click();
+  window.document.querySelector("[data-open-diary-request]").click();
+  const form = window.document.querySelector(".diary-request-form");
+  form.elements.name.value = "Алексей";
+  form.elements.diaryUrl.value = "https://diary.example.by";
+  form.elements.contact.value = "@alexey";
+  form.dispatchEvent(new window.Event("submit", { cancelable: true }));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(submitted, {
+    name: "Алексей",
+    diaryUrl: "https://diary.example.by",
+    contact: "@alexey",
+  });
+  assert.match(
+    window.document.querySelector(".diary-request-success").textContent,
+    /Заявка отправлена/,
+  );
   window.close();
 });

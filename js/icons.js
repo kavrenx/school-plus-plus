@@ -16,6 +16,7 @@ const ICON_PATHS = Object.freeze({
   "send-outline": "m3 11 18-8-8 18-2-7-8-3Zm8 3 10-11",
   "menu-outline": "M4 7h16M4 12h16M4 17h16",
   "more-outline": "M6 12h.01M12 12h.01M18 12h.01",
+  "documents-outline": "M7 3h10l3 3v15H7V3Zm10 0v4h3M4 7v14h12M10 11h7m-7 4h7",
 });
 
 function registerIcons() {

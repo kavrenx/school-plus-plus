@@ -12,9 +12,12 @@
    `supabase/migrations/202609150001_personal_diary.sql`.
 3. Затем один раз выполните
    `supabase/migrations/202609200001_support_chat.sql`.
-4. В **Table Editor** проверьте RLS у `diary_snapshots`,
-   `support_conversations`, `support_messages` и `support_agents`.
-5. В настройках хостинга задайте:
+4. Для заявок на подключение других дневников один раз выполните
+   `supabase/migrations/202609250001_diary_requests.sql`.
+5. В **Table Editor** проверьте RLS у `diary_snapshots`,
+   `support_conversations`, `support_messages`, `support_agents` и
+   `diary_requests`.
+6. В настройках хостинга задайте:
 
 ```text
 VITE_APP_MODE=cloud
@@ -58,6 +61,6 @@ School++, дождаться записи в Supabase и закрыть её.
 вкладку для удаления записи из Supabase. Логины, пароли, cookies, токены,
 ответы авторизации и CAPTCHA в снимок не входят.
 
-Поддержка использует отдельные таблицы бесед и сообщений. Новые сообщения
-передаются через Supabase Realtime; закрытую оператором беседу нельзя
-продолжить.
+Поддержка использует отдельные таблицы бесед, сообщений и заявок на новые
+дневники. Новые записи передаются через Supabase Realtime; закрытую оператором
+беседу нельзя продолжить. Заявки видны их автору и операторам поддержки.
