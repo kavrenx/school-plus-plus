@@ -8,6 +8,7 @@ export default defineConfig({
         main: resolve(import.meta.dirname, "index.html"),
         privacy: resolve(import.meta.dirname, "privacy.html"),
         support: resolve(import.meta.dirname, "support.html"),
+        control: resolve(import.meta.dirname, "control.html"),
       },
     },
   },

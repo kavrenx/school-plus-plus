@@ -43,6 +43,11 @@ body.presentation-active[data-presentation-scene="4"] {
   --backdrop-y: -156px;
 }
 
+body.presentation-active.presentation-closing {
+  --backdrop-x: 0px;
+  --backdrop-y: 0px;
+}
+
 .presentation-screen {
   position: fixed;
   z-index: 30;

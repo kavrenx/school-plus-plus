@@ -14,10 +14,13 @@
    `supabase/migrations/202609200001_support_chat.sql`.
 4. Для заявок на подключение других дневников один раз выполните
    `supabase/migrations/202609250001_diary_requests.sql`.
-5. В **Table Editor** проверьте RLS у `diary_snapshots`,
+5. Для панели управления и обезличенной статистики выполните
+   `supabase/migrations/202609250002_admin_dashboard.sql`.
+6. В **Table Editor** проверьте RLS у `diary_snapshots`,
    `support_conversations`, `support_messages`, `support_agents` и
-   `diary_requests`.
-6. В настройках хостинга задайте:
+   `diary_requests`. У `site_activity_daily` прямой доступ для клиентов должен
+   оставаться закрытым.
+7. В настройках хостинга задайте:
 
 ```text
 VITE_APP_MODE=cloud
@@ -49,6 +52,10 @@ set display_name = excluded.display_name;
 Оператор входит на `/support.html` с логином `support` и своим паролем. Клиент
 не может сам назначить эту роль. Политики RLS дают ученику доступ только к своим
 данным и беседам, а оператору — к обращениям поддержки.
+
+Та же учётная запись открывает `/control.html`. Новая миграция выдаёт право на
+панель управления именно существующему пользователю `support@schoolpp.com`;
+будущие операторы поддержки такого права автоматически не получают.
 
 ## Хранение и синхронизация
 

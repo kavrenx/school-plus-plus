@@ -377,13 +377,13 @@
 
   function getPublicError(error) {
     if (error.message === "AUTH_REQUIRED")
-      return "Сессия e.school.by закончилась. Войди в дневник снова.";
+      return "Сессия e‑schools.by закончилась. Войди в дневник снова.";
     if (error.message === "NO_DATA")
       return "Не удалось определить данные дневника. Обнови страницу.";
     if (error.message === "SOURCE_UNAVAILABLE")
       return "Дневник не ответил. Проверь соединение и попробуй ещё раз.";
     if (error instanceof TypeError)
-      return "e.school.by недоступен. Проверь интернет или отключи VPN.";
+      return "e‑schools.by недоступен. Проверь интернет или отключи VPN.";
     return "Не удалось синхронизировать данные. Попробуй ещё раз.";
   }
 })();

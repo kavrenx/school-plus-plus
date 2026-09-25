@@ -36,6 +36,7 @@ import {
 import { EXTENSION_STORE_URLS } from "./js/release-config.js";
 import { createSupabaseServices } from "./js/supabase-services.js";
 import { createSupportController } from "./js/support-controller.js";
+import { createActivityReporter } from "./js/site-activity.js";
 
 registerIcons();
 
@@ -61,6 +62,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     return cloudUserPromise;
   }
 
+  const reportActivity = createActivityReporter({
+    services: mode === "cloud" ? services : null,
+    ensureUser: ensureCloudUser,
+    navigatorRef: window.navigator,
+  });
+  if (mode === "cloud") void reportActivity("page_view");
+
   const relayParams = new URLSearchParams(window.location.search);
   const relayAction = relayParams.get("extension-action");
   const relayImport = relayParams.get("extension-sync") === "background";
@@ -75,6 +83,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const snapshot = await requestExtensionSnapshot(window, 4_000);
         if (!snapshot) throw new Error("Расширение не передало данные.");
         await services.diary.save(snapshot);
+        void reportActivity("sync_received");
       }
       notifyExtensionImported(window);
       document.querySelector(".relay-status").textContent = "Готово";
@@ -100,6 +109,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       return services.support;
     },
     ownerLabelProvider: () => supportOwnerLabel,
+    onOpen: () => void reportActivity("support_opened"),
   });
   supportController.bind();
 
@@ -111,6 +121,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       await ensureCloudUser();
       return services.support.createDiaryRequest(request);
     },
+    eventReporter: reportActivity,
   });
   if (
     mode === "local" &&
@@ -158,6 +169,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       try {
         await ensureCloudUser();
         await services.diary.save(snapshot);
+        void reportActivity("sync_received");
         notifyExtensionImported(window);
       } catch (error) {
         console.warn("Не удалось сохранить обновление дневника.", error);
@@ -437,6 +449,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (mode === "cloud" && services) {
           await ensureCloudUser();
           await services.diary.save(snapshot);
+          void reportActivity("sync_received");
           notifyExtensionImported(window);
         }
         const imported = adaptESchoolsSnapshot(snapshot);

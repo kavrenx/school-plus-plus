@@ -97,7 +97,7 @@ function renderStatus(stats, syncState = {}) {
     statusTitle.textContent = "Нужна первая синхронизация";
     setLinkedText(
       statusText,
-      "Открой e.school.by и синхронизируй данные. После этого они смогут обновляться автоматически.",
+      "Открой e‑schools.by и синхронизируй данные. После этого они смогут обновляться автоматически.",
     );
     return;
   }
@@ -313,16 +313,18 @@ function renderCompletedFallback(warning = "") {
 }
 
 function setLinkedText(element, text) {
-  const parts = String(text).split(/(diary\.e-schools\.by|e\.school\.by)/gi);
+  const domainPattern = /((?:diary\.)?e(?:\.|-|‑)schools?\.by)/gi;
+  const exactDomainPattern = /^(?:diary\.)?e(?:\.|-|‑)schools?\.by$/i;
+  const parts = String(text).split(domainPattern);
   element.replaceChildren(
     ...parts.map((part) => {
-      if (!/^(?:diary\.e-schools\.by|e\.school\.by)$/i.test(part))
-        return document.createTextNode(part);
+      if (!exactDomainPattern.test(part)) return document.createTextNode(part);
       const link = document.createElement("a");
       link.href = "https://diary.e-schools.by/";
       link.target = "_blank";
       link.rel = "noreferrer";
       link.textContent = part;
+      link.style.whiteSpace = "nowrap";
       return link;
     }),
   );
@@ -334,7 +336,7 @@ function getPublicPopupError(error) {
     message.includes("Receiving end does not exist") ||
     message.includes("Could not establish connection")
   )
-    return "Обнови страницу e.school.by после установки расширения.";
+    return "Обнови страницу e‑schools.by после установки расширения.";
   return message || "Не удалось синхронизировать данные. Попробуй ещё раз.";
 }
 
@@ -354,7 +356,7 @@ function getReadyStatusText(syncState = latestSyncState) {
   if (syncState.lastError)
     return "Сохранённые данные доступны. Последнюю проверку можно повторить.";
   if (!backgroundSyncEnabled)
-    return "Фоновое обновление выключено. Для ручной синхронизации открой e.school.by.";
+    return "Фоновое обновление выключено. Для ручной синхронизации открой e‑schools.by.";
   if (syncState.lastWarning)
     return `${syncState.lastWarning}. Следующая проверка ${formatNextSync(syncState.nextSyncAt)}.`;
   if (syncState.lastSyncAt)

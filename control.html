@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#eef1ed" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Управление · School++</title>
+    <link rel="icon" href="assets/favicon.svg?v=6" type="image/svg+xml" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body class="admin-page">
+    <main class="admin-login" id="adminLogin">
+      <form class="admin-login-card" id="adminLoginForm">
+        <p class="card-label">School++</p>
+        <h1>Центр управления</h1>
+        <p>Статистика и состояние сервиса доступны только администратору.</p>
+        <label
+          >Логин<input id="adminLoginInput" autocomplete="username" required
+        /></label>
+        <label
+          >Пароль<input
+            id="adminPassword"
+            type="password"
+            autocomplete="current-password"
+            required
+        /></label>
+        <p
+          class="form-message error"
+          id="adminLoginError"
+          role="status"
+          hidden
+        ></p>
+        <button class="primary-btn" type="submit">Войти</button>
+      </form>
+    </main>
+
+    <section class="admin-workspace" id="adminWorkspace" hidden>
+      <header class="admin-topbar">
+        <a class="brand-mark" href="/">SCHOOL++</a>
+        <nav aria-label="Разделы управления">
+          <a href="/support.html">Поддержка</a>
+          <button id="adminLogout" type="button">Выйти</button>
+        </nav>
+      </header>
+
+      <main class="admin-main">
+        <header class="admin-intro">
+          <div>
+            <p class="card-label">Центр управления</p>
+            <h1>School++ сегодня</h1>
+            <p id="adminUpdatedAt">Загружаем актуальные данные…</p>
+          </div>
+          <button class="admin-refresh" id="adminRefresh" type="button">
+            <school-icon name="refresh-outline"></school-icon>
+            Обновить
+          </button>
+        </header>
+
+        <p class="admin-error" id="adminError" role="status" hidden></p>
+
+        <section class="admin-metric-grid" aria-label="Главные показатели">
+          <article class="admin-metric is-primary">
+            <span>Посещения сегодня</span><strong id="metricViews">—</strong
+            ><small id="metricVisitors">— посетителей</small>
+          </article>
+          <article class="admin-metric">
+            <span>Синхронизации сегодня</span><strong id="metricSyncs">—</strong
+            ><small id="metricLastSync">Последняя: —</small>
+          </article>
+          <article class="admin-metric">
+            <span>Дневников в облаке</span
+            ><strong id="metricSnapshots">—</strong
+            ><small id="metricFresh">— обновлено за сутки</small>
+          </article>
+          <article class="admin-metric">
+            <span>Требуют внимания</span><strong id="metricAttention">—</strong
+            ><small id="metricAttentionDetail">Поддержка и заявки</small>
+          </article>
+        </section>
+
+        <section class="admin-layout">
+          <article class="admin-panel admin-activity-panel">
+            <header>
+              <div>
+                <p class="panel-label">Активность</p>
+                <h2>Последние 14 дней</h2>
+              </div>
+              <div class="admin-chart-legend">
+                <span>Посещения</span><span>Люди</span>
+              </div>
+            </header>
+            <div
+              class="admin-chart"
+              id="adminChart"
+              aria-label="График посещений"
+            ></div>
+          </article>
+
+          <article class="admin-panel">
+            <header>
+              <div>
+                <p class="panel-label">Подключение</p>
+                <h2>Путь пользователя</h2>
+              </div>
+            </header>
+            <div class="admin-funnel" id="adminFunnel"></div>
+          </article>
+
+          <article class="admin-panel">
+            <header>
+              <div>
+                <p class="panel-label">Сервис</p>
+                <h2>Состояние данных</h2>
+              </div>
+            </header>
+            <div class="admin-status-list">
+              <div>
+                <span>Активны за 7 дней</span
+                ><strong id="statusVisitors7d">—</strong>
+              </div>
+              <div>
+                <span>Свежие дневники</span><strong id="statusFresh">—</strong>
+              </div>
+              <div>
+                <span>Не обновлялись 7 дней</span
+                ><strong id="statusStale">—</strong>
+              </div>
+              <div>
+                <span>Сообщений сегодня</span
+                ><strong id="statusMessages">—</strong>
+              </div>
+            </div>
+          </article>
+
+          <article class="admin-panel">
+            <header>
+              <div>
+                <p class="panel-label">Очередь</p>
+                <h2>Поддержка</h2>
+              </div>
+              <a href="/support.html">Открыть</a>
+            </header>
+            <div class="admin-queue">
+              <div>
+                <strong id="queueConversations">—</strong
+                ><span>открытых обращений</span>
+              </div>
+              <div>
+                <strong id="queueRequests">—</strong><span>новых заявок</span>
+              </div>
+              <div>
+                <strong id="queueReview">—</strong><span>заявок в работе</span>
+              </div>
+            </div>
+            <p class="admin-last-event" id="queueLastMessage">
+              Последнее сообщение: —
+            </p>
+          </article>
+
+          <article class="admin-panel">
+            <header>
+              <div>
+                <p class="panel-label">Аудитория</p>
+                <h2>Устройства</h2>
+              </div>
+            </header>
+            <div class="admin-breakdown" id="adminDevices"></div>
+          </article>
+
+          <article class="admin-panel">
+            <header>
+              <div>
+                <p class="panel-label">Аудитория</p>
+                <h2>Браузеры</h2>
+              </div>
+            </header>
+            <div class="admin-breakdown" id="adminBrowsers"></div>
+          </article>
+        </section>
+      </main>
+    </section>
+
+    <script type="module" src="/js/admin-console.js"></script>
+  </body>
+</html>

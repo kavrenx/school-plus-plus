@@ -29,7 +29,7 @@ test("onboarding detects the device and recommends its browser store", () => {
     detectBrowser({ userAgent: "Mozilla/5.0 Edg/140.0 Chrome/140.0" }),
     "edge",
   );
-  assert.equal(getRecommendedStore("edge"), "edge");
+  assert.equal(getRecommendedStore("edge"), "chromium");
   assert.equal(getRecommendedStore("brave"), "chromium");
 });
 
@@ -91,6 +91,7 @@ test("unsupported diary flow sends a structured request", async () => {
     requestSubmitter: async (request) => {
       submitted = request;
     },
+    feedbackDelay: async () => {},
   });
   void controller.start();
   await new Promise((resolve) => setImmediate(resolve));
@@ -111,7 +112,7 @@ test("unsupported diary flow sends a structured request", async () => {
   });
   assert.match(
     window.document.querySelector(".diary-request-success").textContent,
-    /Заявка отправлена/,
+    /Отправлено/,
   );
   window.close();
 });

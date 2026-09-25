@@ -64,6 +64,7 @@ test("support creates a private conversation and sends the first message", async
     windowRef: window,
     repositoryProvider: async () => repository,
     ownerLabelProvider: () => "Тимур Споняков",
+    onOpen: () => messages.push({ type: "opened" }),
   });
   controller.bind();
   await controller.open();
@@ -77,7 +78,8 @@ test("support creates a private conversation and sends the first message", async
   await new Promise((resolve) => window.setTimeout(resolve, 10));
 
   assert.equal(conversations[0].owner_label, "Тимур Споняков");
-  assert.equal(messages[0].body, "Не получается синхронизировать");
+  assert.equal(messages[0].type, "opened");
+  assert.equal(messages[1].body, "Не получается синхронизировать");
   assert.match(
     window.document.getElementById("supportMessages").textContent,
     /Не получается синхронизировать/,

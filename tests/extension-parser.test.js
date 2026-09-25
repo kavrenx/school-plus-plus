@@ -255,17 +255,27 @@ test("extension manifests expose background updates and notifications", () => {
     ),
   );
   for (const manifest of [chromium, firefox]) {
-    assert.equal(manifest.version, "1.0.0");
+    assert.equal(manifest.version, "1.0.1");
     assert.ok(manifest.permissions.includes("alarms"));
     assert.ok(manifest.permissions.includes("notifications"));
     assert.ok(
       manifest.host_permissions.includes("https://diary.e-schools.by/*"),
     );
     assert.equal(manifest.icons[128], "assets/icon128.png");
+    const schoolppMatches = manifest.content_scripts.find((entry) =>
+      entry.js.includes("content/schoolpp.js"),
+    ).matches;
+    assert.deepEqual(schoolppMatches, ["https://schoolpp.com/*"]);
   }
   assert.equal(chromium.version, firefox.version);
   assert.equal(
     firefox.browser_specific_settings.gecko.strict_min_version,
-    "128.0",
+    "140.0",
   );
+  assert.deepEqual(
+    firefox.browser_specific_settings.gecko.data_collection_permissions
+      .required,
+    ["personallyIdentifyingInfo", "personalCommunications", "websiteContent"],
+  );
+  assert.equal(firefox.browser_specific_settings.gecko_android, undefined);
 });

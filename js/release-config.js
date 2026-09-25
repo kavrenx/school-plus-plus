@@ -1,6 +1,5 @@
 const EXTENSION_STORE_URLS = Object.freeze({
   chromium: "",
-  edge: "",
   firefox: "",
 });
 

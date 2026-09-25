@@ -70,6 +70,9 @@ a {
   font-weight: 700;
   text-underline-offset: 3px;
 }
+.service-domain {
+  white-space: nowrap;
+}
 p {
   margin: 9px 0 0;
 }

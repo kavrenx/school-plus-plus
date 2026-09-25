@@ -378,6 +378,30 @@
   color: var(--accent-dark);
 }
 
+.support-console-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.support-console-actions > a {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  border: 1px solid var(--line-dark);
+  background: var(--paper);
+  color: var(--ink);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.support-console-actions > a:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
 .support-console-workspace .support-panel {
   inset: 82px 18px 18px;
   width: auto;

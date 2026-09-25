@@ -3,6 +3,7 @@ function createSupportController({
   windowRef = window,
   repositoryProvider,
   ownerLabelProvider = () => "Пользователь",
+  onOpen = () => {},
 }) {
   const panel = root.getElementById("supportPanel");
   const backdrop = root.getElementById("supportBackdrop");
@@ -36,6 +37,7 @@ function createSupportController({
     backdrop.hidden = false;
     panel.setAttribute("aria-hidden", "false");
     root.body.classList.add("support-open");
+    onOpen();
     showStatus("Подключаем поддержку…");
     try {
       if (!repository) {

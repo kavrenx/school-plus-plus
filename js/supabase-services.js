@@ -3,6 +3,7 @@ import { getSupabaseConfig } from "./supabase-config.js";
 import { createCloudAuth } from "./cloud-auth.js";
 import { createCloudDiaryRepository } from "./cloud-diary-repository.js";
 import { createSupportRepository } from "./support-repository.js";
+import { createAdminRepository } from "./admin-repository.js";
 
 function createSupabaseServices(env = import.meta.env, options = {}) {
   const config = getSupabaseConfig(env);
@@ -19,6 +20,7 @@ function createSupabaseServices(env = import.meta.env, options = {}) {
     auth: createCloudAuth(client),
     diary: createCloudDiaryRepository(client),
     support: createSupportRepository(client),
+    admin: createAdminRepository(client),
   });
 }
 

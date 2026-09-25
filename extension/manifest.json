@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "School++ — синхронизация дневника",
   "short_name": "School++",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Переносит данные из электронного дневника пользователя в School++.",
   "icons": {
     "16": "assets/icon16.png",
@@ -45,11 +45,7 @@
       "run_at": "document_start"
     },
     {
-      "matches": [
-        "https://schoolpp.com/*",
-        "http://127.0.0.1:5173/*",
-        "http://localhost:5173/*"
-      ],
+      "matches": ["https://schoolpp.com/*"],
       "js": ["content/schoolpp.js"],
       "run_at": "document_start"
     }
