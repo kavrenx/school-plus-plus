@@ -192,12 +192,22 @@
   line-height: 1.45;
 }
 
-.support-message time {
-  display: block;
+.support-message-meta {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
   margin-top: 4px;
   color: var(--quiet);
   font-size: 10px;
   text-align: right;
+}
+
+.support-message.is-pending {
+  opacity: 0.68;
+}
+
+.support-message-read {
+  color: var(--muted);
 }
 
 .support-empty {
@@ -414,6 +424,10 @@
   grid-column: 2;
 }
 
+.support-console-workspace .support-header [data-support-menu] {
+  display: none;
+}
+
 .support-console-workspace .support-menu {
   position: static;
   grid-column: 1;
@@ -422,6 +436,10 @@
   display: block;
   overflow-y: auto;
   box-shadow: none;
+}
+
+.support-console-workspace .support-menu[hidden] {
+  display: block;
 }
 
 .support-console-tabs {
@@ -611,6 +629,14 @@
     top: 64px;
     bottom: 0;
     width: min(320px, 86%);
+  }
+
+  .support-console-workspace .support-menu[hidden] {
+    display: none;
+  }
+
+  .support-console-workspace .support-header [data-support-menu] {
+    display: grid;
   }
 
   .support-request-view {

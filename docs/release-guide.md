@@ -25,15 +25,17 @@ Google и Mozilla. Коды восстановления сохраните от
 6. Выполните `supabase/migrations/202609250002_admin_dashboard.sql`. Миграция
    добавляет безопасную агрегированную статистику и доступ к `/control.html`
    для администратора.
-7. В **Authentication → Users** создайте пользователя
+7. Выполните `supabase/migrations/202609260001_support_read_receipts.sql`,
+   чтобы сообщения поддержки получали отметку о прочтении.
+8. В **Authentication → Users** создайте пользователя
    `support@schoolpp.com`, задайте уникальный пароль и включите подтверждение
    адреса при создании.
-8. Выполните SQL из `docs/supabase.md`, который добавляет этого пользователя в
+9. Выполните SQL из `docs/supabase.md`, который добавляет этого пользователя в
    `support_agents`.
-9. В **Table Editor** проверьте, что RLS включён у `diary_snapshots`,
-   `support_agents`, `support_conversations`, `support_messages` и
-   `diary_requests`.
-10. В **Authentication → URL Configuration** укажите
+10. В **Table Editor** проверьте, что RLS включён у `diary_snapshots`,
+    `support_agents`, `support_conversations`, `support_messages` и
+    `diary_requests`.
+11. В **Authentication → URL Configuration** укажите
     `https://schoolpp.com` как Site URL.
 
 Проверка: вход на `/support.html` с логином `support` должен открыть список

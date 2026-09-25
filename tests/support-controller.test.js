@@ -54,6 +54,7 @@ test("support creates a private conversation and sends the first message", async
         created_at: "2026-09-20T12:00:00Z",
       });
     },
+    async markConversationRead() {},
     async closeConversation() {},
     subscribe() {
       return () => {};
@@ -84,6 +85,116 @@ test("support creates a private conversation and sends the first message", async
     window.document.getElementById("supportMessages").textContent,
     /Не получается синхронизировать/,
   );
+  controller.destroy();
+  await window.happyDOM.close();
+});
+
+test("support marks incoming messages as read and shows receipts on own messages", async () => {
+  const window = new Window({ url: "https://schoolpp.com/" });
+  createMarkup(window.document);
+  let markedConversation = "";
+  const repository = {
+    async getUser() {
+      return { id: "student-1" };
+    },
+    async isAgent() {
+      return false;
+    },
+    async listConversations() {
+      return [{ id: "conversation-1", subject: "Вопрос", status: "open" }];
+    },
+    async listMessages() {
+      return [
+        {
+          id: 1,
+          sender_id: "student-1",
+          body: "Спасибо",
+          created_at: "2026-09-20T12:00:00Z",
+          read_at: "2026-09-20T12:01:00Z",
+        },
+        {
+          id: 2,
+          sender_id: "support-1",
+          body: "Готово",
+          created_at: "2026-09-20T12:02:00Z",
+          read_at: null,
+        },
+      ];
+    },
+    async markConversationRead(conversationId) {
+      markedConversation = conversationId;
+    },
+    async sendMessage() {},
+    async closeConversation() {},
+    subscribe() {
+      return () => {};
+    },
+  };
+  const controller = createSupportController({
+    root: window.document,
+    windowRef: window,
+    repositoryProvider: async () => repository,
+  });
+  controller.bind();
+  await controller.open();
+
+  assert.equal(markedConversation, "conversation-1");
+  assert.equal(
+    window.document.querySelectorAll(".support-message-read").length,
+    1,
+  );
+  assert.match(
+    window.document.querySelector(".support-message.is-own").textContent,
+    /Прочитано/,
+  );
+  controller.destroy();
+  await window.happyDOM.close();
+});
+
+test("operator conversation list stays open on desktop", async () => {
+  const window = new Window({ url: "https://schoolpp.com/support" });
+  createMarkup(window.document);
+  window.document.body.classList.add("support-console-page");
+  window.matchMedia = () => ({ matches: true });
+  const repository = {
+    async getUser() {
+      return { id: "support-1" };
+    },
+    async isAgent() {
+      return true;
+    },
+    async listConversations() {
+      return [
+        {
+          id: "conversation-1",
+          owner_label: "Тимур",
+          subject: "Вопрос",
+          status: "open",
+        },
+      ];
+    },
+    async listMessages() {
+      return [];
+    },
+    async markConversationRead() {},
+    async sendMessage() {},
+    async closeConversation() {},
+    subscribe() {
+      return () => {};
+    },
+  };
+  const controller = createSupportController({
+    root: window.document,
+    windowRef: window,
+    repositoryProvider: async () => repository,
+  });
+  controller.bind();
+  await controller.open();
+  const menu = window.document.getElementById("supportMenu");
+  menu.hidden = false;
+  window.document.querySelector("[data-support-conversation]").click();
+
+  assert.equal(menu.hidden, false);
   controller.destroy();
   await window.happyDOM.close();
 });

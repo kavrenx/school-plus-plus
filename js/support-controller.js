@@ -24,6 +24,8 @@ function createSupportController({
   let agent = false;
   let unsubscribe = () => {};
   let refreshTimer = 0;
+  let refreshGeneration = 0;
+  let messageGeneration = 0;
 
   function bind() {
     root.addEventListener("click", handleClick);
@@ -65,7 +67,10 @@ function createSupportController({
   }
 
   async function refresh() {
-    conversations = await repository.listConversations();
+    const generation = ++refreshGeneration;
+    const nextConversations = await repository.listConversations();
+    if (generation !== refreshGeneration) return;
+    conversations = nextConversations;
     if (!selectedId || !conversations.some((item) => item.id === selectedId))
       selectedId = conversations[0]?.id || "";
     renderConversationList();
@@ -104,6 +109,7 @@ function createSupportController({
   }
 
   async function renderConversation() {
+    const generation = ++messageGeneration;
     const conversation = conversations.find((item) => item.id === selectedId);
     title.textContent = conversation
       ? agent
@@ -112,30 +118,66 @@ function createSupportController({
       : "Поддержка";
     closeChat.hidden =
       !agent || !conversation || conversation.status === "closed";
-    messages.replaceChildren();
-    const records = conversation
-      ? await repository.listMessages(conversation.id)
-      : [];
+    if (!conversation) {
+      messages.replaceChildren();
+      empty.hidden = false;
+      syncComposer(conversation);
+      showStatus("");
+      return;
+    }
+    const records = await repository.listMessages(conversation.id);
+    if (
+      generation !== messageGeneration ||
+      conversation.id !== selectedId
+    )
+      return;
+    const fragment = root.createDocumentFragment();
     empty.hidden = records.length > 0;
     records.forEach((record) => {
-      const article = root.createElement("article");
-      article.className =
-        record.sender_id === currentUser.id
-          ? "support-message is-own"
-          : "support-message";
-      const body = root.createElement("p");
-      body.textContent = record.body;
-      const time = root.createElement("time");
-      time.dateTime = record.created_at;
-      time.textContent = new Date(record.created_at).toLocaleString("ru-RU", {
-        day: "2-digit",
-        month: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-      article.append(body, time);
-      messages.append(article);
+      fragment.append(createMessageElement(record));
     });
+    messages.replaceChildren(fragment);
+    syncComposer(conversation);
+    showStatus("");
+    messages.scrollTop = messages.scrollHeight;
+    if (
+      records.some(
+        (record) => record.sender_id !== currentUser.id && !record.read_at,
+      )
+    )
+      void repository.markConversationRead(conversation.id).catch(() => {});
+  }
+
+  function createMessageElement(record, { pending = false } = {}) {
+    const article = root.createElement("article");
+    const own = record.sender_id === currentUser.id;
+    article.className = own ? "support-message is-own" : "support-message";
+    article.classList.toggle("is-pending", pending);
+    if (record.id != null) article.dataset.messageId = String(record.id);
+    const body = root.createElement("p");
+    body.textContent = record.body;
+    const metadata = root.createElement("div");
+    metadata.className = "support-message-meta";
+    const time = root.createElement("time");
+    time.dateTime = record.created_at;
+    time.textContent = new Date(record.created_at).toLocaleString("ru-RU", {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    metadata.append(time);
+    if (own && record.read_at) {
+      const read = root.createElement("span");
+      read.className = "support-message-read";
+      read.textContent = "Прочитано";
+      metadata.append(read);
+    }
+    article.append(body, metadata);
+    return article;
+  }
+
+  function syncComposer(conversation) {
     const closed = conversation?.status === "closed";
     input.disabled = closed || (agent && !conversation);
     input.placeholder = closed
@@ -144,8 +186,6 @@ function createSupportController({
         ? "Выберите обращение"
         : "Напишите сообщение";
     syncSendButton();
-    showStatus("");
-    messages.scrollTop = messages.scrollHeight;
   }
 
   async function handleSubmit(event) {
@@ -153,6 +193,19 @@ function createSupportController({
     const body = input.value.trim();
     if (!body || input.disabled) return;
     send.disabled = true;
+    input.value = "";
+    ++messageGeneration;
+    empty.hidden = true;
+    const optimisticMessage = createMessageElement(
+      {
+        sender_id: currentUser.id,
+        body,
+        created_at: new Date().toISOString(),
+      },
+      { pending: true },
+    );
+    messages.append(optimisticMessage);
+    messages.scrollTop = messages.scrollHeight;
     try {
       if (!selectedId) {
         const conversation = await repository.createConversation(
@@ -162,9 +215,10 @@ function createSupportController({
         selectedId = conversation.id;
       }
       await repository.sendMessage(selectedId, body);
-      input.value = "";
       await refresh();
     } catch {
+      optimisticMessage?.remove();
+      if (!input.value) input.value = body;
       showStatus("Сообщение не отправлено. Попробуйте ещё раз.", true);
     } finally {
       syncSendButton();
@@ -219,17 +273,26 @@ function createSupportController({
     }
     if (event.target.closest("[data-support-new]")) {
       selectedId = "";
-      menu.hidden = true;
+      closeMenuOnNarrowScreen();
       void renderConversation();
       return;
     }
     const conversation = event.target.closest("[data-support-conversation]");
     if (conversation) {
       selectedId = conversation.dataset.supportConversation;
-      menu.hidden = true;
+      closeMenuOnNarrowScreen();
       renderConversationList();
       void renderConversation();
     }
+  }
+
+  function closeMenuOnNarrowScreen() {
+    if (
+      !agent ||
+      !root.body.classList.contains("support-console-page") ||
+      !windowRef.matchMedia?.("(min-width: 761px)").matches
+    )
+      menu.hidden = true;
   }
 
   function destroy() {

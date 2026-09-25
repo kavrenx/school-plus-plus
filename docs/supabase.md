@@ -16,11 +16,13 @@
    `supabase/migrations/202609250001_diary_requests.sql`.
 5. Для панели управления и обезличенной статистики выполните
    `supabase/migrations/202609250002_admin_dashboard.sql`.
-6. В **Table Editor** проверьте RLS у `diary_snapshots`,
+6. Для статуса прочтения сообщений выполните
+   `supabase/migrations/202609260001_support_read_receipts.sql`.
+7. В **Table Editor** проверьте RLS у `diary_snapshots`,
    `support_conversations`, `support_messages`, `support_agents` и
    `diary_requests`. У `site_activity_daily` прямой доступ для клиентов должен
    оставаться закрытым.
-7. В настройках хостинга задайте:
+8. В настройках хостинга задайте:
 
 ```text
 VITE_APP_MODE=cloud

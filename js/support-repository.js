@@ -47,7 +47,7 @@ function createSupportRepository(client) {
         unwrap(
           await client
             .from("support_messages")
-            .select("id, conversation_id, sender_id, body, created_at")
+            .select("id, conversation_id, sender_id, body, created_at, read_at")
             .eq("conversation_id", conversationId)
             .order("created_at", { ascending: true }),
         ) || []
@@ -63,8 +63,16 @@ function createSupportRepository(client) {
             sender_id: user.id,
             body: String(body).trim().slice(0, 2000),
           })
-          .select("id, conversation_id, sender_id, body, created_at")
+          .select("id, conversation_id, sender_id, body, created_at, read_at")
           .single(),
+      );
+    },
+    async markConversationRead(conversationId) {
+      await getUser();
+      unwrap(
+        await client.rpc("mark_support_messages_read", {
+          p_conversation_id: conversationId,
+        }),
       );
     },
     async closeConversation(conversationId) {
