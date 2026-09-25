@@ -182,15 +182,18 @@ e.school.by в понятный дневник School++.
 2. Зарегистрируйте Chrome Web Store developer account и оплатите разовый сбор.
 3. В Developer Dashboard выберите **Add new item**.
 4. Загрузите `.extension-dist/schoolpp-chromium-1.0.0.zip`.
-5. Заполните **Store Listing**, **Privacy**, **Distribution** и
+5. В **Store Listing** загрузите готовый скриншот
+   `store-assets/chrome-web-store-screenshot-1280x800.png`. Значок 128×128 уже
+   находится внутри ZIP-файла.
+6. Заполните **Store Listing**, **Privacy**, **Distribution** и
    **Test instructions**.
-6. В Privacy укажите, что расширение обрабатывает содержимое сайта и сведения об
+7. В Privacy укажите, что расширение обрабатывает содержимое сайта и сведения об
    ученике исключительно для заявленной синхронизации. Укажите отсутствие
    продажи, рекламы и стороннего использования.
-7. Privacy policy URL: `https://schoolpp.com/privacy.html`.
-8. На первом выпуске включите **deferred publishing**, чтобы после одобрения
+8. Privacy policy URL: `https://schoolpp.com/privacy.html`.
+9. На первом выпуске включите **deferred publishing**, чтобы после одобрения
    сначала добавить ссылку магазина в School++.
-9. Нажмите **Submit for Review**.
+10. Нажмите **Submit for Review**.
 
 ## 11. Microsoft Edge Add-ons
 

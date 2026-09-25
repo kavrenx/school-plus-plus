@@ -13,6 +13,7 @@
     "format:check": "prettier --check .",
     "test": "node --test",
     "extension:icons": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/generate-extension-icons.ps1",
+    "extension:store-assets": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/generate-store-assets.ps1",
     "extension:build": "node scripts/build-extension.mjs",
     "extension:package": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/package-extension.ps1"
   },
