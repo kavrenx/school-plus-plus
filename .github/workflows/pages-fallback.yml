@@ -40,6 +40,7 @@ jobs:
       - name: Build School++
         env:
           VITE_APP_MODE: cloud
+          VITE_BASE_PATH: /school-plus-plus/
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: npm run build

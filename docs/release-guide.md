@@ -103,6 +103,12 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 9. Нажмите **Save and Deploy**.
 10. Сначала проверьте выданный адрес `*.pages.dev`.
 
+Резервная публикация через GitHub Pages запускается вручную действием
+`Deploy GitHub Pages fallback`. Для неё в GitHub repository variables нужны те
+же `VITE_SUPABASE_URL` и `VITE_SUPABASE_PUBLISHABLE_KEY`. Сборка автоматически
+использует путь `/school-plus-plus/`; основной домен продолжает собираться от
+корня `/`.
+
 `VITE_SUPABASE_PUBLISHABLE_KEY` является браузерным ключом. Database password,
 secret key и `service_role` здесь использовать нельзя.
 
