@@ -3,7 +3,7 @@
   "name": "School++ — синхронизация дневника",
   "short_name": "School++",
   "version": "1.0.0",
-  "description": "Переносит расписание, задания и отметки из e.school.by в School++.",
+  "description": "Переносит данные из электронного дневника пользователя в School++.",
   "icons": {
     "16": "assets/icon16.png",
     "32": "assets/icon32.png",

@@ -108,6 +108,7 @@ $statusDetailFont = New-Font 13
 $buttonFont = New-Font 15 ([System.Drawing.FontStyle]::Bold)
 $smallFont = New-Font 12
 $tinyFont = New-Font 11
+$gearFont = New-Font 21
 
 $icon = [System.Drawing.Image]::FromFile($iconPath)
 $graphics.DrawImage($icon, 68, 58, 72, 72)
@@ -124,7 +125,7 @@ $titleRectangle = [System.Drawing.RectangleF]::new(68, 241, 610, 156)
 $graphics.DrawString("Данные дневника`nв удобном виде", $titleFont, $darkBrush, $titleRectangle)
 $leadRectangle = [System.Drawing.RectangleF]::new(70, 418, 580, 92)
 $graphics.DrawString(
-  "Расписание, задания и отметки из e.school.by`nсинхронизируются в School++.",
+  "Расписание, задания и отметки из вашего`nэлектронного дневника — в School++.",
   $leadFont,
   $mutedBrush,
   $leadRectangle
@@ -179,18 +180,20 @@ $graphics.DrawString("Синхронизация данных", $popupSubtitleFo
 $settingsRectangle = [System.Drawing.RectangleF]::new(1118, 137, 44, 44)
 Fill-RoundedRectangle $graphics $whiteBrush $settingsRectangle 11
 Draw-RoundedRectangle $graphics $borderPen $settingsRectangle 11
-$graphics.DrawEllipse($darkBorderPen, 1133, 152, 14, 14)
-$graphics.FillEllipse($darkBrush, 1138, 157, 4, 4)
+$gearFormat = [System.Drawing.StringFormat]::new()
+$gearFormat.Alignment = [System.Drawing.StringAlignment]::Center
+$gearFormat.LineAlignment = [System.Drawing.StringAlignment]::Center
+$graphics.DrawString("⚙", $gearFont, $mutedBrush, $settingsRectangle, $gearFormat)
 
 $graphics.FillEllipse($greenBrush, 775, 229, 12, 12)
 $graphics.DrawString("Данные готовы", $statusFont, $darkBrush, 800, 220)
 $graphics.DrawString("Следующая проверка через 28 минут.", $statusDetailFont, $mutedBrush, 800, 247)
 
-$syncRectangle = [System.Drawing.RectangleF]::new(772, 292, 352, 58)
+$syncRectangle = [System.Drawing.RectangleF]::new(772, 292, 396, 58)
 Fill-RoundedRectangle $graphics $greenBrush $syncRectangle 13
 $graphics.DrawString("Синхронизировать снова", $buttonFont, $whiteBrush, 792, 310)
 
-$dataRectangle = [System.Drawing.RectangleF]::new(772, 370, 352, 50)
+$dataRectangle = [System.Drawing.RectangleF]::new(772, 370, 396, 50)
 Fill-RoundedRectangle $graphics $whiteBrush $dataRectangle 11
 Draw-RoundedRectangle $graphics $borderPen $dataRectangle 11
 $graphics.DrawString("Данные", $bodyFont, $mutedBrush, 791, 385)
@@ -199,13 +202,13 @@ $arrowPen = [System.Drawing.Pen]::new([System.Drawing.ColorTranslator]::FromHtml
 $graphics.DrawLines(
   $arrowPen,
   [System.Drawing.PointF[]] @(
-    [System.Drawing.PointF]::new(1084, 391),
-    [System.Drawing.PointF]::new(1092, 399),
-    [System.Drawing.PointF]::new(1100, 391)
+    [System.Drawing.PointF]::new(1128, 391),
+    [System.Drawing.PointF]::new(1136, 399),
+    [System.Drawing.PointF]::new(1144, 391)
   )
 )
 
-$openRectangle = [System.Drawing.RectangleF]::new(772, 440, 352, 50)
+$openRectangle = [System.Drawing.RectangleF]::new(772, 440, 396, 50)
 Fill-RoundedRectangle $graphics $whiteBrush $openRectangle 11
 Draw-RoundedRectangle $graphics $borderPen $openRectangle 11
 $openFormat = [System.Drawing.StringFormat]::new()
@@ -214,8 +217,8 @@ $openFormat.LineAlignment = [System.Drawing.StringAlignment]::Center
 $graphics.DrawString("Открыть School++", $buttonFont, $greenBrush, $openRectangle, $openFormat)
 
 $dividerPen = [System.Drawing.Pen]::new([System.Drawing.ColorTranslator]::FromHtml("#d6dcd6"), 1)
-$graphics.DrawLine($dividerPen, 772, 539, 1124, 539)
-$helpRectangle = [System.Drawing.RectangleF]::new(772, 560, 352, 34)
+$graphics.DrawLine($dividerPen, 772, 539, 1168, 539)
+$helpRectangle = [System.Drawing.RectangleF]::new(772, 560, 396, 34)
 $graphics.DrawString("Справка", $smallFont, $greenBrush, $helpRectangle, $openFormat)
 
 $lockPen = [System.Drawing.Pen]::new([System.Drawing.ColorTranslator]::FromHtml("#667068"), 1.7)
@@ -252,10 +255,14 @@ $statusDetailFont.Dispose()
 $buttonFont.Dispose()
 $smallFont.Dispose()
 $tinyFont.Dispose()
+$gearFont.Dispose()
 $badgeFormat.Dispose()
 $openFormat.Dispose()
+$gearFormat.Dispose()
 $graphics.Dispose()
 $bitmap.Dispose()
 
 Write-Host "Chrome Web Store screenshot generated: $outputPath"
+
+
 
