@@ -52,6 +52,20 @@ test("sign in uses Supabase and preserves password whitespace", async () => {
   });
 });
 
+test("missing Supabase session is a signed-out state", async () => {
+  const auth = createCloudAuth({
+    auth: {
+      async getUser() {
+        return {
+          data: { user: null },
+          error: { name: "AuthSessionMissingError" },
+        };
+      },
+    },
+  });
+  assert.equal(await auth.getUser(), null);
+});
+
 test("failed logout remains a failure", async () => {
   const failure = new Error("offline");
   const auth = createCloudAuth({

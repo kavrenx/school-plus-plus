@@ -39,7 +39,13 @@ function createCloudAuth(client) {
       );
     },
     async getUser() {
-      return unwrap(await client.auth.getUser()).user;
+      const result = await client.auth.getUser();
+      if (
+        result.error?.name === "AuthSessionMissingError" ||
+        result.error?.code === "session_not_found"
+      )
+        return null;
+      return unwrap(result).user;
     },
     async signOut() {
       // A failed logout must not be shown as successful by the interface.
