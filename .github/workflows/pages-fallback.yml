@@ -54,6 +54,12 @@ jobs:
           cp dist/privacy.html dist/privacy/index.html
           cp dist/index.html dist/404.html
 
+      - name: Keep assets available after a custom-domain switch
+        shell: bash
+        run: |
+          mkdir -p dist/school-plus-plus
+          cp -R dist/assets dist/school-plus-plus/assets
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
