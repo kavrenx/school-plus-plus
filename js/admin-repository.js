@@ -33,6 +33,17 @@ function createAdminRepository(client) {
         }),
       );
     },
+    async getSiteStatus() {
+      return unwrap(await client.rpc("get_public_site_status"));
+    },
+    async setMaintenanceMode(enabled) {
+      if (!(await getUser())) throw new Error("ADMIN_AUTH_REQUIRED");
+      return unwrap(
+        await client.rpc("set_maintenance_mode", {
+          p_enabled: enabled === true,
+        }),
+      );
+    },
   });
 }
 

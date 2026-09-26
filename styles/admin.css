@@ -129,6 +129,112 @@
   color: var(--danger);
 }
 
+.admin-service-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  margin-bottom: 12px;
+  padding: 20px;
+  border: 1px solid var(--line-dark);
+  background: var(--paper);
+}
+
+.admin-service-copy h2 {
+  margin: 4px 0 7px;
+  font-family: var(--font-display);
+  font-size: 25px;
+}
+
+.admin-service-copy > p:last-child {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.admin-service-copy > p:last-child.is-enabled {
+  color: var(--danger);
+  font-weight: 800;
+}
+
+.admin-service-actions {
+  display: grid;
+  justify-items: end;
+  gap: 11px;
+}
+
+.admin-service-actions nav {
+  display: flex;
+  gap: 14px;
+}
+
+.admin-service-actions nav a {
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 800;
+  text-underline-offset: 3px;
+}
+
+.admin-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.admin-switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.admin-switch > span {
+  position: relative;
+  width: 50px;
+  height: 28px;
+  border: 1px solid var(--line-dark);
+  border-radius: 999px;
+  background: var(--paper-3);
+  transition:
+    background var(--transition),
+    border-color var(--transition);
+}
+
+.admin-switch > span::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--paper);
+  box-shadow: 0 1px 5px rgba(20, 28, 23, 0.24);
+  transition: transform var(--transition);
+}
+
+.admin-switch input:checked + span {
+  border-color: var(--danger);
+  background: var(--danger);
+}
+
+.admin-switch input:checked + span::after {
+  transform: translateX(22px);
+}
+
+.admin-switch input:focus-visible + span {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.admin-switch input:disabled ~ * {
+  cursor: wait;
+  opacity: 0.6;
+}
+
 .admin-metric-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -391,6 +497,21 @@
 
   .admin-refresh {
     width: 100%;
+  }
+
+  .admin-service-control {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-service-actions {
+    justify-items: start;
+  }
+
+  .admin-service-actions nav {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
   }
 
   .admin-metric-grid {

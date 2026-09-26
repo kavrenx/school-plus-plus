@@ -48,11 +48,11 @@ jobs:
       - name: Add extensionless page routes
         shell: bash
         run: |
-          mkdir -p dist/control dist/support dist/privacy
+          mkdir -p dist/control dist/support dist/privacy dist/maintenance
           cp dist/control.html dist/control/index.html
           cp dist/support.html dist/support/index.html
           cp dist/privacy.html dist/privacy/index.html
-          cp dist/index.html dist/404.html
+          cp dist/maintenance.html dist/maintenance/index.html
 
       - name: Keep assets available after a custom-domain switch
         shell: bash

@@ -16,6 +16,13 @@ test("admin repository records only declared client context and loads dashboard"
       if (name === "is_schoolpp_admin") return { data: true, error: null };
       if (name === "get_admin_dashboard")
         return { data: { summary: { viewsToday: 4 } }, error: null };
+      if (name === "get_public_site_status")
+        return { data: { maintenanceEnabled: false }, error: null };
+      if (name === "set_maintenance_mode")
+        return {
+          data: { maintenanceEnabled: parameters.p_enabled },
+          error: null,
+        };
       return { data: null, error: null };
     },
   };
@@ -27,8 +34,12 @@ test("admin repository records only declared client context and loads dashboard"
     browser: "firefox",
   });
   const dashboard = await repository.getDashboard(200);
+  const status = await repository.getSiteStatus();
+  const enabled = await repository.setMaintenanceMode(true);
 
   assert.equal(dashboard.summary.viewsToday, 4);
+  assert.equal(status.maintenanceEnabled, false);
+  assert.equal(enabled.maintenanceEnabled, true);
   assert.deepEqual(calls[1], {
     name: "record_site_activity",
     parameters: {
@@ -38,6 +49,10 @@ test("admin repository records only declared client context and loads dashboard"
     },
   });
   assert.equal(calls[2].parameters.p_days, 31);
+  assert.deepEqual(calls[4], {
+    name: "set_maintenance_mode",
+    parameters: { p_enabled: true },
+  });
 });
 
 test("admin repository never calls privileged RPC without a session", async () => {
@@ -55,5 +70,9 @@ test("admin repository never calls privileged RPC without a session", async () =
 
   assert.equal(await repository.isAdmin(), false);
   await assert.rejects(() => repository.getDashboard(), /ADMIN_AUTH_REQUIRED/);
+  await assert.rejects(
+    () => repository.setMaintenanceMode(true),
+    /ADMIN_AUTH_REQUIRED/,
+  );
   assert.equal(calls, 0);
 });

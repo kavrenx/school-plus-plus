@@ -26,6 +26,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const logout = document.getElementById("adminLogout");
   const refresh = document.getElementById("adminRefresh");
   const error = document.getElementById("adminError");
+  const maintenanceToggle = document.getElementById("maintenanceToggle");
   const services = createSupabaseServices(import.meta.env, {
     storageKey: "schoolpp_admin_session",
   });
@@ -38,6 +39,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     login.hidden = true;
     workspace.hidden = false;
     renderDashboard(createPreviewDashboard());
+    renderMaintenanceControl({ maintenanceEnabled: false }, { preview: true });
+    maintenanceToggle.addEventListener("change", () =>
+      renderMaintenanceControl(
+        { maintenanceEnabled: maintenanceToggle.checked },
+        { preview: true },
+      ),
+    );
     return;
   }
 
@@ -52,8 +60,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     refresh.classList.add("is-loading");
     error.hidden = true;
     try {
-      const dashboard = await services.admin.getDashboard(14);
+      const [dashboard, status] = await Promise.all([
+        services.admin.getDashboard(14),
+        services.admin.getSiteStatus(),
+      ]);
       renderDashboard(dashboard);
+      renderMaintenanceControl(status);
       scheduleRefresh();
     } catch {
       error.textContent = "Не удалось обновить статистику. Попробуй ещё раз.";
@@ -112,6 +124,27 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   refresh.addEventListener("click", () => void loadDashboard());
+  maintenanceToggle.addEventListener("change", async () => {
+    const requested = maintenanceToggle.checked;
+    maintenanceToggle.disabled = true;
+    setText(
+      "maintenanceStatus",
+      requested ? "Включаем страницу техработ…" : "Возвращаем сайт в обычный режим…",
+    );
+    try {
+      const status = await services.admin.setMaintenanceMode(requested);
+      renderMaintenanceControl(status);
+    } catch {
+      maintenanceToggle.checked = !requested;
+      setText(
+        "maintenanceStatus",
+        "Не удалось изменить режим. Проверь соединение и попробуй ещё раз.",
+      );
+      document.getElementById("maintenanceStatus").classList.add("is-enabled");
+    } finally {
+      maintenanceToggle.disabled = false;
+    }
+  });
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden && !workspace.hidden) void loadDashboard();
   });
@@ -181,6 +214,24 @@ function renderDashboard(data = {}) {
     other: "Другие",
     unknown: "Не определено",
   });
+}
+
+function renderMaintenanceControl(status = {}, { preview = false } = {}) {
+  const enabled = status.maintenanceEnabled === true;
+  const toggle = document.getElementById("maintenanceToggle");
+  const label = document.getElementById("maintenanceStatus");
+  if (toggle) toggle.checked = enabled;
+  if (!label) return;
+  label.classList.toggle("is-enabled", enabled);
+  if (preview) {
+    label.textContent = enabled
+      ? "Предпросмотр: посетители увидят страницу техработ."
+      : "Предпросмотр: сайт работает в обычном режиме.";
+    return;
+  }
+  label.textContent = enabled
+    ? "Режим включён: главная страница временно закрыта для посетителей."
+    : "Сайт работает в обычном режиме.";
 }
 
 function renderChart(series) {
@@ -331,4 +382,4 @@ function createPreviewDashboard() {
   };
 }
 
-export { ADMIN_EMAIL, renderDashboard };
+export { ADMIN_EMAIL, renderDashboard, renderMaintenanceControl };

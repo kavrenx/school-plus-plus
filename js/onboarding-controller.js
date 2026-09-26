@@ -6,6 +6,10 @@ import {
 
 const ONBOARDING_KEY = "schoolpp_onboarding_complete_v1";
 const CHECK_PENDING_KEY = "schoolpp_extension_check_pending";
+const BROWSER_ICONS = Object.freeze({
+  chromium: new URL("../assets/browser-chrome.svg", import.meta.url).href,
+  firefox: new URL("../assets/browser-firefox.svg", import.meta.url).href,
+});
 
 function detectDevice(navigatorRef = {}) {
   const agent = String(navigatorRef.userAgent || "");
@@ -297,17 +301,10 @@ function storeCard(store, url, recommended) {
     firefox: ["Firefox Add-ons", "Mozilla Firefox"],
   };
   const [title, description] = labels[store];
-  const body = `<span class="browser-icon is-${store}" aria-hidden="true">${browserIcon(store)}</span><span><strong>${title}</strong><small>${url ? description : "Ссылка будет добавлена после публикации"}</small></span>`;
+  const body = `<span class="browser-icon is-${store}" aria-hidden="true"><img src="${BROWSER_ICONS[store]}" alt=""></span><span><strong>${title}</strong><small>${url ? description : "Ссылка будет добавлена после публикации"}</small></span>`;
   return url
     ? `<a class="extension-store-card${recommended ? " is-recommended" : ""}" href="${url}" target="_blank" rel="noreferrer">${body}</a>`
     : `<div class="extension-store-card is-unavailable${recommended ? " is-recommended" : ""}" aria-disabled="true">${body}</div>`;
-}
-
-function browserIcon(store) {
-  if (store === "firefox") {
-    return `<svg viewBox="0 0 48 48" focusable="false"><defs><linearGradient id="firefox-tail" x1="9" y1="7" x2="39" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#ffea00"/><stop offset=".42" stop-color="#ff7a00"/><stop offset="1" stop-color="#8b2ee8"/></linearGradient></defs><circle cx="24" cy="25" r="16" fill="#3154c9"/><path fill="url(#firefox-tail)" d="M42 15c-2-5-7-9-13-10 3 2 5 5 5 8-4-3-9-4-14-2-5 2-8 7-8 12 0 8 6 14 14 14 6 0 11-4 13-9-1 10-9 17-19 17C10 45 3 37 3 27c0-7 4-13 9-17-1 3 0 6 2 8 2-8 10-14 19-12 4 1 7 4 9 9Z"/><path fill="#fff" opacity=".92" d="M18 25c0-4 3-7 7-7 3 0 5 1 7 3-1-5-5-8-10-8-6 0-11 5-11 11 0 7 6 13 13 13 5 0 9-3 11-7-2 2-5 3-8 3-5 0-9-3-9-8Z"/></svg>`;
-  }
-  return `<svg viewBox="0 0 48 48" focusable="false"><path fill="#db4437" d="M24 4a20 20 0 0 1 17.3 10H24a10 10 0 0 0-8.7 5L9.5 9A19.9 19.9 0 0 1 24 4Z"/><path fill="#f4b400" d="M9.5 9 19 25.5A10 10 0 0 0 24 34l-5.8 10A20 20 0 0 1 9.5 9Z"/><path fill="#0f9d58" d="M18.2 44 24 34a10 10 0 0 0 8.7-5l8.6-15A20 20 0 0 1 18.2 44Z"/><circle cx="24" cy="24" r="9" fill="#fff"/><circle cx="24" cy="24" r="7" fill="#4285f4"/></svg>`;
 }
 
 function deviceIllustration(device) {

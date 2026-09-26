@@ -60,6 +60,34 @@
 
         <p class="admin-error" id="adminError" role="status" hidden></p>
 
+        <section
+          class="admin-service-control"
+          aria-labelledby="maintenanceTitle"
+        >
+          <div class="admin-service-copy">
+            <p class="panel-label">Доступность сайта</p>
+            <h2 id="maintenanceTitle">Технические работы</h2>
+            <p id="maintenanceStatus" role="status">
+              Проверяем текущее состояние…
+            </p>
+          </div>
+          <div class="admin-service-actions">
+            <label class="admin-switch">
+              <input id="maintenanceToggle" type="checkbox" role="switch" />
+              <span aria-hidden="true"></span>
+              <strong>Включить режим</strong>
+            </label>
+            <nav aria-label="Предпросмотр служебных страниц">
+              <a href="../maintenance.html" target="_blank" rel="noreferrer"
+                >Страница техработ</a
+              >
+              <a href="../404.html" target="_blank" rel="noreferrer"
+                >Страница 404</a
+              >
+            </nav>
+          </div>
+        </section>
+
         <section class="admin-metric-grid" aria-label="Главные показатели">
           <article class="admin-metric is-primary">
             <span>Посещения сегодня</span><strong id="metricViews">—</strong

@@ -10,6 +10,8 @@ export default defineConfig({
         privacy: resolve(import.meta.dirname, "privacy.html"),
         support: resolve(import.meta.dirname, "support.html"),
         control: resolve(import.meta.dirname, "control.html"),
+        maintenance: resolve(import.meta.dirname, "maintenance.html"),
+        notFound: resolve(import.meta.dirname, "404.html"),
       },
     },
   },

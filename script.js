@@ -37,6 +37,11 @@ import { EXTENSION_STORE_URLS } from "./js/release-config.js";
 import { createSupabaseServices } from "./js/supabase-services.js";
 import { createSupportController } from "./js/support-controller.js";
 import { createActivityReporter } from "./js/site-activity.js";
+import { createSiteStatusWatcher } from "./js/site-status.js";
+import {
+  renderMaintenancePage,
+  setMaintenanceNotice,
+} from "./js/status-page.js";
 
 registerIcons();
 
@@ -45,6 +50,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const services = createSupabaseServices();
   let cloudUserPromise = null;
   let supportOwnerLabel = "Пользователь";
+  let initialSiteStatus = { maintenanceEnabled: false, updatedAt: null };
 
   async function ensureCloudUser() {
     if (!services) throw new Error("Подключение сервера не настроено.");
@@ -93,6 +99,23 @@ document.addEventListener("DOMContentLoaded", async () => {
         "Не удалось обновить данные";
     }
     return;
+  }
+
+  if (relayParams.get("preview") === "maintenance") {
+    renderMaintenancePage(document, { preview: true });
+    return;
+  }
+
+  if (mode === "cloud" && services) {
+    try {
+      initialSiteStatus = await services.status.get();
+      if (initialSiteStatus.maintenanceEnabled) {
+        renderMaintenancePage(document);
+        return;
+      }
+    } catch (error) {
+      console.warn("Не удалось проверить состояние сервиса.", error);
+    }
   }
 
   const presentationController = createPresentationController({
@@ -201,6 +224,19 @@ document.addEventListener("DOMContentLoaded", async () => {
   connectionStatusText.textContent = t("connectionOffline");
   const notificationController = createNotificationController({
     element: appNotification,
+  });
+  const siteStatusWatcher =
+    mode === "cloud" && services
+      ? createSiteStatusWatcher({
+          repository: services.status,
+          windowRef: window,
+          onChange: (status) =>
+            setMaintenanceNotice(document, status.maintenanceEnabled),
+        })
+      : null;
+  siteStatusWatcher?.start(initialSiteStatus);
+  window.addEventListener("pagehide", () => siteStatusWatcher?.stop(), {
+    once: true,
   });
   const connectionController = createConnectionController({
     element: connectionStatus,
