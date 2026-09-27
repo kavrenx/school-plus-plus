@@ -1,6 +1,9 @@
 name: Deploy GitHub Pages fallback
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
