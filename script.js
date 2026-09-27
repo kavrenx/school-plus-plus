@@ -1,23 +1,18 @@
 import { SCHOOL_DIARY } from "./data/diary-data.js";
 import { SCHOOL_DATA } from "./data/school-data.js";
 import { STORAGE_KEYS, DAY_ORDER, TEXT } from "./js/app-config.js";
-import { createAuthAccounts } from "./js/auth-model.js";
-import { createAuthController } from "./js/auth-controller.js";
 import { createDemoRepositories } from "./js/demo-repositories.js";
-import { resetDemoData } from "./js/demo-data-reset.js";
 import {
   createConnectionController,
   createNotificationController,
 } from "./js/feedback-controller.js";
 import { normalizeDiaryData } from "./js/diary-model.js";
-import { JOURNAL_STORAGE_KEY } from "./js/journal-store.js";
 import { createModalController } from "./js/modal-controller.js";
 import { createProfileController } from "./js/profile-controller.js";
 import { createPresentationController } from "./js/presentation-controller.js";
 import { createScreenController } from "./js/screen-controller.js";
 import { createSafeStorage, getBrowserStorage } from "./js/safe-storage.js";
 import { createStudentDashboardController } from "./js/student-dashboard-controller.js";
-import { createStudentClassController } from "./js/student-class-controller.js";
 import { mount as mountTeacherMode } from "./js/teacher-mode.js";
 import { createThemeController } from "./js/theme-controller.js";
 import { escapeHtml, hideMessage, showMessage } from "./js/ui-utils.js";
@@ -157,8 +152,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       /* Preview mode must not affect the next real onboarding check. */
     }
   } else await onboarding.start();
-  const loginScreen = document.getElementById("loginScreen");
-  const loginInput = document.getElementById("loginInput");
   const dashboardScreen = document.getElementById("dashboardScreen");
   const presentationScreen = document.getElementById("presentationScreen");
   const teacherScreen = document.getElementById("teacherScreen");
@@ -170,20 +163,26 @@ document.addEventListener("DOMContentLoaded", async () => {
   const appNotification = document.getElementById("appNotification");
   const connectionStatus = document.getElementById("connectionStatus");
   const connectionStatusText = document.getElementById("connectionStatusText");
-  const resetDemoButton = document.getElementById("resetDemoBtn");
-  const resetDemoModal = document.getElementById("resetDemoModal");
-  const cancelResetDemoButton = document.getElementById("cancelResetDemoBtn");
-  const confirmResetDemoButton = document.getElementById("confirmResetDemoBtn");
-
-  if (mode === "cloud") {
-    document.getElementById("logoutModalTitle").textContent =
-      "Вернуться к подключению?";
-    logoutModal.querySelector("p").textContent =
-      "Сохранённые данные останутся в School++ и в расширении.";
-    confirmLogoutBtn.textContent = "Продолжить";
-  }
+  document.getElementById("logoutModalTitle").textContent =
+    "Вернуться к подключению?";
+  logoutModal.querySelector("p").textContent =
+    "Сохранённые данные останутся в School++ и в расширении.";
+  confirmLogoutBtn.textContent = "Продолжить";
 
   const localData = await loadAppData();
+  const diaryPreview =
+    mode === "local" &&
+    new URLSearchParams(window.location.search).get("preview") === "diary";
+  if (!localData.hasSyncedData && !diaryPreview) {
+    try {
+      window.localStorage.removeItem(ONBOARDING_KEY);
+    } catch {
+      /* The onboarding still opens for the current visit. */
+    }
+    await onboarding.start();
+    window.location.reload();
+    return;
+  }
   let lastExtensionRefresh = 0;
   subscribeToExtensionSnapshots(window, async (snapshot) => {
     if (Date.now() - lastExtensionRefresh < 2_000) return;
@@ -203,7 +202,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   const schoolData = localData.school;
   const diary = normalizeDiaryData(localData.diary, DAY_ORDER, schoolData);
-  const accounts = createAuthAccounts(diary.school.users);
+  const accounts = normalizeUsers(diary.school.users);
   const syncedStudent = accounts.find((account) => account.role === "student");
   supportOwnerLabel =
     syncedStudent?.displayName ||
@@ -217,7 +216,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     storage,
     storageKeys: STORAGE_KEYS,
   });
-  const userStore = repositories.users;
   const journalStore = repositories.journal;
   importJournalEntries(journalStore, localData.journalEntries);
   const modalController = createModalController();
@@ -248,7 +246,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   const { close: closeModal, open: openModal } = modalController;
   const screenController = createScreenController({
-    screens: [loginScreen, presentationScreen, dashboardScreen, teacherScreen],
+    screens: [presentationScreen, dashboardScreen, teacherScreen],
   });
   const themeController = createThemeController({
     root: document.body,
@@ -266,33 +264,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     onThemeToggle: themeController.toggle,
     journalStore,
   });
-  const studentClassController = createStudentClassController({
-    root: document,
-    model: diary,
-    modal: { open: openModal },
-  });
   const profileController = createProfileController({
     root: document,
     avatarRepository: repositories.avatars,
-    userStore,
-    accounts,
     translate: t,
     modal: { close: closeModal, open: openModal },
     feedback: { hide: hideMessage, show: showMessage },
     notify: notificationController.show,
-    onUserChange(user) {
-      studentDashboardController.updateUser(user);
-      studentClassController.setUser(user);
-    },
-  });
-  const authController = createAuthController({
-    root: document,
-    accounts,
-    userStore,
-    translate: t,
-    modal: { close: closeModal, open: openModal },
-    feedback: { hide: hideMessage, show: showMessage },
-    onAuthenticated: showAppForUser,
   });
   let teacherMode = null;
 
@@ -305,29 +283,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     themeController.load();
     connectionController.bind();
     studentDashboardController.bind();
-    studentClassController.bind();
     profileController.bind();
-    authController.bind();
     bindEvents();
 
-    const savedUser =
-      mode === "cloud"
-        ? syncedStudent || accounts[0]
-        : userStore.getSavedUser(accounts);
+    const savedUser = syncedStudent || accounts[0];
     if (savedUser) {
       showAppForUser(savedUser);
     } else {
-      showLogin();
+      returnToOnboarding();
     }
   }
 
   function bindEvents() {
     cancelLogoutBtn.addEventListener("click", () => closeModal(logoutModal));
     confirmLogoutBtn.addEventListener("click", logout);
-    resetDemoButton.addEventListener("click", () => openModal(resetDemoModal));
-    cancelResetDemoButton.addEventListener("click", () => closeModal(resetDemoModal));
-    confirmResetDemoButton.addEventListener("click", resetDemo);
-
     document.querySelectorAll("[data-close-modal]").forEach((button) => {
       button.addEventListener("click", () => {
         closeModal(document.getElementById(button.dataset.closeModal));
@@ -349,18 +318,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     return TEXT[key] ?? key;
   }
 
-  function showLogin() {
-    destroyTeacherMode();
-    studentDashboardController.destroy();
-    screenController.show(loginScreen);
-    presentationController.reset();
-    resetPageScroll();
-    loginInput.focus();
-  }
-
   function showAppForUser(user) {
     profileController.setUser(user);
-    studentClassController.setUser(user);
     if (user?.role === "teacher") {
       showTeacherDashboard(user);
       return;
@@ -419,7 +378,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         <section class="teacher-hero">
           <div>
             <p class="card-label">Администратор</p>
-            <h1>${escapeHtml(user.displayName || `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.login)}</h1>
+            <h1>${escapeHtml(user.displayName || `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Администратор")}</h1>
             <p>Панель администратора появится позже.</p>
           </div>
         </section>
@@ -446,36 +405,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function logout() {
-    if (mode === "cloud") {
-      try {
-        window.localStorage.removeItem(ONBOARDING_KEY);
-      } catch {
-        /* Reload still returns to the first-run route for this visit. */
-      }
-      window.location.reload();
-      return;
-    }
-    userStore.clearUser();
     profileController.setUser(null);
-    authController.resetLogin();
     closeModal(logoutModal);
-    showLogin();
+    returnToOnboarding();
   }
 
-  function resetDemo() {
-    const result = resetDemoData({
-      storage,
-      accounts,
-      storageKeys: STORAGE_KEYS,
-      journalStorageKey: JOURNAL_STORAGE_KEY,
-    });
-    authController.resetLogin();
-    profileController.setUser(null);
-    closeModal(resetDemoModal);
-    notificationController.show(
-      t(result.persisted ? "demoResetSuccess" : "demoResetError"),
-      { type: result.persisted ? "success" : "error" },
-    );
+  function returnToOnboarding() {
+    try {
+      window.localStorage.removeItem(ONBOARDING_KEY);
+    } catch {
+      /* Reload still returns to the current connection flow. */
+    }
+    window.location.reload();
   }
 
   async function loadAppData() {
@@ -489,7 +430,8 @@ document.addEventListener("DOMContentLoaded", async () => {
           notifyExtensionImported(window);
         }
         const imported = adaptESchoolsSnapshot(snapshot);
-        if (imported?.diary?.weeks?.length) return imported;
+        if (imported?.diary?.weeks?.length)
+          return { ...imported, hasSyncedData: true };
       }
     } catch (error) {
       console.warn("Не удалось получить данные расширения.", error);
@@ -499,12 +441,23 @@ document.addEventListener("DOMContentLoaded", async () => {
         await ensureCloudUser();
         const saved = await services.diary.load();
         const imported = adaptESchoolsSnapshot(saved?.payload);
-        if (imported?.diary?.weeks?.length) return imported;
+        if (imported?.diary?.weeks?.length)
+          return { ...imported, hasSyncedData: true };
       } catch (error) {
         console.warn("Не удалось загрузить сохранённый дневник.", error);
       }
     }
-    return createLocalPreviewData(SCHOOL_DIARY, SCHOOL_DATA);
+    return {
+      ...createLocalPreviewData(SCHOOL_DIARY, SCHOOL_DATA),
+      hasSyncedData: false,
+    };
+  }
+
+  function normalizeUsers(users = []) {
+    return users.filter(Boolean).map((user) => {
+      const id = user.id || user.userId;
+      return { ...user, id, userId: user.userId || id };
+    });
   }
 
   function importJournalEntries(store, entries = []) {

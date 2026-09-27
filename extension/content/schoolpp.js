@@ -1,11 +1,5 @@
 (function connectSchoolppPage() {
   const api = globalThis.browser || globalThis.chrome;
-  const allowedOrigins = new Set([
-    "https://schoolpp.com",
-    "http://127.0.0.1:5173",
-    "http://localhost:5173",
-  ]);
-  if (!allowedOrigins.has(location.origin)) return;
 
   window.addEventListener("message", async (event) => {
     if (

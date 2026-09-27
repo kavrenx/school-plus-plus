@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "School++ — синхронизация дневника",
   "short_name": "School++",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Переносит данные из электронного дневника пользователя в School++.",
   "icons": {
     "16": "assets/icon16.png",
@@ -40,6 +40,7 @@
       "js": [
         "shared/e-schools-parser.js",
         "shared/sync-engine.js",
+        "shared/week-navigation.js",
         "content/e-schools.js"
       ],
       "run_at": "document_start"

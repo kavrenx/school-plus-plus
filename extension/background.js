@@ -16,11 +16,10 @@ const CLOUD_RELAY_TIMEOUT_ALARM = "schoolpp_cloud_relay_timeout";
 const NOTIFICATION_ID = "schoolpp-sync-problem";
 const DIARY_URL = "https://diary.e-schools.by/";
 const SCHOOLPP_URL = "https://schoolpp.com/";
-const SCHOOLPP_URL_PATTERNS = [
-  "https://schoolpp.com/*",
-  "http://127.0.0.1:5173/*",
-  "http://localhost:5173/*",
-];
+const SCHOOLPP_URL_PATTERNS = api.runtime
+  .getManifest?.()
+  ?.content_scripts?.find((entry) => entry.js?.includes("content/schoolpp.js"))
+  ?.matches || ["https://schoolpp.com/*"];
 const SYNC_INTERVAL_MINUTES = 15;
 const SYNC_INTERVAL_MS = SYNC_INTERVAL_MINUTES * 60_000;
 const ALARM_TOLERANCE_MS = 2_000;
@@ -69,12 +68,16 @@ async function handleMessage(message, sender = {}) {
   }
   if (message.type === "SCHOOLPP_GET_STATUS") {
     const settings = await loadSettings();
+    const backgroundTab = await getBackgroundTab();
     return {
       ok: true,
       stats: store.getSnapshotStats(await loadSnapshot()),
       syncState: await loadSyncState(),
       settings,
-      backgroundTab: await isBackgroundTab(sender.tab?.id),
+      backgroundTab: Boolean(
+        sender.tab?.id && backgroundTab?.id === sender.tab.id,
+      ),
+      backgroundSyncActive: Boolean(backgroundTab?.id),
     };
   }
   if (message.type === "SCHOOLPP_GET_SETTINGS") {
@@ -299,7 +302,10 @@ async function runAutomaticSync(force = false) {
     await api.storage.local.set({
       [BACKGROUND_TAB_KEY]: { id: backgroundTab.id, createdAt: Date.now() },
     });
-    await api.alarms.create(BACKGROUND_TIMEOUT_ALARM, { delayInMinutes: 1 });
+    await api.alarms.create(BACKGROUND_TIMEOUT_ALARM, {
+      delayInMinutes: 0.75,
+    });
+    await openAutomaticPopup(backgroundTab);
     return;
   }
   try {
@@ -389,8 +395,25 @@ async function openSchoolpp() {
 
 async function isBackgroundTab(tabId) {
   if (!tabId) return false;
+  return (await getBackgroundTab())?.id === tabId;
+}
+
+async function getBackgroundTab() {
   const result = await api.storage.local.get(BACKGROUND_TAB_KEY);
-  return result[BACKGROUND_TAB_KEY]?.id === tabId;
+  return result[BACKGROUND_TAB_KEY] || null;
+}
+
+async function openAutomaticPopup(tab) {
+  const openPopup = api.action?.openPopup || api.browserAction?.openPopup;
+  if (typeof openPopup !== "function") return false;
+  try {
+    await openPopup.call(api.action || api.browserAction, {
+      ...(tab?.windowId ? { windowId: tab.windowId } : {}),
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function finishBackgroundTabSync(tabId, syncState) {
@@ -423,6 +446,7 @@ async function showSyncIssue(message, warning = "") {
   const result = await api.storage.local.get(NOTIFICATION_STATE_KEY);
   const previous = result[NOTIFICATION_STATE_KEY] || {};
   const signature = `${issue.code}:${issue.title}`;
+  await setIssueBadge();
   if (
     previous.signature === signature &&
     Date.now() - Number(previous.shownAt || 0) < NOTIFICATION_COOLDOWN
@@ -430,7 +454,7 @@ async function showSyncIssue(message, warning = "") {
     return;
   await api.notifications.create(NOTIFICATION_ID, {
     type: "basic",
-    iconUrl: api.runtime.getURL("assets/icon.svg"),
+    iconUrl: api.runtime.getURL("assets/icon128.png"),
     title: issue.title,
     message: issue.message,
   });
@@ -445,6 +469,20 @@ async function clearSyncIssue() {
     await api.notifications.clear(NOTIFICATION_ID);
   } catch {
     /* A notification may not exist yet. */
+  }
+  try {
+    await api.action?.setBadgeText?.({ text: "" });
+  } catch {
+    /* The current browser may not expose action badges. */
+  }
+}
+
+async function setIssueBadge() {
+  try {
+    await api.action?.setBadgeBackgroundColor?.({ color: "#b6483d" });
+    await api.action?.setBadgeText?.({ text: "!" });
+  } catch {
+    /* System notification remains the primary signal. */
   }
 }
 
@@ -467,5 +505,14 @@ api.notifications.onClicked.addListener((notificationId) => {
   if (notificationId !== NOTIFICATION_ID) return;
   void api.tabs.create({ url: DIARY_URL, active: true });
   void api.notifications.clear(NOTIFICATION_ID);
+});
+api.tabs.onRemoved?.addListener((tabId) => {
+  void (async () => {
+    if (!(await isBackgroundTab(tabId))) return;
+    await api.storage.local.remove(BACKGROUND_TAB_KEY);
+    await api.alarms.clear(BACKGROUND_TIMEOUT_ALARM);
+    await showSyncIssue("Не удалось открыть дневник.");
+    await scheduleAutomaticRetry();
+  })();
 });
 void ensureSyncAlarm();

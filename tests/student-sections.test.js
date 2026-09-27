@@ -27,7 +27,16 @@ const year = {
   title: "2026/2027",
   startsOn: "2026-09-01",
   endsOn: "2027-08-31",
-  terms: [1, 2, 3, 4].map((n) => ({ id: `q${n}`, order: n })),
+  terms: [
+    { id: "q1", order: 1, startsOn: "2026-09-01", endsOn: "2026-10-30" },
+    { id: "q2", order: 2, startsOn: "2026-11-09", endsOn: "2026-12-24" },
+    { id: "q3", order: 3, startsOn: "2027-01-11", endsOn: "2027-03-19" },
+    { id: "q4", order: 4, startsOn: "2027-03-29", endsOn: "2027-05-31" },
+  ],
+  breaks: [
+    { startsOn: "2026-10-31", endsOn: "2026-11-08" },
+    { startsOn: "2027-06-01", endsOn: "2027-08-31" },
+  ],
 };
 function result(finals = {}, assessmentPeriod = "quarter") {
   return {
@@ -49,12 +58,17 @@ function result(finals = {}, assessmentPeriod = "quarter") {
   };
 }
 
-test("academic calendar includes all summer dates and rejects dates outside the year", () => {
+test("academic calendar contains only teaching weeks", () => {
   const weeks = completeAcademicWeeks([], year);
   assert.equal(findWeekForDate(weeks, "2026-08-31", year), -1);
   assert.equal(findWeekForDate(weeks, "2027-09-01", year), -1);
-  assert.ok(findWeekForDate(weeks, "2027-08-31", year) >= 0);
-  assert.ok(findWeekForDate(weeks, "2026-11-04", year) >= 0);
+  assert.equal(findWeekForDate(weeks, "2027-08-31", year), -1);
+  assert.equal(findWeekForDate(weeks, "2026-11-04", year), -1);
+  assert.ok(findWeekForDate(weeks, "2026-11-09", year) >= 0);
+  assert.equal(
+    weeks.some((week) => week.start === "2026-11-02"),
+    false,
+  );
   assert.equal(shortAcademicYear(year.title), "26/27");
   assert.equal(termLabel(year.terms[2]), "III четверть");
 });

@@ -1,7 +1,7 @@
 import { DAY_ORDER, TEXT } from "./app-config.js";
 import { capitalize, createDateTools } from "./date-tools.js";
 import { getLessonWord, renderDiaryTable } from "./diary-view.js";
-import { getEyeIcon, escapeHtml } from "./ui-utils.js";
+import { escapeHtml } from "./ui-utils.js";
 import {
   calculateGradeGoal,
   getStudentSubjects,
@@ -16,6 +16,7 @@ import { getCurrentResultPeriod, getResultColumns } from "./result-periods.js";
 import {
   completeAcademicWeeks,
   findWeekForDate,
+  isInstructionDate,
   shortAcademicYear,
   termLabel,
 } from "./academic-navigation.js";
@@ -46,13 +47,11 @@ function createStudentDashboardController({
     studentFullName: root.getElementById("studentFullName"),
     studentClassButton: root.getElementById("studentClassBtn"),
     teacherName: root.getElementById("teacherName"),
-    accountLogin: root.getElementById("accountLogin"),
     accountEmail: root.getElementById("accountEmail"),
     accountPhone: root.getElementById("accountPhone"),
     accountDisclosure: root.getElementById("accountDisclosure"),
     profileDisclosure: root.getElementById("studentProfileDisclosure"),
     yearLabel: root.getElementById("studentYearLabel"),
-    toggleLoginButton: root.getElementById("toggleLoginBtn"),
     weekRangeTitle: root.getElementById("weekRangeTitle"),
     termSelect: root.getElementById("studentTermSelect"),
     previousWeekButton: root.getElementById("prevWeekBtn"),
@@ -117,7 +116,6 @@ function createStudentDashboardController({
     initialDate,
     getDayKeyByIsoDate(initialDate),
   );
-  let isLoginVisible = false;
   let currentUser = null;
   let selectedSection = "diary";
   let scheduleTab = "bells";
@@ -132,8 +130,8 @@ function createStudentDashboardController({
   const currentWeekButton = root.getElementById("studentCurrentWeek");
   const datePicker = root.getElementById("studentDatePicker");
   if (datePicker) {
-    datePicker.min = year.startsOn;
-    datePicker.max = year.endsOn;
+    datePicker.min = terms[0]?.startsOn || year.startsOn;
+    datePicker.max = terms.at(-1)?.endsOn || year.endsOn;
   }
 
   function showSection(section = "diary") {
@@ -299,15 +297,19 @@ function createStudentDashboardController({
 
   function goToDate(date) {
     const index = findWeekForDate(diary.weeks, date, year);
-    if (index < 0) return;
+    if (index < 0) {
+      const week = diary.weeks[selectedWeekIndex];
+      if (datePicker && week) {
+        datePicker.value = getIsoDateForDay(week.start, selectedDayKey);
+      }
+      return;
+    }
     const selectedTerm = terms.find(
       (term) => term.startsOn <= date && date <= term.endsOn,
     );
     if (selectedTerm) {
       selectedTermId = selectedTerm.id;
       termWeekIndexes = getWeekIndexesForTerm(diary.weeks, selectedTerm);
-    } else {
-      termWeekIndexes = [index];
     }
     selectedWeekIndex = index;
     selectedDayKey = getDayKeyByIsoDate(date);
@@ -376,12 +378,10 @@ function createStudentDashboardController({
     elements.dayTabs.addEventListener("keydown", handleDayTabKeydown);
     mobileLayout?.addEventListener?.("change", syncAccountDisclosure);
     compactProfileLayout?.addEventListener?.("change", syncProfileDisclosure);
-    elements.toggleLoginButton.addEventListener("click", toggleLoginVisibility);
   }
 
   function show(user) {
     currentUser = user;
-    isLoginVisible = false;
     syncAccountDisclosure();
     syncProfileDisclosure();
     renderStudent(user);
@@ -418,7 +418,6 @@ function createStudentDashboardController({
     elements.teacherName.textContent = teacherText || "не указан";
     elements.accountEmail.textContent = user.email || translate("notSet");
     elements.accountPhone.textContent = user.phone || translate("notSet");
-    renderAccountLogin(user);
   }
 
   function syncAccountDisclosure(event = mobileLayout) {
@@ -432,22 +431,6 @@ function createStudentDashboardController({
     if (elements.profileDisclosure) {
       elements.profileDisclosure.open = !event?.matches;
     }
-  }
-
-  function toggleLoginVisibility() {
-    isLoginVisible = !isLoginVisible;
-    if (currentUser) renderAccountLogin(currentUser);
-  }
-
-  function renderAccountLogin(user) {
-    elements.accountLogin.textContent = isLoginVisible
-      ? user.login
-      : "••••••••";
-    elements.toggleLoginButton.innerHTML = getEyeIcon(isLoginVisible);
-    elements.toggleLoginButton.setAttribute(
-      "aria-label",
-      isLoginVisible ? translate("hideLogin") : translate("showLogin"),
-    );
   }
 
   function renderHero(user) {
@@ -542,9 +525,9 @@ function createStudentDashboardController({
       const date = getIsoDateForDay(week.start, dayKey);
       const isSelected = dayKey === selectedDayKey;
       const isToday = date === todayIso;
-      const outOfYear = date < year.startsOn || date > year.endsOn;
+      const unavailable = !isInstructionDate(year, date);
       return `
-        <button class="day-tab ${isSelected ? "active" : ""} ${isToday ? "real-today" : ""}" id="dayTab-${dayKey}" type="button" role="tab" data-day="${dayKey}" aria-selected="${isSelected}" aria-controls="diaryPanel" tabindex="${isSelected ? "0" : "-1"}"${isToday ? ' aria-current="date"' : ""}${outOfYear ? " disabled" : ""}>
+        <button class="day-tab ${isSelected ? "active" : ""} ${isToday ? "real-today" : ""}" id="dayTab-${dayKey}" type="button" role="tab" data-day="${dayKey}" aria-selected="${isSelected}" aria-controls="diaryPanel" tabindex="${isSelected ? "0" : "-1"}"${isToday ? ' aria-current="date"' : ""}${unavailable ? " disabled" : ""}>
           <span>${formatIsoWeekday(date, "short")}</span>
           <small>${Number(date.slice(-2))}</small>
         </button>
@@ -597,13 +580,21 @@ function createStudentDashboardController({
     if (!termWeekIndexes.includes(index)) return;
     const today = getSchoolDateIso(now());
     const week = diary.weeks[index];
-    goToDate(
-      week.start <= today && today <= week.end
-        ? today
-        : week.start < year.startsOn
-          ? year.startsOn
-          : week.start,
+    const term = terms.find((item) => item.id === selectedTermId);
+    const firstInstructionDay = DAY_ORDER.map((dayKey) =>
+      getIsoDateForDay(week.start, dayKey),
+    ).find(
+      (date) =>
+        (!term || (term.startsOn <= date && date <= term.endsOn)) &&
+        isInstructionDate(year, date),
     );
+    const targetDate =
+      week.start <= today &&
+      today <= week.end &&
+      isInstructionDate(year, today)
+        ? today
+        : firstInstructionDay;
+    if (targetDate) goToDate(targetDate);
   }
 
   function moveWeek(direction) {

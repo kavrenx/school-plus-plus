@@ -44,6 +44,22 @@ test("extension parser reads visible tables without accepting markup", () => {
   assert.equal(page.capturedAt, "2026-09-16T10:00:00.000Z");
 });
 
+test("extension parser stores each diary week under its own page key", () => {
+  const window = new Window({ url: "https://diary.e-schools.by/#/diary" });
+  window.document.body.innerHTML = `
+    <h1>Электронный дневник</h1>
+    <table><tr><th>Понедельник 14.09.2026</th></tr><tr><td>Математика</td></tr></table>`;
+  const context = loadGlobal("../extension/shared/e-schools-parser.js");
+  const page = context.SchoolppEschoolParser.collectPage(
+    window.document,
+    window.location,
+    new Date("2026-09-16T10:00:00Z"),
+  );
+
+  assert.equal(page.weekDate, "2026-09-14");
+  assert.match(page.key, /::week:2026-09-14$/);
+});
+
 test("extension parser rejects nearby diary text as a class teacher", () => {
   const window = new Window({ url: "https://diary.e-schools.by/#/diary" });
   window.document.body.innerHTML = `
@@ -84,6 +100,46 @@ test("extension snapshot merges pages and network records", () => {
   });
   assert.equal(diagnostics.network[0].bodyShape.grade, "number");
   assert.equal(JSON.stringify(diagnostics).includes("Иванов Иван"), false);
+});
+
+test("extension snapshot keeps a full school year of compact weekly records", () => {
+  const context = loadGlobal("../extension/shared/snapshot-store.js");
+  const store = context.SchoolppSnapshotStore;
+  let snapshot = store.createEmptySnapshot("2026-09-01T00:00:00.000Z");
+  for (let week = 0; week < 70; week += 1) {
+    snapshot = store.mergeNetworkRecord(snapshot, {
+      key: `GET:/lessons?week=${week}`,
+      url: `/api/v1/education/diary/schools/s/classes/c/students/u/lessons?week_activity_uuid=${week}`,
+      method: "GET",
+      status: 200,
+      capturedAt: `2026-09-${String((week % 28) + 1).padStart(2, "0")}T00:00:00.000Z`,
+      body: [
+        {
+          date: 1_800_000_000 + week,
+          day_of_week: 1,
+          slots: [
+            {
+              lesson_uuid: `lesson-${week}`,
+              lesson_template_id: "math",
+              homework: "№ 10",
+              topic: "Поле, которое не нужно приложению",
+              lesson_mark: { mark: "9", comment: "", summary: null },
+              lesson_marks: [{ mark: "8" }, { value: "10" }],
+            },
+          ],
+        },
+      ],
+    });
+  }
+  assert.equal(Object.keys(snapshot.network).length, 70);
+  const first = Object.values(snapshot.network)[0].body[0].slots[0];
+  assert.equal(first.homework, "№ 10");
+  assert.equal(first.lesson_mark.mark, "9");
+  assert.deepEqual(
+    Array.from(first.lesson_marks, (item) => ({ ...item })),
+    [{ mark: "8" }, { value: "10" }],
+  );
+  assert.equal("topic" in first, false);
 });
 
 test("extension sync discovers the student's related diary endpoints", () => {
@@ -255,7 +311,7 @@ test("extension manifests expose background updates and notifications", () => {
     ),
   );
   for (const manifest of [chromium, firefox]) {
-    assert.equal(manifest.version, "1.0.1");
+    assert.equal(manifest.version, "1.0.2");
     assert.ok(manifest.permissions.includes("alarms"));
     assert.ok(manifest.permissions.includes("notifications"));
     assert.ok(

@@ -33,8 +33,7 @@ function adaptESchoolsSnapshot(snapshot) {
     {};
   const schoolId = ids.schoolId || classItem.school || "school";
   const classId = ids.classId || classItem.uuid || "class";
-  // The local preview keeps one stable app identity. The external student UUID
-  // stays alongside it and is never used as a login credential.
+  // The app keeps one stable local identity and stores the source UUID separately.
   const studentId = "student_demo";
   const academicYear = createAcademicYear(yearSource, activities, schoolId);
   const sourceSubjects = asArray(
@@ -122,8 +121,6 @@ function adaptESchoolsSnapshot(snapshot) {
         id: studentId,
         externalId: ids.studentId,
         role: "student",
-        login: "student",
-        password: "student",
         firstName: name.firstName || "Ученик",
         lastName: name.lastName,
         middleName: name.middleName,
@@ -343,7 +340,6 @@ function createSubjects({
         displayName,
         firstName: displayName,
         lastName: "",
-        login: "",
       });
     }
     return teacherId;
@@ -587,7 +583,7 @@ function createDiary({
   lessonDays.forEach((day) => {
     const date = toIsoDate(day.date);
     const dayKey = dayKeyFromDate(date, day.day_of_week);
-    if (!date || !dayKey) return;
+    if (!date || !dayKey || !isInstructionDate(academicYear, date)) return;
     const weekStart = mondayFor(date);
     if (!weeks.has(weekStart)) {
       weeks.set(weekStart, {
@@ -609,9 +605,12 @@ function createDiary({
       const subject = shortSubjectName(
         slot.subject_title || template.subject,
       );
-      const grade = clean(
-        slot.lesson_mark?.mark ?? slot.lesson_mark?.value ?? "",
-      );
+      const marks = getLessonMarks(slot);
+      const grade = marks
+        .flatMap((mark) => parseGradeDisplayValues(getMarkValue(mark)))
+        .filter((value, markIndex, values) => values.indexOf(value) === markIndex)
+        .slice(0, 2)
+        .join("/");
       const templateId =
         clean(slot.lesson_template_id) ||
         `template-${stableId(subject)}-${dayKey}-${slot.number || index + 1}`;
@@ -635,7 +634,7 @@ function createDiary({
       journalEntries.push(
         createJournalEntry({
           lesson,
-          mark: slot.lesson_mark,
+          marks,
           studentId,
           capturedAt: date,
         }),
@@ -667,26 +666,111 @@ function createDiary({
   return {
     weeks: result,
     lessonTemplates: [...lessonTemplates.values()],
-    journalEntries,
+    journalEntries: mergeJournalEntries(journalEntries),
   };
 }
 
-function createJournalEntry({ lesson, mark, studentId, capturedAt }) {
-  const value = clean(mark?.mark ?? mark?.value ?? "");
-  const normalized = value.toLocaleLowerCase("ru");
-  const isPassFail = /^(?:зач[её]т|незач[её]т)$/.test(normalized);
-  const absent = /^(?:н|нб|отс|отсутствовал(?:а)?)\.?$/i.test(normalized);
+function mergeJournalEntries(entries) {
+  const merged = new Map();
+  entries.forEach((entry) => {
+    const key = `${entry.lessonId}:${entry.studentId}`;
+    const current = merged.get(key);
+    if (!current) {
+      merged.set(key, entry);
+      return;
+    }
+    merged.set(key, {
+      ...current,
+      ...entry,
+      grades: [...new Set([...(current.grades || []), ...(entry.grades || [])])]
+        .filter(Boolean)
+        .slice(0, 2),
+      attendance:
+        current.attendance === "absent" || entry.attendance === "absent"
+          ? "absent"
+          : current.attendance || entry.attendance || "",
+      comment: [current.comment, entry.comment]
+        .filter(Boolean)
+        .filter((value, index, values) => values.indexOf(value) === index)
+        .join(" · "),
+      authorId: current.authorId || entry.authorId || "",
+    });
+  });
+  return [...merged.values()];
+}
+
+function createJournalEntry({ lesson, marks = [], studentId, capturedAt }) {
+  const values = marks.map(getMarkValue).filter(Boolean);
+  const normalized = values.map((value) => value.toLocaleLowerCase("ru"));
+  const passFail = values.filter((_, index) =>
+    /^(?:зач[её]т|незач[её]т)$/.test(normalized[index]),
+  );
+  const absent = normalized.some((value) =>
+    /^(?:н|нб|отс|отсутствовал(?:а)?)\.?$/i.test(value),
+  );
   return {
     lessonId: lesson.id,
     studentId,
-    grades: isPassFail ? [value] : parseGradeValues(value),
+    grades: [
+      ...passFail,
+      ...values.flatMap(parseGradeValues),
+    ].slice(0, 2),
     attendance: absent ? "absent" : "",
     homework: "",
-    comment: clean(mark?.comment),
+    comment: [
+      ...new Set(marks.map((mark) => clean(mark?.comment)).filter(Boolean)),
+    ].join(" · "),
     materials: [],
-    authorId: clean(mark?.author),
+    authorId: clean(marks.find((mark) => mark?.author)?.author),
     updatedAt: capturedAt ? `${capturedAt}T00:00:00.000Z` : undefined,
   };
+}
+
+function getLessonMarks(slot = {}) {
+  const result = [];
+  [
+    slot.lesson_mark,
+    slot.lesson_marks,
+    slot.marks,
+    slot.mark,
+    slot.student_mark,
+    slot.student_marks,
+  ].forEach((value) => collectMarks(value, result));
+  const unique = new Map();
+  result.forEach((mark) => {
+    const key =
+      clean(mark?.uuid) ||
+      `${getMarkValue(mark)}:${clean(mark?.kind || mark?.type)}:${clean(mark?.comment)}`;
+    if (key && !unique.has(key)) unique.set(key, mark);
+  });
+  return [...unique.values()];
+}
+
+function collectMarks(value, result, depth = 0) {
+  if (value === undefined || value === null || depth > 4) return;
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectMarks(item, result, depth + 1));
+    return;
+  }
+  if (typeof value !== "object") {
+    result.push({ mark: value });
+    return;
+  }
+  if (value.mark !== undefined || value.value !== undefined) {
+    result.push(value);
+    return;
+  }
+  Object.values(value).forEach((item) => collectMarks(item, result, depth + 1));
+}
+
+function getMarkValue(mark) {
+  return clean(mark?.mark ?? mark?.value ?? mark ?? "");
+}
+
+function parseGradeDisplayValues(value) {
+  const normalized = clean(value);
+  if (/^(?:зач[её]т|незач[её]т)$/i.test(normalized)) return [normalized];
+  return parseGradeValues(normalized);
 }
 
 function mergeLessonTemplates(base, actual) {
@@ -834,11 +918,14 @@ function supplementDiaryFromTimetable(diary, timetable, academicYear, classId) {
   const weeks = new Map(diary.weeks.map((week) => [week.start, week]));
   const scheduleByDay = new Map(timetable.map((day) => [day.id, day.lessons]));
   for (const term of academicYear.terms || []) {
+    const startsOn = laterDate(term.startsOn, academicYear.startsOn);
+    const endsOn = earlierDate(term.endsOn, academicYear.endsOn);
     for (
-      let date = term.startsOn;
-      date && date <= term.endsOn;
+      let date = startsOn;
+      date && date <= endsOn;
       date = addIsoDays(date, 1)
     ) {
+      if (!isInstructionDate(academicYear, date)) continue;
       const dayKey = dayKeyFromDate(date);
       const scheduled = scheduleByDay.get(dayKey) || [];
       if (!scheduled.length) continue;
@@ -890,6 +977,27 @@ function supplementDiaryFromTimetable(diary, timetable, academicYear, classId) {
     ),
   );
   return diary;
+}
+
+function isInstructionDate(academicYear, date) {
+  if (!date) return false;
+  if (academicYear.startsOn && date < academicYear.startsOn) return false;
+  if (academicYear.endsOn && date > academicYear.endsOn) return false;
+  return !(academicYear.breaks || []).some(
+    (item) => item.startsOn <= date && date <= item.endsOn,
+  );
+}
+
+function laterDate(first, second) {
+  if (!first) return second || "";
+  if (!second) return first;
+  return first > second ? first : second;
+}
+
+function earlierDate(first, second) {
+  if (!first) return second || "";
+  if (!second) return first;
+  return first < second ? first : second;
 }
 
 function splitPersonName(value) {

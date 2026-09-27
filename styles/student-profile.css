@@ -120,24 +120,12 @@
   letter-spacing: -0.01em;
 }
 
-.class-link {
-  position: relative;
+.student-class-label {
   justify-self: start;
-  min-height: 0;
-  padding: 0 4px;
-  background: transparent;
   color: var(--accent-dark);
   font-size: 14px;
   font-weight: 820;
   line-height: 1.45;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.class-link::before {
-  content: "";
-  position: absolute;
-  inset: -12px -8px;
 }
 
 .online-status {
@@ -214,26 +202,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.masked-detail {
-  min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.detail-eye-btn {
-  width: var(--control-height);
-  height: var(--control-height);
-  flex-shrink: 0;
-  color: var(--accent-dark);
-}
-
-.detail-eye-btn svg {
-  width: 17px;
-  height: 17px;
-}
-
-.edit-profile-btn,
 .remove-photo-btn {
   border: 1px solid var(--line-dark);
   border-radius: 0;
@@ -246,23 +214,12 @@
     border-color var(--transition);
 }
 
-.edit-profile-btn {
-  justify-self: stretch;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: var(--control-height);
-  padding: 9px 12px;
-}
-
 .remove-photo-btn {
   min-height: var(--control-height);
   padding: 0 12px;
   font-size: 13px;
 }
 
-.edit-profile-btn:hover,
 .remove-photo-btn:hover {
   border-color: var(--accent);
   background: var(--accent-soft);

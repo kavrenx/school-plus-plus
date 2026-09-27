@@ -91,8 +91,7 @@
   }
 
   .student-header-strip,
-  .teacher-line,
-  .edit-profile-btn {
+  .teacher-line {
     grid-column: 1;
   }
 
@@ -100,16 +99,10 @@
     grid-column: 2;
     grid-row: 1 / span 3;
   }
-
-  .edit-profile-btn {
-    justify-self: start;
-    min-width: 180px;
-  }
 }
 
 @media (max-width: 760px) {
-  .dashboard-screen,
-  .login-screen {
+  .dashboard-screen {
     padding: 14px;
   }
 
@@ -220,14 +213,6 @@
 
   .student-info {
     padding: 0 0 0 12px;
-  }
-
-  .profile-form-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .profile-form-grid .wide-field {
-    grid-column: auto;
   }
 }
 
@@ -461,8 +446,7 @@
 
 @media (max-width: 560px),
   (max-height: 560px) and (orientation: landscape) and (max-width: 950px) {
-  .dashboard-screen,
-  .login-screen {
+  .dashboard-screen {
     padding: 12px;
   }
 
@@ -497,23 +481,6 @@
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
-  }
-
-  .demo-credential-list div {
-    grid-template-columns: 1fr;
-    gap: 4px;
-  }
-
-  .demo-credential-list dd {
-    overflow-wrap: normal;
-  }
-
-  .login-card {
-    padding: 26px 20px 24px;
-  }
-
-  .login-card {
-    border-left-width: 1px;
   }
 
   .brand-mark {
@@ -645,10 +612,6 @@
     font-size: 13px;
   }
 
-  .edit-profile-btn {
-    min-height: var(--control-height);
-  }
-
   .week-switcher {
     padding: 12px;
   }
@@ -766,12 +729,5 @@
 
   .account-disclosure {
     grid-column: 1 / -1;
-  }
-
-  .edit-profile-btn {
-    min-width: 150px;
-    grid-column: 2;
-    grid-row: 1 / span 2;
-    align-self: stretch;
   }
 }

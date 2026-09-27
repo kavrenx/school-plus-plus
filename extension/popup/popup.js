@@ -26,11 +26,15 @@ let backgroundSyncEnabled = false;
 let latestStats = null;
 let latestSyncState = {};
 let statusClock = 0;
+let automaticPopup = false;
+let automaticCloseClock = 0;
 
 async function initialize() {
   [activeTab] = await api.tabs.query({ active: true, currentWindow: true });
   canSync = /^https:\/\/diary\.e-schools\.by\//.test(activeTab?.url || "");
   const result = await api.runtime.sendMessage({ type: "SCHOOLPP_GET_STATUS" });
+  automaticPopup = Boolean(result?.backgroundSyncActive && !canSync);
+  if (automaticPopup) startAutomaticCloseWatcher();
   backgroundSyncEnabled =
     Boolean(result?.stats?.ready) && result?.settings?.backgroundSync !== false;
   backgroundSyncToggle.checked = backgroundSyncEnabled;
@@ -147,7 +151,7 @@ syncButton.addEventListener("click", async () => {
   try {
     syncResponse = await withTimeout(
       api.tabs.sendMessage(activeTab.id, { type: "SCHOOLPP_SYNC" }),
-      45_000,
+      180_000,
     );
     if (!syncResponse?.ok)
       throw new Error(
@@ -199,6 +203,7 @@ api.runtime.onMessage.addListener((message) => {
     syncDetail.hidden = true;
     syncButton.disabled = !canSync;
     showError(progress.label || "Не удалось синхронизировать данные.");
+    if (automaticPopup) window.setTimeout(() => window.close(), 1_500);
     return;
   }
   if (!syncing && progress.phase === "running") {
@@ -300,6 +305,7 @@ async function finishBackgroundSync(progress) {
   syncButton.classList.remove("is-success");
   const result = await api.runtime.sendMessage({ type: "SCHOOLPP_GET_STATUS" });
   renderStatus(result?.stats, result?.syncState);
+  if (automaticPopup) window.setTimeout(() => window.close(), 900);
 }
 
 function renderCompletedFallback(warning = "") {
@@ -383,6 +389,23 @@ function stopStatusClock() {
   if (!statusClock) return;
   window.clearInterval(statusClock);
   statusClock = 0;
+}
+
+function startAutomaticCloseWatcher() {
+  if (automaticCloseClock) return;
+  automaticCloseClock = window.setInterval(async () => {
+    try {
+      const result = await api.runtime.sendMessage({
+        type: "SCHOOLPP_GET_STATUS",
+      });
+      if (result?.backgroundSyncActive) return;
+      window.clearInterval(automaticCloseClock);
+      automaticCloseClock = 0;
+      window.setTimeout(() => window.close(), 500);
+    } catch {
+      /* The next tick will retry while the popup is still visible. */
+    }
+  }, 500);
 }
 
 function pluralWord(value, one, few, many) {

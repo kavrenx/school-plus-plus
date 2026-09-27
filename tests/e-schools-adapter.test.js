@@ -135,6 +135,25 @@ test("e-schools adapter builds the student diary from captured API responses", (
                   },
                 ],
               },
+              {
+                day_of_week: 1,
+                timetable_slots: [
+                  {
+                    time_of_bells: {
+                      number: 1,
+                      start_time: "08:00:00",
+                      end_time: "08:45:00",
+                    },
+                    slots: [
+                      {
+                        number: 1,
+                        lesson_template_id: "math-template",
+                        room_id: "room-1",
+                      },
+                    ],
+                  },
+                ],
+              },
             ],
           },
         ],
@@ -155,7 +174,16 @@ test("e-schools adapter builds the student diary from captured API responses", (
               subject_title: "Математика",
               teacher_id: "teacher-1",
               homework: "№ 10",
-              lesson_mark: { mark: "8/9" },
+              lesson_marks: [{ mark: "8" }, { mark: "9" }],
+            },
+            {
+              lesson_uuid: "lesson-1",
+              lesson_template_id: "math-template",
+              number: 1,
+              start_time: "08:00:00",
+              subject_title: "Математика",
+              teacher_id: "teacher-1",
+              homework: "№ 10",
             },
           ],
         },
@@ -201,12 +229,27 @@ test("e-schools adapter builds the student diary from captured API responses", (
     status: "scheduled",
   });
   assert.deepEqual(adapted.journalEntries[0].grades, ["8", "9"]);
+  assert.equal(adapted.journalEntries.length, 1);
   assert.equal(adapted.journalEntries[0].lessonId, "lesson-1");
   assert.ok(adapted.diary.weeks.length > 1);
   assert.ok(
     adapted.diary.weeks.some(
       (week) => week.start !== "2026-09-14" && week.days.thursday?.length === 1,
     ),
+  );
+  const firstAcademicWeek = adapted.diary.weeks.find(
+    (week) => week.start === "2026-08-31",
+  );
+  assert.ok(firstAcademicWeek);
+  assert.equal(firstAcademicWeek.days.monday.length, 0);
+  const holidayWeek = adapted.diary.weeks.find(
+    (week) => week.start === "2026-11-02",
+  );
+  assert.equal(
+    holidayWeek
+      ? Object.values(holidayWeek.days).some((lessons) => lessons.length > 0)
+      : false,
+    false,
   );
 });
 

@@ -34,60 +34,6 @@
   animation: modalAppear 0.18s ease both;
 }
 
-.register-modal {
-  width: min(100%, 520px);
-}
-
-.demo-access-card {
-  margin: 18px 0;
-  padding: 18px;
-  border: 1px solid var(--line-dark);
-  background: var(--paper-2);
-}
-
-.demo-access-card > p {
-  margin-bottom: 14px;
-  color: var(--muted);
-  line-height: 1.5;
-}
-
-.demo-access-details {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.demo-access-details div {
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
-}
-
-.demo-access-details dt {
-  margin-bottom: 4px;
-  color: var(--quiet);
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.demo-access-details dd {
-  color: var(--ink);
-  font-weight: 800;
-}
-
-.demo-access-warning {
-  margin-bottom: 18px;
-}
-
-.modal-primary-action {
-  width: 100%;
-}
-
-.profile-modal-card {
-  width: min(100%, 720px);
-}
-
 .class-modal-card {
   width: min(100%, 780px);
 }
@@ -245,20 +191,6 @@
   font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
-}
-
-.profile-form-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 13px;
-}
-
-.profile-form-grid .wide-field {
-  grid-column: 1 / -1;
-}
-
-.profile-actions {
-  margin-top: 2px;
 }
 
 .modal-card h3 {

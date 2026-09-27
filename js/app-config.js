@@ -1,8 +1,5 @@
 const STORAGE_KEYS = {
-  user: "schoolPlusPlus_user",
   theme: "schoolPlusPlus_theme",
-
-  profilePrefix: "schoolPlusPlus_profile_",
   avatarPrefix: "schoolPlusPlus_avatar_",
   legacyAvatar: "schoolPlusPlus_avatar"
 };
@@ -56,11 +53,6 @@ const TEXT = {
   attendanceHeader: "Посещение",
   room: "каб.",
   noHomework: "нет дз",
-  loginError: "Неверный логин или пароль.",
-  inviteError: "Код не найден. Проверьте символы и дефисы.",
-  profileSaved: "Профиль сохранён.",
-  profileNameError: "Имя и фамилия обязательны.",
-  profileEmailError: "Проверьте e-mail.",
   avatarTypeError: "Выберите изображение JPEG, PNG или WebP.",
   avatarSizeError: "Файл слишком большой. Максимальный размер — 5 МБ.",
   avatarStorageError: "Не удалось обработать или сохранить изображение.",
@@ -69,12 +61,6 @@ const TEXT = {
   connectionOffline:
     "Нет соединения. Дневник доступен, но внешние материалы могут не открыться.",
   connectionRestored: "Соединение восстановлено.",
-  demoResetSuccess: "Изменения сброшены.",
-  demoResetError: "Не удалось сбросить изменения.",
-  showLogin: "Показать логин",
-  hideLogin: "Скрыть логин",
-  showPassword: "Показать пароль",
-  hidePassword: "Скрыть пароль",
   months: ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"],
   weekdays: ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"],
   weekdaysShort: ["пн", "вт", "ср", "чт", "пт", "сб", "вс"]

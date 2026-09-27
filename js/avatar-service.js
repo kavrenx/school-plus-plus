@@ -13,7 +13,7 @@ function validateAvatarFile(file) {
 }
 
 function getAvatarStorageKey(prefix, user) {
-  const identity = user?.id || user?.userId || user?.login;
+  const identity = user?.id || user?.userId;
   return identity ? `${prefix}${encodeURIComponent(identity)}` : null;
 }
 

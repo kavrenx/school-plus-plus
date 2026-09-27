@@ -81,6 +81,35 @@ test("an installed extension with data completes the first-run flow", async () =
   window.close();
 });
 
+test("extension install screen links Chrome and marks Firefox as coming soon", async () => {
+  const window = createWindow();
+  const controller = createOnboardingController({
+    root: window.document,
+    windowRef: window,
+    storeUrls: {
+      chromium: "https://chromewebstore.google.com/detail/example",
+      firefox: "",
+    },
+    presenceCheck: async () => false,
+    subscribe: () => () => {},
+  });
+  void controller.start();
+  await new Promise((resolve) => setImmediate(resolve));
+  window.document.querySelector("[data-diary-confirm]").click();
+  window.document.querySelector('[data-device-confirm="desktop"]').click();
+  await new Promise((resolve) => setImmediate(resolve));
+
+  const chrome = window.document.querySelector('a[href*="chromewebstore"]');
+  assert.ok(chrome);
+  assert.match(chrome.querySelector("img").src, /browser-chrome\.webp$/);
+  assert.match(
+    window.document.querySelector(".extension-store-card.is-unavailable")
+      .textContent,
+    /Появится в ближайшее время/,
+  );
+  window.close();
+});
+
 test("unsupported diary flow sends a structured request", async () => {
   const window = createWindow();
   let submitted = null;

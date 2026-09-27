@@ -11,15 +11,6 @@ const REPOSITORY_CONTRACTS = Object.freeze({
     "saveLessonWork",
     "saveTermGrade",
   ]),
-  users: Object.freeze([
-    "applyProfileOverrides",
-    "clearProfile",
-    "clearUser",
-    "getProfile",
-    "getSavedUser",
-    "saveProfile",
-    "saveUser",
-  ]),
 });
 
 function assertRepositoryContract(name, repository) {

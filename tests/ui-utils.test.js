@@ -1,17 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  escapeHtml,
-  formatInviteCode,
-  getEyeIcon,
-  getUploadIcon,
-  setFieldInvalid,
-} from "../js/ui-utils.js";
-
-test("formats invite codes into four-character groups", () => {
-  assert.equal(formatInviteCode("demo student 2026"), "DEMO-STUD-ENT2-026");
-  assert.equal(formatInviteCode("ab-cd-12"), "ABCD-12");
-});
+import { escapeHtml, getUploadIcon, setFieldInvalid } from "../js/ui-utils.js";
 
 test("escapes text before inserting it into HTML", () => {
   assert.equal(
@@ -21,8 +10,6 @@ test("escapes text before inserting it into HTML", () => {
 });
 
 test("returns accessible decorative icon markup", () => {
-  assert.match(getEyeIcon(false), /aria-hidden="true"/);
-  assert.match(getEyeIcon(true), /M3 3l18 18/);
   assert.match(
     getUploadIcon((key) => (key === "uploadPhoto" ? "Загрузить фото" : key)),
     /Загрузить фото/,

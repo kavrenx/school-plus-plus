@@ -32,7 +32,7 @@ test("creates a separate avatar key for each user", () => {
     "avatar_student-1",
   );
   assert.equal(
-    getAvatarStorageKey("avatar_", { login: "student@example" }),
+    getAvatarStorageKey("avatar_", { userId: "student@example" }),
     "avatar_student%40example",
   );
   assert.equal(getAvatarStorageKey("avatar_", null), null);

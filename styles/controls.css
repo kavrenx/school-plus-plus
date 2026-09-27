@@ -1,0 +1,97 @@
+.brand-mark {
+  font-family: var(--font-display);
+}
+
+.modal-form {
+  display: grid;
+}
+
+.modal-form {
+  gap: 14px;
+}
+
+.modal-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.icon-btn {
+  width: var(--control-height);
+  height: var(--control-height);
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--quiet);
+  transition:
+    background var(--transition),
+    color var(--transition),
+    transform var(--transition);
+}
+
+.icon-btn svg,
+.photo-placeholder svg {
+  width: 19px;
+  height: 19px;
+}
+
+.icon-btn:hover {
+  background: var(--paper-2);
+  color: var(--accent-dark);
+}
+
+.primary-btn,
+.modal-btn {
+  min-height: var(--control-height-lg);
+  border-radius: var(--radius);
+  font-weight: 800;
+  transition:
+    transform var(--transition),
+    background var(--transition),
+    color var(--transition),
+    border-color var(--transition);
+}
+
+.primary-btn,
+.modal-btn.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.primary-btn:hover:not(:disabled),
+.modal-btn.primary:hover:not(:disabled) {
+  background: var(--accent-dark);
+  transform: translateY(-1px);
+}
+
+:is(
+    .primary-btn,
+    .modal-btn,
+    .theme-toggle,
+    .logout-btn,
+    .week-btn,
+    .day-tab,
+    .remove-photo-btn
+  ):active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.form-message {
+  padding: 10px 11px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.form-message.error {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.form-message.info {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}

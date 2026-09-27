@@ -11,6 +11,20 @@ import { createJournalStore } from "../js/journal-store.js";
 import { createStudentDashboardController } from "../js/student-dashboard-controller.js";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+
+test("student shell does not contain the retired local sign-in flow", () => {
+  for (const retiredId of [
+    "loginScreen",
+    "loginForm",
+    "forgotModal",
+    "resetDemoModal",
+    "profileModal",
+  ]) {
+    assert.doesNotMatch(html, new RegExp(`id=["']${retiredId}["']`));
+  }
+  assert.doesNotMatch(html, /Забыли пароль\?|Введите логин и пароль/);
+});
+
 function fixture(withLessons = false) {
   const window = new Window({
     url: "http://localhost:5173",
@@ -83,6 +97,7 @@ test("student can switch between diary, four schedule views and results", async 
   const f = fixture();
   try {
     assert.equal(f.$("studentYearLabel").textContent, "26/27");
+    assert.equal(f.$("studentClassBtn").tagName, "SPAN");
     assert.equal(f.$("studentCurrentWeek").hidden, true);
     f.$("studentScheduleButton").click();
     assert.equal(f.$("studentSchedule").hidden, false);
@@ -154,7 +169,7 @@ test("student can switch between diary, four schedule views and results", async 
   }
 });
 
-test("calendar permits holidays and summer, and current week link returns to today", async () => {
+test("calendar rejects holidays and summer, and current week link returns to today", async () => {
   const f = fixture();
   try {
     f.$("nextWeekBtn").click();
@@ -162,16 +177,23 @@ test("calendar permits holidays and summer, and current week link returns to tod
     f.$("studentCurrentWeek").click();
     assert.equal(f.$("studentDatePicker").value, "2026-09-16");
     assert.equal(f.$("studentCurrentWeek").hidden, true);
-    for (const date of ["2026-11-04", "2027-06-01", "2027-08-31"]) {
+    for (const date of ["2026-08-31", "2026-11-04", "2027-06-01"]) {
       f.$("studentDatePicker").value = date;
       f.$("studentDatePicker").dispatchEvent(new f.window.Event("change"));
-      assert.equal(f.$("studentDatePicker").value, date);
+      assert.equal(f.$("studentDatePicker").value, "2026-09-16");
     }
     assert.equal(f.$("studentDatePicker").min, "2026-09-01");
-    assert.equal(f.$("studentDatePicker").max, "2027-08-31");
-    assert.equal(f.$("nextWeekBtn").disabled, true);
+    assert.equal(f.$("studentDatePicker").max, "2027-05-31");
+    f.$("studentTermSelect").value = "term_2026_2";
+    f.$("studentTermSelect").dispatchEvent(new f.window.Event("change"));
+    assert.equal(f.$("studentDatePicker").value, "2026-11-09");
+    assert.ok(f.$("weekRangeTitle").textContent.includes("9–15 ноября"));
+    f.$("studentTermSelect").value = "term_2026_1";
+    f.$("studentTermSelect").dispatchEvent(new f.window.Event("change"));
+    f.$("studentDatePicker").value = "2026-09-01";
+    f.$("studentDatePicker").dispatchEvent(new f.window.Event("change"));
     assert.equal(
-      f.$("dayTabs").querySelector('[data-day="wednesday"]').disabled,
+      f.$("dayTabs").querySelector('[data-day="monday"]').disabled,
       true,
     );
   } finally {

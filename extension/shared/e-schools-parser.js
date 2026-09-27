@@ -13,12 +13,15 @@
       .slice(0, 30);
     const capturedAt = now.toISOString();
     const route = `${locationRef.pathname || "/"}${locationRef.hash || ""}`;
+    const kind = detectPageKind(`${title} ${route} ${headings.join(" ")}`);
+    const weekDate = kind === "diary" ? findFirstTableDate(tables) : "";
     return {
-      key: route || "/",
+      key: weekDate ? `${route || "/"}::week:${weekDate}` : route || "/",
       url: `${locationRef.origin || ""}${route}`,
       route,
       title,
-      kind: detectPageKind(`${title} ${route} ${headings.join(" ")}`),
+      kind,
+      weekDate,
       capturedAt,
       profile: collectProfile(documentRef),
       studentIdentity: collectStudentIdentity(documentRef),
@@ -26,6 +29,21 @@
       headings,
       tables,
     };
+  }
+
+  function findFirstTableDate(tables) {
+    const dates = tables
+      .flatMap((table) => [
+        ...(table.headers || []),
+        ...(table.rows || []).flat(),
+      ])
+      .flatMap((value) => String(value).match(/\b\d{2}\.\d{2}\.\d{4}\b/g) || [])
+      .map((value) => {
+        const [day, month, year] = value.split(".");
+        return `${year}-${month}-${day}`;
+      })
+      .sort();
+    return dates[0] || "";
   }
 
   function parseTable(table) {

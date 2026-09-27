@@ -13,8 +13,6 @@ function createLocalPreviewData(rawDiary, rawSchool) {
     department: "",
     email: "",
     phone: "",
-    password: user.login,
-    inviteCode: user.role === "student" ? "LOCAL-STUDENT-2026" : "",
   }));
   const studentId = school.users.find((user) => user.role === "student")?.id;
   school.students = school.students

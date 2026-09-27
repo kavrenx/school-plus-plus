@@ -54,9 +54,6 @@ export const SCHOOL_DATA = {
     {
       id: "student_demo",
       role: "student",
-      login: "student",
-      password: "demo-student",
-      inviteCode: "DEMO-STUDENT-2026",
       firstName: "Даниил",
       lastName: "Романов",
       classId: "class_7b",
@@ -70,8 +67,6 @@ export const SCHOOL_DATA = {
     {
       id: "teacher_demo",
       role: "teacher",
-      login: "teacher",
-      password: "demo-teacher",
       firstName: "Марина",
       lastName: "Орлова",
       middleName: "Сергеевна",
@@ -84,8 +79,6 @@ export const SCHOOL_DATA = {
     {
       id: "admin_school",
       role: "admin",
-      login: "admin",
-      password: "demo-admin",
       firstName: "Администратор",
       lastName: "Школы",
       displayName: "Администратор школы"

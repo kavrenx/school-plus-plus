@@ -41,7 +41,7 @@ function createPresentationController({
 }) {
   const page = root.documentElement;
   const elements = {
-    loginScreen: root.getElementById("loginScreen"),
+    onboardingScreen: root.getElementById("onboardingScreen"),
     screen: root.getElementById("presentationScreen"),
     backButton: root.getElementById("presentationBackBtn"),
     finalButton: root.getElementById("presentationFinalBtn"),
@@ -62,7 +62,7 @@ function createPresentationController({
   let touchStartY = null;
   let transitionTimer = null;
   let wheelResetTimer = null;
-  let originScreen = elements.loginScreen;
+  let originScreen = elements.onboardingScreen;
   let originTrigger = root.getElementById("presentationTrigger");
 
   function bind() {
@@ -86,7 +86,8 @@ function createPresentationController({
     originTrigger =
       trigger?.closest?.("[data-presentation-trigger]") ||
       root.getElementById("presentationTrigger");
-    originScreen = originTrigger?.closest("section") || elements.loginScreen;
+    originScreen =
+      originTrigger?.closest("section") || elements.onboardingScreen;
     if (!originScreen) return;
 
     active = true;
@@ -164,12 +165,12 @@ function createPresentationController({
     );
     page?.classList.remove("presentation-active", "presentation-closing");
     delete body.dataset.presentationScene;
-    elements.loginScreen?.classList.remove(
+    elements.onboardingScreen?.classList.remove(
       "hidden",
       "is-leaving-presentation",
       "is-returning-presentation",
     );
-    elements.loginScreen?.setAttribute("aria-hidden", "false");
+    elements.onboardingScreen?.setAttribute("aria-hidden", "false");
     elements.screen?.classList.add("hidden");
     elements.screen?.classList.remove(
       "is-entering-presentation",

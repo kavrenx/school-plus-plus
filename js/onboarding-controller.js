@@ -7,7 +7,7 @@ import {
 const ONBOARDING_KEY = "schoolpp_onboarding_complete_v1";
 const CHECK_PENDING_KEY = "schoolpp_extension_check_pending";
 const BROWSER_ICONS = Object.freeze({
-  chromium: new URL("../assets/browser-chrome.svg", import.meta.url).href,
+  chromium: new URL("../assets/browser-chrome.webp", import.meta.url).href,
   firefox: new URL("../assets/browser-firefox.svg", import.meta.url).href,
 });
 
@@ -301,7 +301,11 @@ function storeCard(store, url, recommended) {
     firefox: ["Firefox Add-ons", "Mozilla Firefox"],
   };
   const [title, description] = labels[store];
-  const body = `<span class="browser-icon is-${store}" aria-hidden="true"><img src="${BROWSER_ICONS[store]}" alt=""></span><span><strong>${title}</strong><small>${url ? description : "Ссылка будет добавлена после публикации"}</small></span>`;
+  const unavailableText =
+    store === "firefox"
+      ? "Появится в ближайшее время"
+      : "Ссылка будет добавлена после публикации";
+  const body = `<span class="browser-icon is-${store}" aria-hidden="true"><img src="${BROWSER_ICONS[store]}" alt=""></span><span><strong>${title}</strong><small>${url ? description : unavailableText}</small></span>`;
   return url
     ? `<a class="extension-store-card${recommended ? " is-recommended" : ""}" href="${url}" target="_blank" rel="noreferrer">${body}</a>`
     : `<div class="extension-store-card is-unavailable${recommended ? " is-recommended" : ""}" aria-disabled="true">${body}</div>`;

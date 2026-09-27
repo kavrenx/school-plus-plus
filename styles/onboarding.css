@@ -7,7 +7,6 @@
   display: none;
 }
 
-.onboarding-screen:not(.hidden) ~ .login-screen,
 .onboarding-screen:not(.hidden) ~ .dashboard-screen,
 .onboarding-screen:not(.hidden) ~ .teacher-screen {
   display: none;

@@ -4,7 +4,6 @@
   padding: 18px;
 }
 
-.login-screen,
 .dashboard-screen,
 .teacher-screen {
   will-change: opacity, transform;
@@ -103,7 +102,6 @@ school-icon svg {
   font-size: 18px;
 }
 
-.edit-profile-btn school-icon,
 .modal-icon school-icon {
   font-size: 20px;
   pointer-events: none;

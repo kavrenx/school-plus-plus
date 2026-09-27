@@ -1,4 +1,4 @@
-import { getUploadIcon, setFieldInvalid } from "./ui-utils.js";
+import { getUploadIcon } from "./ui-utils.js";
 import {
   createCompressedAvatar,
   validateAvatarFile,
@@ -7,27 +7,12 @@ import {
 function createProfileController({
   root,
   avatarRepository,
-  userStore,
-  accounts,
   translate,
   modal,
   feedback,
   notify = () => {},
-  onUserChange,
 }) {
   const elements = {
-    editButton: root.getElementById("editProfileBtn"),
-    modal: root.getElementById("profileModal"),
-    form: root.getElementById("profileForm"),
-    firstName: root.getElementById("profileFirstNameInput"),
-    lastName: root.getElementById("profileLastNameInput"),
-    className: root.getElementById("profileClassNameInput"),
-    classroom: root.getElementById("profileClassroomInput"),
-    teacher: root.getElementById("profileTeacherInput"),
-    email: root.getElementById("profileEmailInput"),
-    phone: root.getElementById("profilePhoneInput"),
-    error: root.getElementById("profileError"),
-    resetButton: root.getElementById("resetProfileBtn"),
     avatarInput: root.getElementById("avatarInput"),
     removeAvatarButton: root.getElementById("removeAvatarBtn"),
     avatarMessage: root.getElementById("avatarMessage"),
@@ -41,10 +26,6 @@ function createProfileController({
   let currentUser = null;
 
   function bind() {
-    elements.editButton?.addEventListener("click", openProfile);
-    elements.form?.addEventListener("submit", handleSubmit);
-    elements.form?.addEventListener("input", clearProfileError);
-    elements.resetButton?.addEventListener("click", reset);
     elements.avatarInput?.addEventListener("change", handleAvatarUpload);
     elements.removeAvatarButton?.addEventListener("click", () =>
       modal.open(elements.removeAvatarModal),
@@ -59,68 +40,6 @@ function createProfileController({
     currentUser = user;
     feedback.hide(elements.avatarMessage);
     renderAvatar();
-  }
-
-  function openProfile() {
-    if (!currentUser) return;
-    clearProfileError();
-    elements.firstName.value = currentUser.firstName || "";
-    elements.lastName.value = currentUser.lastName || "";
-    elements.className.value = currentUser.className || "";
-    elements.classroom.value = currentUser.classroom || "";
-    elements.teacher.value = currentUser.teacher || "";
-    elements.email.value = currentUser.email || "";
-    elements.phone.value = currentUser.phone || "";
-    modal.open(elements.modal);
-    elements.firstName.focus();
-  }
-
-  function handleSubmit(event) {
-    event.preventDefault();
-    if (!currentUser) return;
-
-    const nextProfile = {
-      firstName: elements.firstName.value.trim(),
-      lastName: elements.lastName.value.trim(),
-      className: elements.className.value.trim(),
-      classroom: elements.classroom.value.trim(),
-      teacher: elements.teacher.value.trim(),
-      email: elements.email.value.trim(),
-      phone: elements.phone.value.trim(),
-    };
-    const validationError = validateProfile(nextProfile);
-
-    if (validationError === "name") {
-      setFieldInvalid(elements.firstName, !nextProfile.firstName);
-      setFieldInvalid(elements.lastName, !nextProfile.lastName);
-      feedback.show(elements.error, translate("profileNameError"));
-      return;
-    }
-    if (validationError === "email") {
-      setFieldInvalid(elements.email, true);
-      feedback.show(elements.error, translate("profileEmailError"));
-      return;
-    }
-
-    userStore.saveProfile(currentUser.login, nextProfile);
-    currentUser = { ...currentUser, ...nextProfile };
-    userStore.saveUser(currentUser);
-    onUserChange(currentUser);
-    clearProfileError();
-    modal.close(elements.modal);
-    notify(translate("profileSaved"), { type: "success" });
-  }
-
-  function reset() {
-    if (!currentUser) return;
-    const baseUser =
-      accounts.find((account) => account.login === currentUser.login) ||
-      currentUser;
-    userStore.clearProfile(currentUser.login);
-    currentUser = { ...baseUser };
-    userStore.saveUser(currentUser);
-    onUserChange(currentUser);
-    openProfile();
   }
 
   async function handleAvatarUpload() {
@@ -195,21 +114,6 @@ function createProfileController({
     elements.photoPlaceholder.innerHTML = getUploadIcon(translate);
   }
 
-  function clearProfileError() {
-    [elements.firstName, elements.lastName, elements.email].forEach((field) =>
-      setFieldInvalid(field, false),
-    );
-    feedback.hide(elements.error);
-  }
-
   return { bind, renderAvatar, setUser };
 }
-
-function validateProfile(profile) {
-  if (!profile.firstName || !profile.lastName) return "name";
-  if (profile.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profile.email))
-    return "email";
-  return null;
-}
-
-export { createProfileController, validateProfile };
+export { createProfileController };

@@ -22,7 +22,7 @@ test("empty local screens retain calendar navigation without personal school dat
     ),
   );
   assert.equal(SCHOOL_DATA.users[0].firstName, originalName);
-  assert.equal(data.school.users[0].password, "student");
+  assert.equal("password" in data.school.users[0], false);
   assert.equal(
     model.getStudentsForAssignment(
       model.getTeacherAssignments("teacher_demo")[0],

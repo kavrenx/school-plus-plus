@@ -65,7 +65,6 @@
 Контроллеры получают зависимости извне и не знают, используется `localStorage` или сервер:
 
 ```text
-users:    saveUser, clearUser, getSavedUser, getProfile, saveProfile, clearProfile
 avatars:  get, save, remove
 journal:  getJournalEntry, getLessonEntries, getLessonWork, getTermGrade,
           getTermGrades, saveJournalEntry, saveLessonWork, saveTermGrade,

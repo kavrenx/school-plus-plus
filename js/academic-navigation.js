@@ -8,33 +8,66 @@ function termLabel(term, index = 0) {
   return `${ROMAN[(term.order || index + 1) - 1] || term.order} четверть`;
 }
 function completeAcademicWeeks(weeks, year) {
-  const start = parseIsoDateParts(year.startsOn);
-  if (!start || !parseIsoDateParts(year.endsOn)) return weeks;
-  const weekday = new Date(
-    Date.UTC(start.year, start.month - 1, start.day),
-  ).getUTCDay();
+  const terms = getAcademicTerms(year);
+  if (!terms.length) return weeks;
   const byStart = new Map(weeks.map((week) => [week.start, week]));
-  const result = [];
-  for (
-    let date = addIsoDays(year.startsOn, -((weekday + 6) % 7));
-    date <= year.endsOn;
-    date = addIsoDays(date, 7)
-  ) {
-    result.push(
-      byStart.get(date) || {
+  const result = new Map();
+
+  terms.forEach((term) => {
+    const start = parseIsoDateParts(term.startsOn);
+    const weekday = new Date(
+      Date.UTC(start.year, start.month - 1, start.day),
+    ).getUTCDay();
+    for (
+      let date = addIsoDays(term.startsOn, -((weekday + 6) % 7));
+      date <= term.endsOn;
+      date = addIsoDays(date, 7)
+    ) {
+      const existing = byStart.get(date);
+      result.set(
+        date,
+        existing || {
         id: `week_${date}`,
+        termId: term.id || "",
         start: date,
         end: addIsoDays(date, 6),
         days: {},
         dayStates: {},
-      },
-    );
-  }
-  return result;
+        },
+      );
+    }
+  });
+
+  return [...result.values()].sort((first, second) =>
+    first.start.localeCompare(second.start),
+  );
 }
 function findWeekForDate(weeks, date, year) {
-  if (!parseIsoDateParts(date) || date < year.startsOn || date > year.endsOn)
-    return -1;
+  if (!isInstructionDate(year, date)) return -1;
   return weeks.findIndex((week) => week.start <= date && date <= week.end);
 }
-export { completeAcademicWeeks, findWeekForDate, shortAcademicYear, termLabel };
+function isInstructionDate(year, date) {
+  if (!parseIsoDateParts(date)) return false;
+  const term = getAcademicTerms(year).find(
+    (item) => item.startsOn <= date && date <= item.endsOn,
+  );
+  if (!term) return false;
+  return !(year.breaks || []).some(
+    (item) => item.startsOn <= date && date <= item.endsOn,
+  );
+}
+function getAcademicTerms(year = {}) {
+  return (year.terms || []).filter(
+    (term) =>
+      parseIsoDateParts(term.startsOn) &&
+      parseIsoDateParts(term.endsOn) &&
+      term.startsOn <= term.endsOn,
+  );
+}
+export {
+  completeAcademicWeeks,
+  findWeekForDate,
+  isInstructionDate,
+  shortAcademicYear,
+  termLabel,
+};

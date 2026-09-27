@@ -25,6 +25,9 @@ function createBackgroundHarness() {
   const runtimeMessage = createEvent();
   const alarmEvent = createEvent();
   const notificationClick = createEvent();
+  const tabRemoved = createEvent();
+  const openedPopups = [];
+  const badges = [];
   const chrome = {
     runtime: {
       onMessage: runtimeMessage,
@@ -69,6 +72,7 @@ function createBackgroundHarness() {
       },
     },
     tabs: {
+      onRemoved: tabRemoved,
       async query(details = {}) {
         const patterns = Array.isArray(details.url)
           ? details.url
@@ -111,6 +115,17 @@ function createBackgroundHarness() {
         return true;
       },
     },
+    action: {
+      async openPopup(options) {
+        openedPopups.push(options);
+      },
+      async setBadgeBackgroundColor(options) {
+        badges.push({ background: options.color });
+      },
+      async setBadgeText(options) {
+        badges.push({ text: options.text });
+      },
+    },
     windows: {
       async update() {
         return {};
@@ -142,13 +157,16 @@ function createBackgroundHarness() {
   return {
     alarmEvent,
     alarms,
+    badges,
     createdTabs,
     notifications,
+    openedPopups,
     queryTabs,
     reloadedTabs,
     removedTabs,
     send,
     settle,
+    tabRemoved,
     updatedTabs,
     values,
   };
@@ -207,6 +225,7 @@ test("background updating opens an inactive diary tab and closes it after sync",
   assert.equal(harness.createdTabs[1].url, "https://diary.e-schools.by/");
   assert.equal(harness.createdTabs[1].active, false);
   assert.equal(harness.values.get("schoolpp_background_tab").id, 92);
+  assert.equal(harness.openedPopups.length, 1);
 
   await harness.send(
     {
@@ -262,6 +281,25 @@ test("a background timeout closes the tab and creates one notification", async (
   assert.deepEqual(harness.removedTabs, [92]);
   assert.equal(harness.notifications.length, 1);
   assert.equal(harness.notifications[0].title, "Дневник недоступен");
+  assert.deepEqual(harness.badges.at(-1), { text: "!" });
+});
+
+test("closing an automatic diary tab reports the failed update", async () => {
+  const harness = createBackgroundHarness();
+  await harness.settle();
+  await harness.send({
+    type: "SCHOOLPP_SYNC_PROGRESS",
+    progress: { phase: "success", label: "Первая синхронизация завершена" },
+  });
+  harness.alarmEvent.listeners[0]({ name: "schoolpp_auto_sync" });
+  await harness.settle();
+
+  harness.tabRemoved.listeners[0](92);
+  await harness.settle();
+
+  assert.equal(harness.notifications.length, 1);
+  assert.match(harness.notifications[0].message, /Открой e.school/i);
+  assert.equal(harness.values.has("schoolpp_background_tab"), false);
 });
 
 test("deleting data cancels background updating", async () => {

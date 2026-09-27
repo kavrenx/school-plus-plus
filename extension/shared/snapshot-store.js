@@ -1,6 +1,6 @@
 (function registerSnapshotStore(scope) {
-  const MAX_NETWORK_RECORDS = 60;
-  const MAX_PAYLOAD_BYTES = 1_700_000;
+  const MAX_NETWORK_RECORDS = 120;
+  const MAX_PAYLOAD_BYTES = 1_900_000;
 
   function createEmptySnapshot(now = new Date().toISOString()) {
     return {
@@ -22,8 +22,10 @@
 
   function mergeNetworkRecord(snapshot, record) {
     const next = cloneSnapshot(snapshot);
-    const key = record.key || `${record.method || "GET"}:${record.url}`;
-    next.network[key] = record;
+    const compacted = compactNetworkRecord(record);
+    const key =
+      compacted.key || `${compacted.method || "GET"}:${compacted.url}`;
+    next.network[key] = compacted;
     const records = Object.entries(next.network).sort(([, first], [, second]) =>
       String(first.capturedAt).localeCompare(String(second.capturedAt)),
     );
@@ -37,6 +39,9 @@
 
   function fitPayload(snapshot) {
     const next = cloneSnapshot(snapshot);
+    if (getByteLength(next) > MAX_PAYLOAD_BYTES) {
+      next.pages = Object.fromEntries(Object.entries(next.pages).slice(-4));
+    }
     const network = Object.entries(next.network).sort(([, first], [, second]) =>
       String(first.capturedAt).localeCompare(String(second.capturedAt)),
     );
@@ -44,10 +49,58 @@
       const [oldestKey] = network.shift();
       delete next.network[oldestKey];
     }
-    if (getByteLength(next) > MAX_PAYLOAD_BYTES) {
-      next.pages = Object.fromEntries(Object.entries(next.pages).slice(-4));
-    }
     return next;
+  }
+
+  function compactNetworkRecord(record = {}) {
+    if (!/\/students\/[^/]+\/lessons(?:\?|$)/.test(record.url || ""))
+      return record;
+    return {
+      ...record,
+      body: Array.isArray(record.body)
+        ? record.body.map((day) => ({
+            date: day?.date,
+            day_of_week: day?.day_of_week,
+            slots: Array.isArray(day?.slots)
+              ? day.slots.map((slot) => ({
+                  homework: slot?.homework,
+                  lesson_mark: compactLessonMark(slot?.lesson_mark),
+                  lesson_marks: compactLessonMarks(slot?.lesson_marks),
+                  marks: compactLessonMarks(slot?.marks),
+                  mark: compactLessonMark(slot?.mark),
+                  student_mark: compactLessonMark(slot?.student_mark),
+                  student_marks: compactLessonMarks(slot?.student_marks),
+                  lesson_template_id: slot?.lesson_template_id,
+                  lesson_uuid: slot?.lesson_uuid,
+                  number: slot?.number,
+                  start_time: slot?.start_time,
+                  subject_id: slot?.subject_id,
+                  subject_title: slot?.subject_title,
+                  teacher_id: slot?.teacher_id,
+                }))
+              : [],
+          }))
+        : record.body,
+    };
+  }
+
+  function compactLessonMark(mark) {
+    if (Array.isArray(mark)) return compactLessonMarks(mark);
+    if (mark !== null && typeof mark !== "object") return mark;
+    if (!mark || typeof mark !== "object") return mark;
+    return {
+      author: mark.author,
+      comment: mark.comment,
+      kind: mark.kind,
+      mark: mark.mark,
+      type: mark.type,
+      uuid: mark.uuid,
+      value: mark.value,
+    };
+  }
+
+  function compactLessonMarks(marks) {
+    return Array.isArray(marks) ? marks.map(compactLessonMark) : marks;
   }
 
   function getSnapshotStats(snapshot) {

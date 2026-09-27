@@ -34,51 +34,6 @@
             </main>
             <a class="onboarding-privacy" href="privacy.html">Конфиденциальность</a>
         </section>
-        <section class="login-screen hidden" id="loginScreen">
-            <div class="login-card">
-                <div class="logo">
-                    <div>
-                        <h1>School++</h1>
-                        <p>Электронный дневник</p>
-                    </div>
-                </div>
-
-                <div class="login-text">
-                    <h2>Вход</h2>
-                    <p>Введите логин и пароль.</p>
-                </div>
-
-                <form class="login-form" id="loginForm" novalidate>
-                    <label>
-                        Логин
-                        <input type="text" id="loginInput" placeholder="Введите логин" autocomplete="username" aria-describedby="loginError">
-                    </label>
-
-                    <label>
-                        Пароль
-                        <span class="password-field">
-                            <input type="password" id="passwordInput" placeholder="Введите пароль" autocomplete="current-password" aria-describedby="loginError">
-                            <button class="icon-btn password-toggle" type="button" data-toggle-password="passwordInput" aria-label="Показать пароль"></button>
-                        </span>
-                    </label>
-
-                    <p class="form-message error hidden" id="loginError" aria-live="polite"></p>
-
-                    <button type="submit" class="primary-btn">Войти</button>
-
-                    <div class="login-links">
-                        <button type="button" id="forgotPasswordBtn">Забыли пароль?</button>
-                    </div>
-                </form>
-
-                <section class="demo-entry" aria-label="О проекте">
-                    <div class="auth-divider" aria-hidden="true"><span>или</span></div>
-                    <button class="presentation-trigger" id="presentationTrigger" type="button" data-presentation-trigger>Что такое School++?</button>
-                    <p class="demo-storage-note" hidden><button id="resetDemoBtn" type="button">Сбросить</button></p>
-                </section>
-            </div>
-        </section>
-
         <section class="presentation-screen hidden" id="presentationScreen" data-scene="0" aria-hidden="true" aria-label="Знакомство со School++" tabindex="-1">
             <button class="presentation-back" id="presentationBackBtn" type="button">
                 <span aria-hidden="true">←</span>
@@ -332,7 +287,7 @@
                                         <p class="student-badge" id="studentFullName">Ученик</p>
                                         <span class="online-status">онлайн</span>
                                     </div>
-                                    <button class="class-link" id="studentClassBtn" type="button" aria-haspopup="dialog" aria-controls="classModal">Класс</button>
+                                    <span class="student-class-label" id="studentClassBtn">Класс</span>
                                 </div>
 
                                 <p class="teacher-line">Классный руководитель: <span id="teacherName">—</span></p>
@@ -344,14 +299,6 @@
                                     </summary>
 
                                     <div class="account-details">
-                                        <div class="account-detail">
-                                            <span>Логин:</span>
-                                            <div class="masked-detail">
-                                                <strong id="accountLogin">••••••••</strong>
-                                                <button class="icon-btn detail-eye-btn" id="toggleLoginBtn" type="button" aria-label="Показать логин"></button>
-                                            </div>
-                                        </div>
-
                                         <div class="account-detail">
                                             <span>E-mail:</span>
                                             <strong id="accountEmail">не указан</strong>
@@ -449,71 +396,6 @@
                 <button class="modal-btn secondary" id="cancelRemoveAvatarBtn" type="button">Отмена</button>
                 <button class="modal-btn danger" id="confirmRemoveAvatarBtn" type="button">Убрать</button>
             </div>
-        </div>
-    </div>
-
-    <div class="modal-overlay hidden" id="resetDemoModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="resetDemoModalTitle">
-        <div class="modal-card">
-            <div class="modal-icon"><school-icon name="refresh-outline"></school-icon></div>
-            <h3 id="resetDemoModalTitle">Сбросить изменения?</h3>
-            <p>Будут удалены сохранённые изменения и вход.</p>
-            <div class="modal-actions">
-                <button class="modal-btn secondary" id="cancelResetDemoBtn" type="button">Отмена</button>
-                <button class="modal-btn danger" id="confirmResetDemoBtn" type="button">Сбросить</button>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal-overlay hidden" id="forgotModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="forgotModalTitle">
-        <div class="modal-card register-modal">
-            <h3 id="forgotModalTitle">Не получается войти?</h3>
-            <p>School++ не хранит логин и пароль от государственного дневника. Вход выполняется на <span class="service-domain">e&#8209;schools.by</span>, а расширение использует уже открытую сессию.</p>
-            <button class="modal-btn primary modal-primary-action" data-close-modal="forgotModal" type="button">Вернуться ко входу</button>
-        </div>
-    </div>
-
-    <div class="modal-overlay hidden" id="profileModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="profileModalTitle">
-        <div class="modal-card profile-modal-card">
-            <button class="modal-close" data-close-modal="profileModal" type="button" aria-label="Закрыть">×</button>
-            <div class="modal-icon"><school-icon name="create-outline"></school-icon></div>
-            <h3 id="profileModalTitle">Профиль ученика</h3>
-            <form class="modal-form profile-form" id="profileForm" novalidate>
-                <div class="profile-form-grid">
-                    <label>
-                        <span id="profileFirstNameLabel">Имя</span>
-                        <input type="text" id="profileFirstNameInput" autocomplete="given-name" aria-describedby="profileError">
-                    </label>
-                    <label>
-                        <span id="profileLastNameLabel">Фамилия</span>
-                        <input type="text" id="profileLastNameInput" autocomplete="family-name" aria-describedby="profileError">
-                    </label>
-                    <label>
-                        <span id="profileClassNameLabel">Класс</span>
-                        <input type="text" id="profileClassNameInput">
-                    </label>
-                    <label>
-                        <span id="profileClassroomLabel">Кабинет</span>
-                        <input type="text" id="profileClassroomInput">
-                    </label>
-                    <label class="wide-field">
-                        <span id="profileTeacherLabel">Классный руководитель</span>
-                        <input type="text" id="profileTeacherInput">
-                    </label>
-                    <label>
-                        <span id="profileEmailLabel">E-mail</span>
-                        <input type="email" id="profileEmailInput" autocomplete="email" aria-describedby="profileError">
-                    </label>
-                    <label>
-                        <span id="profilePhoneLabel">Телефон</span>
-                        <input type="tel" id="profilePhoneInput" autocomplete="tel">
-                    </label>
-                </div>
-                <p class="form-message error hidden" id="profileError" aria-live="polite"></p>
-                <div class="modal-actions profile-actions">
-                    <button class="modal-btn secondary" id="resetProfileBtn" type="button">Сбросить</button>
-                    <button class="modal-btn primary" id="saveProfileBtn" type="submit">Сохранить</button>
-                </div>
-            </form>
         </div>
     </div>
 
