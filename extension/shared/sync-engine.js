@@ -16,6 +16,7 @@
     const urls = new Set([
       "/api/v1/education/diary/school_year",
       "/api/v1/education/diary/time_activities",
+      "/api/v1/education/diary/time_activities/week_activities",
     ]);
     const records = Object.values(snapshot?.network || {});
     const pages = Object.values(snapshot?.pages || {});
@@ -102,6 +103,8 @@
     if (url.includes("/timetables/")) return "Расписание уроков";
     if (url.includes("/bells/")) return "Расписание звонков";
     if (url.includes("/premises")) return "Кабинеты";
+    if (url.includes("/time_activities/week_activities"))
+      return "Учебные недели";
     if (url.includes("time_activities")) return "Четверти и каникулы";
     if (url.includes("/planning/")) return "Учебные предметы";
     if (url.includes("/educational_subjects")) return "Предметы ученика";
@@ -117,8 +120,77 @@
     return [...selected.values()];
   }
 
+  function buildDiaryWeekRequests(snapshot, knownUrls = []) {
+    const records = Object.values(snapshot?.network || {});
+    const weekRecord = records.find((record) =>
+      /\/diary\/time_activities\/week_activities(?:\?|$)/.test(
+        record?.url || "",
+      ),
+    );
+    const weeks = Array.isArray(weekRecord?.body) ? weekRecord.body : [];
+    if (!weeks.length) return [];
+
+    const allUrls = [
+      ...records.map((record) => record?.url || ""),
+      ...(knownUrls || []),
+    ];
+    let lessonUrl = allUrls.find((url) =>
+      /\/classes\/[^/]+\/students\/[^/]+\/lessons(?:\?|$)/.test(url),
+    );
+    if (!lessonUrl) {
+      const schoolId = firstMatch(allUrls, /\/schools\/([^/?]+)/);
+      const classId = firstMatch(allUrls, /\/classes\/([^/?]+)/);
+      const studentId = firstMatch(allUrls, /\/students\/([^/?]+)/);
+      if (!schoolId || !classId || !studentId) return [];
+      lessonUrl = `/api/v1/education/diary/schools/${schoolId}/classes/${classId}/students/${studentId}/lessons`;
+    }
+
+    const requests = new Map();
+    for (const week of weeks) {
+      const uuid = String(week?.uuid || "").trim();
+      const weekStart = mondayFor(timestampToIso(week?.start_ts));
+      if (!uuid || !weekStart) continue;
+      const target = new URL(lessonUrl, "https://diary.e-schools.by");
+      target.searchParams.set("week_activity_uuid", uuid);
+      const url = `${target.pathname}${target.search}`;
+      requests.set(url, { url, weekStart });
+    }
+    return [...requests.values()].sort((first, second) =>
+      first.weekStart.localeCompare(second.weekStart),
+    );
+  }
+
+  function timestampToIso(value) {
+    if (/^\d{4}-\d{2}-\d{2}/.test(String(value || "")))
+      return String(value).slice(0, 10);
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0) return "";
+    const date = new Date(numeric < 10_000_000_000 ? numeric * 1000 : numeric);
+    if (Number.isNaN(date.getTime())) return "";
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Minsk",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(date);
+    const values = Object.fromEntries(
+      parts.map((part) => [part.type, part.value]),
+    );
+    return `${values.year}-${values.month}-${values.day}`;
+  }
+
+  function mondayFor(value) {
+    const [year, month, day] = String(value).split("-").map(Number);
+    if (!year || !month || !day) return "";
+    const date = new Date(Date.UTC(year, month - 1, day));
+    date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
+    return date.toISOString().slice(0, 10);
+  }
+
   function getSyncKey(url) {
     if (url.includes("school_year")) return "school-year";
+    if (url.includes("/time_activities/week_activities"))
+      return "week-activities";
     if (url.includes("time_activities")) return "time-activities";
     if (url.includes("/lessons?")) return `lessons:${url}`;
     if (url.includes("/final/")) return "final";
@@ -133,6 +205,7 @@
   }
 
   scope.SchoolppSyncEngine = Object.freeze({
+    buildDiaryWeekRequests,
     discoverSyncUrls,
     getSyncLabel,
     selectApiResourceUrls,

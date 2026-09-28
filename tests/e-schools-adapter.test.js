@@ -60,7 +60,7 @@ test("e-schools adapter builds the student diary from captured API responses", (
         "/api/v1/education/diary/schools/school-1/students/external-student/classes/class-8b/subjects",
         [
           {
-            id: "math",
+            id: "math-source",
             subject_title: "Математика",
             teacher: "Петрова Анна Ивановна",
             teacher_id: "teacher-1",
@@ -72,7 +72,7 @@ test("e-schools adapter builds the student diary from captured API responses", (
         "/api/v1/education/planning/classes/class-8b/educational_subjects",
         [
           {
-            uuid: "math",
+            uuid: "math-planning",
             school_subject: {
               as_json: { subject: { as_json: { value: "Математика" } } },
             },
@@ -205,6 +205,13 @@ test("e-schools adapter builds the student diary from captured API responses", (
     "Осенние каникулы",
   );
   assert.equal(adapted.school.schedule.subjects[0].title, "Математика");
+  assert.equal(adapted.school.subjects.length, 1);
+  assert.equal(adapted.school.teacherAssignments[0].subjectId, "math-source");
+  assert.ok(
+    adapted.school.lessonTemplates.every(
+      (template) => template.subjectId === "math-source",
+    ),
+  );
   assert.equal(adapted.school.schedule.bellSchedules[0].title, "1 смена");
   assert.equal(
     adapted.school.schedule.bellSchedules[0].variants[0].lessons[0].startsAt,
@@ -256,6 +263,10 @@ test("e-schools adapter builds the student diary from captured API responses", (
 test("e-schools adapter accepts seconds, milliseconds and ISO dates", () => {
   assert.equal(toIsoDate(at("2026-09-17")), "2026-09-17");
   assert.equal(toIsoDate(Date.parse("2026-09-17T00:00:00Z")), "2026-09-17");
+  assert.equal(
+    toIsoDate(Date.parse("2026-09-17T00:00:00+03:00") / 1000),
+    "2026-09-17",
+  );
   assert.equal(toIsoDate("2026-09-17"), "2026-09-17");
   assert.equal(toIsoDate(null), "");
   assert.equal(normalizeTime("09:00:00"), "09:00");

@@ -46,6 +46,16 @@ function findWeekForDate(weeks, date, year) {
   if (!isInstructionDate(year, date)) return -1;
   return weeks.findIndex((week) => week.start <= date && date <= week.end);
 }
+function getInstructionWeekRange(week, year) {
+  const term = getAcademicTerms(year).find(
+    (item) => week.start <= item.endsOn && item.startsOn <= week.end,
+  );
+  if (!term) return { start: week.start, end: week.end };
+  return {
+    start: week.start < term.startsOn ? term.startsOn : week.start,
+    end: week.end > term.endsOn ? term.endsOn : week.end,
+  };
+}
 function isInstructionDate(year, date) {
   if (!parseIsoDateParts(date)) return false;
   const term = getAcademicTerms(year).find(
@@ -67,6 +77,7 @@ function getAcademicTerms(year = {}) {
 export {
   completeAcademicWeeks,
   findWeekForDate,
+  getInstructionWeekRange,
   isInstructionDate,
   shortAcademicYear,
   termLabel,

@@ -104,7 +104,7 @@ tests/          модульные тесты на встроенном Node.js 
 - [Даты и время](docs/date-and-time.md)
 - [Контракты репозиториев](docs/repository-contracts.md)
 - [Расширение браузера](docs/browser-extension.md)
-- [Выпуск расширения 1.0.2](docs/extension-release.md)
+- [Выпуск расширения 1.0.3](docs/extension-release.md)
 - [Полный выпуск сайта и расширений](docs/release-guide.md)
 - [Supabase и поддержка](docs/supabase.md)
 

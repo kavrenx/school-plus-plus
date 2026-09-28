@@ -1,5 +1,9 @@
 import { calculateGradeStats } from "./teacher-journal-model.js";
 import { getResultColumns } from "./result-periods.js";
+import {
+  normalizeSubjectName,
+  shortSubjectName,
+} from "./subject-names.js";
 
 // Annual results use the academic year ID as the period key in the result repository.
 function getSubjectResult(model, store, assignment, studentId) {
@@ -7,6 +11,11 @@ function getSubjectResult(model, store, assignment, studentId) {
     ? assignment.variants
     : [assignment];
   const assignmentIds = [...new Set(assignmentVariants.map((item) => item.id))];
+  const subjectKeys = new Set(
+    [assignment, ...assignmentVariants]
+      .map((item) => getAssignmentSubjectKey(model, item))
+      .filter(Boolean),
+  );
   const getFinal = (periodId) =>
     assignmentIds
       .map((assignmentId) =>
@@ -15,10 +24,19 @@ function getSubjectResult(model, store, assignment, studentId) {
       .find((value) => value !== undefined && value !== null && value !== "") ||
     "";
   const periods = model.school.academicYear.terms.map((term) => {
+    const assignedLessons = assignmentVariants.flatMap((item) =>
+      model.getLessonsForAssignmentTerm(item, term.id),
+    );
+    const matchingImportedLessons = (model.lessons || []).filter(
+      (lesson) =>
+        lesson.classId === assignment.classId &&
+        (!term.startsOn || term.startsOn <= lesson.date) &&
+        (!term.endsOn || lesson.date <= term.endsOn) &&
+        subjectKeys.has(getLessonSubjectKey(model, lesson)),
+    );
     const lessons = [
       ...new Map(
-        assignmentVariants
-          .flatMap((item) => model.getLessonsForAssignmentTerm(item, term.id))
+        [...assignedLessons, ...matchingImportedLessons]
           .map((lesson) => [lesson.id, lesson]),
       ).values(),
     ]
@@ -86,7 +104,6 @@ function getStudentSubjects(model, studentId) {
         item.subjectId === template.subjectId &&
         (item.groupId || "") === (template.groupId || ""),
     );
-    const key = `${classItem.id}:${template.subjectId}`;
     const variant = {
       ...template,
       ...assignment,
@@ -98,6 +115,7 @@ function getStudentSubjects(model, studentId) {
         model.subjects.find((item) => item.id === template.subjectId)?.title ||
         template.subjectId,
     };
+    const key = `${classItem.id}:${getSubjectKey(variant.title) || template.subjectId}`;
     const current = subjects.get(key);
     if (!current) {
       subjects.set(key, { ...variant, variants: [variant] });
@@ -109,6 +127,28 @@ function getStudentSubjects(model, studentId) {
   return [...subjects.values()].sort((a, b) =>
     a.title.localeCompare(b.title, "ru"),
   );
+}
+
+function getAssignmentSubjectKey(model, assignment) {
+  return getSubjectKey(
+    assignment?.title ||
+      model.school.subjectsById?.[assignment?.subjectId]?.title ||
+      model.subjects?.find((item) => item.id === assignment?.subjectId)?.title ||
+      "",
+  );
+}
+
+function getLessonSubjectKey(model, lesson) {
+  return getSubjectKey(
+    lesson?.subject ||
+      model.school.subjectsById?.[lesson?.subjectId]?.title ||
+      model.subjects?.find((item) => item.id === lesson?.subjectId)?.title ||
+      "",
+  );
+}
+
+function getSubjectKey(value) {
+  return normalizeSubjectName(shortSubjectName(value));
 }
 
 function calculateGradeGoal(grades, target, remainingLessons) {

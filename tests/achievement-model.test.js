@@ -193,3 +193,89 @@ test("student results merge parallel groups of the same subject", () => {
     ["info-1", "info-2"],
   );
 });
+
+test("student results include imported grades when source subject ids differ", () => {
+  const data = new Map();
+  const store = createJournalStore({
+    getItem: (key) => data.get(key),
+    setItem: (key, value) => {
+      data.set(key, value);
+      return true;
+    },
+  });
+  const model = {
+    school: {
+      academicYear: {
+        id: "year",
+        title: "2026/2027",
+        terms: [
+          {
+            id: "q1",
+            title: "1 четверть",
+            startsOn: "2026-09-01",
+            endsOn: "2026-10-30",
+          },
+        ],
+      },
+      classes: [{ id: "c", studentIds: ["s"] }],
+      studentsById: { s: { groupIds: [] } },
+      teacherAssignments: [
+        { id: "foreign", classId: "c", subjectId: "foreign-source" },
+        { id: "physics", classId: "c", subjectId: "physics-source" },
+      ],
+      subjectsById: {
+        "foreign-source": { title: "Иностранный язык" },
+        "english-lessons": { title: "Англ язык" },
+        "physics-source": { title: "Физика" },
+        "physics-lessons": { title: "Физика" },
+      },
+    },
+    subjects: [],
+    lessonTemplates: [
+      { id: "foreign-template", classId: "c", subjectId: "foreign-source" },
+      { id: "english-template", classId: "c", subjectId: "english-lessons" },
+      { id: "physics-template", classId: "c", subjectId: "physics-lessons" },
+    ],
+    lessons: [
+      {
+        id: "english-lesson",
+        classId: "c",
+        subjectId: "english-lessons",
+        subject: "Англ язык",
+        date: "2026-09-10",
+      },
+      {
+        id: "physics-lesson",
+        classId: "c",
+        subjectId: "physics-lessons",
+        subject: "Физика",
+        date: "2026-09-11",
+      },
+    ],
+    getLessonsForAssignmentTerm: () => [],
+  };
+  store.saveJournalEntry({
+    lessonId: "english-lesson",
+    studentId: "s",
+    grades: ["8"],
+  });
+  store.saveJournalEntry({
+    lessonId: "physics-lesson",
+    studentId: "s",
+    grades: ["9"],
+  });
+
+  const subjects = getStudentSubjects(model, "s");
+  assert.equal(subjects.length, 2);
+  const english = subjects.find((item) => item.title === "Иностранный язык");
+  const physics = subjects.find((item) => item.title === "Физика");
+  assert.equal(english.variants.length, 2);
+  assert.equal(
+    getSubjectResult(model, store, english, "s").periods[0].average,
+    8,
+  );
+  assert.equal(
+    getSubjectResult(model, store, physics, "s").periods[0].average,
+    9,
+  );
+});

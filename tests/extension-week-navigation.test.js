@@ -94,8 +94,52 @@ test("week navigation ranks separate controls beside the date above a sidebar ar
     );
     assert.equal(navigation.findWeekButton(window.document, "next").id, "next");
     assert.equal(
-      navigation.findWeekButtons(window.document, "previous")[1].id,
-      "sidebar",
+      navigation
+        .findWeekButtons(window.document, "previous")
+        .includes(window.document.getElementById("sidebar")),
+      false,
+    );
+  } finally {
+    await window.happyDOM.close();
+  }
+});
+
+test("week navigation never falls back to a distant sidebar toggle", async () => {
+  const window = new Window();
+  try {
+    window.document.body.innerHTML = `
+      <button id="sidebar"><i>keyboard_arrow_left</i></button>
+      <main>
+        <strong id="range">21 – 26 сентября 2026</strong>
+        <button id="calendar"><i>calendar</i></button>
+        <button id="previous"><svg><path></path></svg></button>
+        <button id="next"><svg><path></path></svg></button>
+      </main>`;
+    const rects = {
+      sidebar: { left: 10, top: 30, width: 32, height: 32 },
+      range: { left: 500, top: 300, width: 260, height: 30 },
+      calendar: { left: 800, top: 295, width: 40, height: 40 },
+      previous: { left: 850, top: 295, width: 40, height: 40 },
+      next: { left: 900, top: 295, width: 40, height: 40 },
+    };
+    Object.entries(rects).forEach(([id, rect]) => {
+      window.document.getElementById(id).getBoundingClientRect = () => rect;
+    });
+    const navigation = loadWeekNavigation(window);
+
+    assert.deepEqual(
+      Array.from(
+        navigation.findWeekButtons(window.document, "previous"),
+        (element) => element.id,
+      ),
+      ["previous"],
+    );
+    assert.deepEqual(
+      Array.from(
+        navigation.findWeekButtons(window.document, "next"),
+        (element) => element.id,
+      ),
+      ["next"],
     );
   } finally {
     await window.happyDOM.close();

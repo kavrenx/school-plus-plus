@@ -1,4 +1,7 @@
 const api = globalThis.browser || globalThis.chrome;
+// Keep the diagnostics exporter in the build for support sessions, but do not
+// show it in the regular user interface.
+const DIAGNOSTICS_DOWNLOAD_ENABLED = false;
 const status = document.querySelector(".status");
 const statusTitle = document.getElementById("statusTitle");
 const statusText = document.getElementById("statusText");
@@ -79,14 +82,16 @@ function renderStatus(stats, syncState = {}) {
   );
   status.classList.remove("is-error", "is-ready", "is-checking");
   clearButton.hidden = !stats?.ready;
-  diagnosticsButton.hidden = !stats?.ready;
+  diagnosticsButton.hidden = !DIAGNOSTICS_DOWNLOAD_ENABLED || !stats?.ready;
   openSchoolppButton.hidden = !syncState.lastSyncAt;
   syncButton.disabled = !canSync || syncing;
   if (stats?.ready) {
     status.classList.add("is-ready");
     statusTitle.textContent = "Данные готовы";
     setLinkedText(statusText, getReadyStatusText(syncState));
-    syncLabel.textContent = "Синхронизировать снова";
+    syncLabel.textContent = syncState.lastSyncAt
+      ? "Синхронизировать снова"
+      : "Синхронизировать";
     startStatusClock();
     return;
   }

@@ -310,10 +310,14 @@ function createSubjects({
   const groupIds = [];
   const assignments = [];
   const scheduleSubjects = [];
+  const subjectIdByTitle = new Map();
 
   const addSubject = (id, title, aliases = []) => {
-    const subjectId = clean(id) || stableId(title);
+    const titleKey = normalizeSubjectName(shortSubjectName(title));
+    const subjectId =
+      subjectIdByTitle.get(titleKey) || clean(id) || stableId(title);
     if (!subjectId || !clean(title)) return "";
+    if (titleKey) subjectIdByTitle.set(titleKey, subjectId);
     const previous = subjectById.get(subjectId);
     subjectById.set(subjectId, {
       id: subjectId,
@@ -733,6 +737,10 @@ function getLessonMarks(slot = {}) {
     slot.lesson_marks,
     slot.marks,
     slot.mark,
+    slot.grades,
+    slot.grade,
+    slot.scores,
+    slot.score,
     slot.student_mark,
     slot.student_marks,
   ].forEach((value) => collectMarks(value, result));
@@ -756,15 +764,25 @@ function collectMarks(value, result, depth = 0) {
     result.push({ mark: value });
     return;
   }
-  if (value.mark !== undefined || value.value !== undefined) {
-    result.push(value);
+  const markKey = ["mark", "value", "grade", "score"].find(
+    (key) => value[key] !== undefined,
+  );
+  if (markKey) {
+    const markValue = value[markKey];
+    if (markValue === null || typeof markValue !== "object") {
+      result.push(markKey === "mark" ? value : { ...value, mark: markValue });
+      return;
+    }
+    collectMarks(markValue, result, depth + 1);
     return;
   }
   Object.values(value).forEach((item) => collectMarks(item, result, depth + 1));
 }
 
 function getMarkValue(mark) {
-  return clean(mark?.mark ?? mark?.value ?? mark ?? "");
+  return clean(
+    mark?.mark ?? mark?.value ?? mark?.grade ?? mark?.score ?? mark ?? "",
+  );
 }
 
 function parseGradeDisplayValues(value) {
@@ -1089,7 +1107,17 @@ function toIsoDate(value) {
   if (!Number.isFinite(numeric) || numeric <= 0) return "";
   const milliseconds = numeric < 10_000_000_000 ? numeric * 1000 : numeric;
   const date = new Date(milliseconds);
-  return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Minsk",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = Object.fromEntries(
+    parts.map((part) => [part.type, part.value]),
+  );
+  return `${values.year}-${values.month}-${values.day}`;
 }
 
 function mondayFor(date) {

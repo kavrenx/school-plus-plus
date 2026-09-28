@@ -16,6 +16,7 @@ import { getCurrentResultPeriod, getResultColumns } from "./result-periods.js";
 import {
   completeAcademicWeeks,
   findWeekForDate,
+  getInstructionWeekRange,
   isInstructionDate,
   shortAcademicYear,
   termLabel,
@@ -355,7 +356,11 @@ function createStudentDashboardController({
       const studentId = currentUser.id || currentUser.userId;
       const assignment = getStudentSubjects(diary, studentId).find(
         (item) =>
-          item.subjectId === button.dataset.diarySubject &&
+          (item.subjectId === button.dataset.diarySubject ||
+            item.variants?.some(
+              (variant) =>
+                variant.subjectId === button.dataset.diarySubject,
+            )) &&
           (!button.dataset.diaryGroup ||
             !item.groupId ||
             item.groupId === button.dataset.diaryGroup),
@@ -466,7 +471,9 @@ function createStudentDashboardController({
       return;
     }
 
-    elements.weekRangeTitle.textContent = formatWeekRange(week);
+    elements.weekRangeTitle.textContent = formatWeekRange(
+      getInstructionWeekRange(week, year),
+    );
     if (currentWeekButton) {
       const today = getSchoolDateIso(now());
       const currentIndex = findWeekForDate(diary.weeks, today, year);

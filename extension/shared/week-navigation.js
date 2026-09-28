@@ -19,30 +19,36 @@
     const candidates = getClickableElements(documentRef).filter((element) =>
       isUsableButton(element, getStyle),
     );
+    const localCandidates = getLocalCandidates(rangeElement, candidates);
+    const localSet = new Set(localCandidates);
     const ranked = [];
 
     candidates.forEach((element, order) => {
       const description = describeButton(element);
       if (!DIRECTION_PATTERNS[direction].test(description)) return;
+      const explicitlyControlsWeeks = /недел|week/i.test(description);
+      if (rangeElement && !localSet.has(element) && !explicitlyControlsWeeks)
+        return;
+      if (!rangeElement && !explicitlyControlsWeeks) return;
       ranked.push({
         element,
         order,
         score:
           1_000 +
-          (/недел|week/i.test(description) ? 250 : 0) +
+          (localSet.has(element) ? 700 : 0) +
+          (explicitlyControlsWeeks ? 250 : 0) +
           (element.getAttribute("aria-label") || element.getAttribute("title")
             ? 50
-            : 0) +
-          getProximityScore(element, rangeElement),
+            : 0),
       });
     });
 
-    getLocalFallbacks(rangeElement, candidates, direction).forEach(
+    getLocalFallbacks(localCandidates, candidates, direction).forEach(
       (element, order) => {
         ranked.push({
           element,
           order: candidates.indexOf(element),
-          score: 500 - order + getProximityScore(element, rangeElement),
+          score: 1_300 - order,
         });
       },
     );
@@ -79,16 +85,8 @@
     return elements;
   }
 
-  function getLocalFallbacks(rangeElement, candidates, direction) {
+  function getLocalCandidates(rangeElement, candidates) {
     if (!rangeElement) return [];
-    const groups = [];
-    let container = rangeElement.parentElement;
-    for (let depth = 0; container && depth < 14; depth += 1) {
-      const local = candidates.filter((element) => container.contains(element));
-      if (local.length >= 2 && local.length <= 8) groups.push(local);
-      container = container.parentElement;
-    }
-
     const rangeRect = getRect(rangeElement);
     if (hasPosition(rangeRect)) {
       const nearby = candidates.filter((element) => {
@@ -96,32 +94,39 @@
         if (!hasPosition(rect)) return false;
         const verticalDistance = Math.abs(centerY(rect) - centerY(rangeRect));
         const horizontalDistance = Math.abs(centerX(rect) - centerX(rangeRect));
-        return verticalDistance <= 180 && horizontalDistance <= 900;
+        return verticalDistance <= 160 && horizontalDistance <= 1_100;
       });
-      if (nearby.length >= 2 && nearby.length <= 10) groups.unshift(nearby);
+      if (nearby.length >= 2 && nearby.length <= 10) return nearby;
     }
 
-    const fallbacks = [];
-    groups.forEach((group) => {
-      const navigation = group.filter(
-        (element) => !CALENDAR_PATTERN.test(describeButton(element)),
-      );
-      if (navigation.length < 2) return;
-      navigation.sort((first, second) => {
-        const firstRect = getRect(first);
-        const secondRect = getRect(second);
-        if (hasPosition(firstRect) && hasPosition(secondRect)) {
-          return firstRect.left - secondRect.left;
-        }
-        return candidates.indexOf(first) - candidates.indexOf(second);
-      });
-      const target =
-        direction === "previous"
-          ? navigation[navigation.length - 2]
-          : navigation[navigation.length - 1];
-      if (target && !fallbacks.includes(target)) fallbacks.push(target);
+    let container = rangeElement.parentElement;
+    for (let depth = 0; container && depth < 10; depth += 1) {
+      const local = candidates.filter((element) => container.contains(element));
+      if (local.length >= 2 && local.length <= 10) return local;
+      container = container.parentElement;
+    }
+    return [];
+  }
+
+  function getLocalFallbacks(localCandidates, candidates, direction) {
+    const navigation = localCandidates.filter(
+      (element) =>
+        !CALENDAR_PATTERN.test(describeButton(element)) && isCompact(element),
+    );
+    if (navigation.length < 2) return [];
+    navigation.sort((first, second) => {
+      const firstRect = getRect(first);
+      const secondRect = getRect(second);
+      if (hasPosition(firstRect) && hasPosition(secondRect)) {
+        return firstRect.left - secondRect.left;
+      }
+      return candidates.indexOf(first) - candidates.indexOf(second);
     });
-    return fallbacks;
+    const target =
+      direction === "previous"
+        ? navigation[navigation.length - 2]
+        : navigation[navigation.length - 1];
+    return target ? [target] : [];
   }
 
   function describeButton(element) {
@@ -138,16 +143,10 @@
       .join(" ");
   }
 
-  function getProximityScore(element, rangeElement) {
-    if (!rangeElement) return 0;
-    if (rangeElement.parentElement?.contains(element)) return 300;
-    const rangeRect = getRect(rangeElement);
-    const elementRect = getRect(element);
-    if (!hasPosition(rangeRect) || !hasPosition(elementRect)) return 0;
-    const distance =
-      Math.abs(centerY(elementRect) - centerY(rangeRect)) * 2 +
-      Math.abs(centerX(elementRect) - centerX(rangeRect));
-    return Math.max(0, 280 - distance / 4);
+  function isCompact(element) {
+    const rect = getRect(element);
+    if (!hasPosition(rect)) return true;
+    return Number(rect.width || 0) <= 96 && Number(rect.height || 0) <= 96;
   }
 
   function getRect(element) {

@@ -22,9 +22,13 @@
 
   function mergeNetworkRecord(snapshot, record) {
     const next = cloneSnapshot(snapshot);
-    const compacted = compactNetworkRecord(record);
+    let compacted = compactNetworkRecord(record);
     const key =
       compacted.key || `${compacted.method || "GET"}:${compacted.url}`;
+    const existing = next.network[key];
+    if (!compacted.weekStart && existing?.weekStart) {
+      compacted = { ...compacted, weekStart: existing.weekStart };
+    }
     next.network[key] = compacted;
     const records = Object.entries(next.network).sort(([, first], [, second]) =>
       String(first.capturedAt).localeCompare(String(second.capturedAt)),
@@ -68,6 +72,10 @@
                   lesson_marks: compactLessonMarks(slot?.lesson_marks),
                   marks: compactLessonMarks(slot?.marks),
                   mark: compactLessonMark(slot?.mark),
+                  grades: compactLessonMarks(slot?.grades),
+                  grade: compactLessonMark(slot?.grade),
+                  scores: compactLessonMarks(slot?.scores),
+                  score: compactLessonMark(slot?.score),
                   student_mark: compactLessonMark(slot?.student_mark),
                   student_marks: compactLessonMarks(slot?.student_marks),
                   lesson_template_id: slot?.lesson_template_id,
@@ -93,6 +101,8 @@
       comment: mark.comment,
       kind: mark.kind,
       mark: mark.mark,
+      grade: mark.grade,
+      score: mark.score,
       type: mark.type,
       uuid: mark.uuid,
       value: mark.value,

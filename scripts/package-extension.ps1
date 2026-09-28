@@ -3,7 +3,7 @@ $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $output = Join-Path $projectRoot ".extension-dist"
 
-& npm.cmd run extension:build
+& npm.cmd run extension:build -- --release
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 foreach ($browser in @("chromium", "firefox")) {

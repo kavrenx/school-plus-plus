@@ -8,6 +8,8 @@
   let activeSyncController = null;
   let automaticSyncTimer = 0;
   let lessonCaptureVersion = 0;
+  const lessonCaptureByWeek = new Map();
+  let latestLessonCapture = null;
   let networkSaveQueue = Promise.resolve();
 
   window.addEventListener("message", (event) => {
@@ -18,9 +20,13 @@
     )
       return;
     if (event.data.type === "SCHOOLPP_NETWORK_RECORD") {
-      const record = event.data.record;
-      if (/\/students\/[^/]+\/lessons(?:\?|$)/.test(record?.url || ""))
+      const record = decorateLessonRecord(event.data.record);
+      if (/\/students\/[^/]+\/lessons(?:\?|$)/.test(record?.url || "")) {
         lessonCaptureVersion += 1;
+        latestLessonCapture = { version: lessonCaptureVersion, record };
+        if (record.weekStart)
+          lessonCaptureByWeek.set(record.weekStart, lessonCaptureVersion);
+      }
       networkSaveQueue = networkSaveQueue
         .then(() =>
           api.runtime.sendMessage({
@@ -148,10 +154,33 @@
         if (signal.aborted) throw error;
       },
     );
-    let weekCoverage = await warmDiaryWeeks(signal);
-    if (!weekCoverage.complete) {
-      await reportProgress("Повторно проверяем недели дневника", "running");
-      weekCoverage = await warmDiaryWeeks(signal);
+    await loadEndpoint(
+      "/api/v1/education/diary/time_activities/week_activities",
+      signal,
+    ).catch((error) => {
+      if (signal.aborted) throw error;
+    });
+    await networkSaveQueue;
+    const weekSeed = await api.runtime.sendMessage({
+      type: "SCHOOLPP_GET_SNAPSHOT",
+    });
+    const directWeekRequests = syncEngine.buildDiaryWeekRequests(
+      weekSeed?.snapshot,
+      weekSeed?.syncTargets,
+    );
+    let weekCoverage = { complete: false, missing: [] };
+    if (!directWeekRequests.length) {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        if (attempt) {
+          await reportProgress(
+            `Повторно проверяем пропущенные недели · ${attempt + 1}/3`,
+            "running",
+          );
+          await waitForRetry(500, signal);
+        }
+        weekCoverage = await warmDiaryWeeks(signal);
+        if (weekCoverage.complete) break;
+      }
     }
     await collectCurrentPage();
     const discovered = new Set();
@@ -162,7 +191,12 @@
     const itemCounts = new Map();
     let processed = 0;
     let progressQueue = Promise.resolve();
-    const pageResourceUrls = new Set();
+    const pageResourceUrls = new Set(
+      directWeekRequests.map((request) => request.url),
+    );
+    const directWeekStarts = new Map(
+      directWeekRequests.map((request) => [request.url, request.weekStart]),
+    );
 
     for (let wave = 0; wave < 5; wave += 1) {
       const discoveredResources = await runWithTimeout(
@@ -213,7 +247,8 @@
         try {
           if (signal.aborted) throw createAbortError();
           const outcome = await runWithTimeout(
-            (requestSignal) => loadEndpoint(url, requestSignal),
+            (requestSignal) =>
+              loadEndpoint(url, requestSignal, directWeekStarts.get(url)),
             6_000,
             signal,
           );
@@ -238,6 +273,19 @@
       await progressQueue;
       if (wave < 4 && urls.some((url) => !completedUrls.has(url)))
         await waitForRetry(350, signal);
+    }
+
+    if (directWeekRequests.length) {
+      await networkSaveQueue;
+      const latest = await api.runtime.sendMessage({
+        type: "SCHOOLPP_GET_SNAPSHOT",
+      });
+      weekCoverage = getLessonWeekCoverage(
+        latest?.snapshot,
+        "",
+        new Set(),
+        directWeekRequests.map((request) => request.weekStart),
+      );
     }
 
     if (!discovered.size) throw new Error("NO_DATA");
@@ -307,7 +355,6 @@
 
     await reportProgress("Загружаем недели дневника", "running");
     const visited = new Set();
-    const captureFailures = new Set();
     for (let step = 0; step < 60; step += 1) {
       if (signal.aborted) throw createAbortError();
       current = getVisibleWeek();
@@ -317,10 +364,6 @@
       if (bounds.startsOn && current.start <= bounds.startsOn) break;
       const result = await moveWeek("previous", current.key, signal);
       if (!result.changed) break;
-      if (!result.captured) {
-        const changedWeek = getVisibleWeek();
-        if (changedWeek) captureFailures.add(changedWeek.start);
-      }
     }
 
     const today = getMinskDate();
@@ -335,10 +378,6 @@
       if (bounds.endsOn && current.end >= bounds.endsOn) break;
       const result = await moveWeek("next", current.key, signal);
       if (!result.changed) break;
-      if (!result.captured) {
-        const changedWeek = getVisibleWeek();
-        if (changedWeek) captureFailures.add(changedWeek.start);
-      }
     }
     if (visited.size > 1) await waitForRetry(350, signal);
     if (originalHash && originalHash !== location.hash) {
@@ -349,12 +388,7 @@
     const latest = await api.runtime.sendMessage({
       type: "SCHOOLPP_GET_SNAPSHOT",
     });
-    return getLessonWeekCoverage(
-      latest?.snapshot,
-      traversalEnd,
-      visited,
-      captureFailures,
-    );
+    return getLessonWeekCoverage(latest?.snapshot, traversalEnd, visited);
   }
 
   function getDiaryTraversalEnd(snapshot, today, bounds) {
@@ -390,20 +424,22 @@
     snapshot,
     targetDate,
     visited = new Set(),
-    captureFailures = new Set(),
+    expectedWeeks = [],
   ) {
-    const expected = new Set();
-    for (const term of getAcademicTerms(snapshot)) {
-      const start = term.startsOn;
-      const end = term.endsOn;
-      if (!start || !end) continue;
-      const cappedEnd = targetDate && targetDate < end ? targetDate : end;
-      for (
-        let week = mondayForIso(start);
-        week && week <= cappedEnd;
-        week = addIsoDays(week, 7)
-      ) {
-        if (!targetDate || week <= targetDate) expected.add(week);
+    const expected = new Set(expectedWeeks.filter(Boolean));
+    if (!expected.size) {
+      for (const term of getAcademicTerms(snapshot)) {
+        const start = term.startsOn;
+        const end = term.endsOn;
+        if (!start || !end) continue;
+        const cappedEnd = targetDate && targetDate < end ? targetDate : end;
+        for (
+          let week = mondayForIso(start);
+          week && week <= cappedEnd;
+          week = addIsoDays(week, 7)
+        ) {
+          if (!targetDate || week <= targetDate) expected.add(week);
+        }
       }
     }
 
@@ -413,22 +449,18 @@
         /\/students\/[^/]+\/lessons(?:\?|$)/.test(record?.url || ""),
       )
       .forEach((record) => {
+        if (record.weekStart) captured.add(record.weekStart);
         const dates = (Array.isArray(record.body) ? record.body : [])
           .map((day) => timestampToIso(day?.date))
           .filter(Boolean);
         if (dates.length) captured.add(mondayForIso(dates.sort()[0]));
       });
-    const networkCaptured = new Set(captured);
-    visited.forEach((key) => captured.add(String(key).split(":")[0]));
-    const missing = [...expected].filter(
-      (week) =>
-        !captured.has(week) ||
-        (captureFailures.has(week) && !networkCaptured.has(week)),
-    );
+    const missing = [...expected].filter((week) => !captured.has(week));
     return {
       complete: expected.size > 0 && missing.length === 0,
       expected: [...expected],
       captured: [...captured],
+      visited: [...visited].map((key) => String(key).split(":")[0]),
       missing,
     };
   }
@@ -462,6 +494,20 @@
       end,
       key: `${start}:${end}`,
     };
+  }
+
+  function decorateLessonRecord(record = {}, useVisibleWeek = true) {
+    if (!/\/students\/[^/]+\/lessons(?:\?|$)/.test(record?.url || ""))
+      return record;
+    const dates = (Array.isArray(record.body) ? record.body : [])
+      .map((day) => timestampToIso(day?.date))
+      .filter(Boolean)
+      .sort();
+    const weekStart =
+      (dates.length ? mondayForIso(dates[0]) : "") ||
+      (useVisibleWeek ? getVisibleWeek()?.start : "") ||
+      "";
+    return weekStart ? { ...record, weekStart } : record;
   }
 
   function ddmmyyyyToIso(value) {
@@ -502,7 +548,17 @@
     const numeric = Number(value);
     if (!Number.isFinite(numeric) || numeric <= 0) return "";
     const date = new Date(numeric < 10_000_000_000 ? numeric * 1000 : numeric);
-    return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10);
+    if (Number.isNaN(date.getTime())) return "";
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Minsk",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(date);
+    const values = Object.fromEntries(
+      parts.map((part) => [part.type, part.value]),
+    );
+    return `${values.year}-${values.month}-${values.day}`;
   }
 
   function clampDate(value, minimum, maximum) {
@@ -538,26 +594,31 @@
   }
 
   async function moveWeek(direction, previousKey, signal) {
-    const buttons = findWeekButtons(direction);
-    for (const button of buttons) {
-      const captureVersion = lessonCaptureVersion;
-      button.click();
-      const startedAt = Date.now();
-      while (Date.now() - startedAt < 2_000) {
-        if (signal.aborted) throw createAbortError();
-        await waitForRetry(120, signal);
-        const week = getVisibleWeek();
-        if (week && week.key !== previousKey) {
-          const captured = await waitForLessonCapture(
-            captureVersion,
-            3_500,
-            signal,
-          );
-          await networkSaveQueue;
+    for (let round = 0; round < 2; round += 1) {
+      const buttons = findWeekButtons(direction);
+      for (const button of buttons) {
+        const captureVersion = lessonCaptureVersion;
+        button.click();
+        const startedAt = Date.now();
+        while (Date.now() - startedAt < 5_000) {
+          if (signal.aborted) throw createAbortError();
           await waitForRetry(120, signal);
-          return { changed: true, captured };
+          const week = getVisibleWeek();
+          if (week && week.key !== previousKey) {
+            await collectCurrentPage();
+            const captured = await waitForLessonCapture(
+              captureVersion,
+              week.start,
+              8_000,
+              signal,
+            );
+            await networkSaveQueue;
+            await waitForRetry(180, signal);
+            return { changed: true, captured, week };
+          }
         }
       }
+      await waitForRetry(350, signal);
     }
     return { changed: false, captured: false };
   }
@@ -566,16 +627,33 @@
     return weekNavigation.findWeekButtons(document, direction);
   }
 
-  async function waitForLessonCapture(version, timeout, signal) {
+  async function waitForLessonCapture(version, weekStart, timeout, signal) {
     const startedAt = Date.now();
-    while (
-      lessonCaptureVersion === version &&
-      Date.now() - startedAt < timeout
-    ) {
+    while (Date.now() - startedAt < timeout) {
       if (signal.aborted) throw createAbortError();
+      if ((lessonCaptureByWeek.get(weekStart) || 0) > version) return true;
+      if (latestLessonCapture?.version > version) {
+        const corrected = {
+          ...latestLessonCapture.record,
+          weekStart,
+        };
+        lessonCaptureByWeek.set(weekStart, latestLessonCapture.version);
+        latestLessonCapture = {
+          ...latestLessonCapture,
+          record: corrected,
+        };
+        networkSaveQueue = networkSaveQueue.then(() =>
+          api.runtime.sendMessage({
+            type: "SCHOOLPP_SAVE_NETWORK",
+            record: corrected,
+          }),
+        );
+        await networkSaveQueue;
+        return true;
+      }
       await waitForRetry(100, signal);
     }
-    return lessonCaptureVersion !== version;
+    return (lessonCaptureByWeek.get(weekStart) || 0) > version;
   }
 
   async function mapWithConcurrency(values, limit, operation) {
@@ -593,14 +671,13 @@
     await Promise.all(workers);
   }
 
-  async function loadEndpoint(url, signal) {
+  async function loadEndpoint(url, signal, weekStart = "") {
     const response = await fetchViaPage(url, signal);
     if (response.status === 401) return "unauthorized";
     if (response.status < 200 || response.status >= 300) return "unavailable";
     const body = response.body;
-    await api.runtime.sendMessage({
-      type: "SCHOOLPP_SAVE_NETWORK",
-      record: {
+    let record = decorateLessonRecord(
+      {
         key: `GET:${url}`,
         url,
         method: "GET",
@@ -608,6 +685,16 @@
         capturedAt: new Date().toISOString(),
         body,
       },
+      false,
+    );
+    if (
+      weekStart &&
+      /\/students\/[^/]+\/lessons(?:\?|$)/.test(record?.url || "")
+    )
+      record = { ...record, weekStart };
+    await api.runtime.sendMessage({
+      type: "SCHOOLPP_SAVE_NETWORK",
+      record,
     });
     return "completed";
   }

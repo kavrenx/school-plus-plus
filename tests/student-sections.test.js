@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   completeAcademicWeeks,
   findWeekForDate,
+  getInstructionWeekRange,
   shortAcademicYear,
   termLabel,
 } from "../js/academic-navigation.js";
@@ -71,6 +72,10 @@ test("academic calendar contains only teaching weeks", () => {
   );
   assert.equal(shortAcademicYear(year.title), "26/27");
   assert.equal(termLabel(year.terms[2]), "III четверть");
+  assert.deepEqual(getInstructionWeekRange(weeks[0], year), {
+    start: "2026-09-01",
+    end: "2026-09-06",
+  });
 });
 
 test("half year average weights individual grades and keeps final marks separate", () => {

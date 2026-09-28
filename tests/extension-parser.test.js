@@ -125,6 +125,7 @@ test("extension snapshot keeps a full school year of compact weekly records", ()
               topic: "Поле, которое не нужно приложению",
               lesson_mark: { mark: "9", comment: "", summary: null },
               lesson_marks: [{ mark: "8" }, { value: "10" }],
+              grade: { score: "7" },
             },
           ],
         },
@@ -139,7 +140,34 @@ test("extension snapshot keeps a full school year of compact weekly records", ()
     Array.from(first.lesson_marks, (item) => ({ ...item })),
     [{ mark: "8" }, { value: "10" }],
   );
+  assert.deepEqual({ ...first.grade }, { score: "7" });
   assert.equal("topic" in first, false);
+});
+
+test("extension keeps a week identity when an empty lesson response is refreshed", () => {
+  const context = loadGlobal("../extension/shared/snapshot-store.js");
+  const store = context.SchoolppSnapshotStore;
+  const url =
+    "/api/v1/education/diary/schools/s/classes/c/students/u/lessons?week_activity_uuid=empty";
+  let snapshot = store.mergeNetworkRecord(store.createEmptySnapshot(), {
+    key: `GET:${url}`,
+    url,
+    method: "GET",
+    status: 200,
+    capturedAt: "2026-09-01T00:00:00.000Z",
+    weekStart: "2026-11-09",
+    body: [],
+  });
+  snapshot = store.mergeNetworkRecord(snapshot, {
+    key: `GET:${url}`,
+    url,
+    method: "GET",
+    status: 200,
+    capturedAt: "2026-09-01T00:01:00.000Z",
+    body: [],
+  });
+
+  assert.equal(snapshot.network[`GET:${url}`].weekStart, "2026-11-09");
 });
 
 test("extension sync discovers the student's related diary endpoints", () => {
@@ -172,6 +200,9 @@ test("extension sync discovers the student's related diary endpoints", () => {
   );
 
   assert.ok(urls.includes("/api/v1/education/diary/school_year"));
+  assert.ok(
+    urls.includes("/api/v1/education/diary/time_activities/week_activities"),
+  );
   assert.ok(
     urls.includes(
       "/api/v1/education/diary/schools/school-1/classes/class-1/students/student-1/final/whole",
@@ -206,6 +237,12 @@ test("extension sync discovers the student's related diary endpoints", () => {
       "/api/v1/institution/schools/school-1/premises?q=filters",
     ),
     "Кабинеты",
+  );
+  assert.equal(
+    engine.getSyncLabel(
+      "/api/v1/education/diary/time_activities/week_activities",
+    ),
+    "Учебные недели",
   );
   assert.deepEqual(
     Array.from(
@@ -248,6 +285,48 @@ test("extension sync discovers the student's related diary endpoints", () => {
     [
       "/api/v1/education/diary/schools/school-1/classes/class-1/students/student-1/lessons?week=2",
       "/api/v1/education/diary/school_year",
+    ],
+  );
+});
+
+test("extension builds lesson requests for every week exposed by the diary API", () => {
+  const context = loadGlobal("../extension/shared/sync-engine.js", { URL });
+  const engine = context.SchoolppSyncEngine;
+  const lessonUrl =
+    "/api/v1/education/diary/schools/school-1/classes/class-1/students/student-1/lessons?week_activity_uuid=current";
+  const requests = Array.from(
+    engine.buildDiaryWeekRequests({
+      network: {
+        current: { url: lessonUrl, method: "GET", body: [] },
+        weeks: {
+          url: "/api/v1/education/diary/time_activities/week_activities",
+          method: "GET",
+          body: [
+            {
+              uuid: "week-1",
+              start_ts: Date.parse("2026-09-01T00:00:00+03:00") / 1000,
+            },
+            {
+              uuid: "week-2",
+              start_ts: Date.parse("2026-09-07T00:00:00+03:00") / 1000,
+            },
+          ],
+        },
+      },
+    }),
+  );
+
+  assert.deepEqual(
+    requests.map((request) => ({ ...request })),
+    [
+      {
+        url: lessonUrl.replace("current", "week-1"),
+        weekStart: "2026-08-31",
+      },
+      {
+        url: lessonUrl.replace("current", "week-2"),
+        weekStart: "2026-09-07",
+      },
     ],
   );
 });
@@ -311,7 +390,7 @@ test("extension manifests expose background updates and notifications", () => {
     ),
   );
   for (const manifest of [chromium, firefox]) {
-    assert.equal(manifest.version, "1.0.2");
+    assert.equal(manifest.version, "1.0.3");
     assert.ok(manifest.permissions.includes("alarms"));
     assert.ok(manifest.permissions.includes("notifications"));
     assert.ok(

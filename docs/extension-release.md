@@ -1,4 +1,4 @@
-# Выпуск расширения 1.0.2
+# Выпуск расширения 1.0.3
 
 Готовые пакеты создаёт команда:
 
@@ -8,9 +8,9 @@ npm.cmd run extension:package
 
 Результат:
 
-- `.extension-dist/schoolpp-chromium-1.0.2.zip` — Chrome Web Store; тот же пакет
+- `.extension-dist/schoolpp-chromium-1.0.3.zip` — Chrome Web Store; тот же пакет
   подходит Chromium-браузерам;
-- `.extension-dist/schoolpp-firefox-1.0.2.zip` — Firefox Add-ons.
+- `.extension-dist/schoolpp-firefox-1.0.3.zip` — Firefox Add-ons.
 
 Версия Firefox 140 или новее обязательна: она поддерживает встроенное согласие
 Mozilla на передачу данных, объявленное в манифесте расширения.

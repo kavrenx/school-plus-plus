@@ -73,6 +73,24 @@ test("popup asks for the first sync without promising a background check", async
   );
 });
 
+test("popup does not call the first manual sync a repeated sync", async (t) => {
+  const { document, window } = await renderPopup({
+    ok: true,
+    stats: { ready: true },
+    syncState: {},
+    settings: { backgroundSync: true },
+  });
+  t.after(() => {
+    window.eval("stopStatusClock()");
+    window.close();
+  });
+
+  assert.equal(
+    document.getElementById("syncLabel").textContent,
+    "Синхронизировать",
+  );
+});
+
 test("popup keeps prepared data ready while the diary tab is closed", async (t) => {
   const { document, window } = await renderPopup({
     ok: true,
@@ -95,6 +113,7 @@ test("popup keeps prepared data ready while the diary tab is closed", async (t) 
     document.querySelector(".status").classList.contains("is-ready"),
     true,
   );
+  assert.equal(document.getElementById("diagnosticsButton").hidden, true);
 });
 
 test("popup counts down in seconds during the final minute", async (t) => {
