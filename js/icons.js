@@ -17,6 +17,10 @@ const ICON_PATHS = Object.freeze({
   "menu-outline": "M4 7h16M4 12h16M4 17h16",
   "more-outline": "M6 12h.01M12 12h.01M18 12h.01",
   "documents-outline": "M7 3h10l3 3v15H7V3Zm10 0v4h3M4 7v14h12M10 11h7m-7 4h7",
+  "attach-outline": "M9 17.5 17.5 9a3 3 0 0 0-4.2-4.2l-9 9a5 5 0 0 0 7.1 7.1l8.1-8.1M8 16l8.4-8.4",
+  "download-outline": "M12 3v12m-5-5 5 5 5-5M5 20h14",
+  "image-outline": "M4 4h16v16H4V4Zm3 12 4-4 3 3 2-2 4 4M8 9h.01",
+  "video-outline": "M4 6h11v12H4V6Zm11 4 5-3v10l-5-3",
 });
 
 function registerIcons() {

@@ -217,10 +217,21 @@
                         <section class="week-switcher" aria-labelledby="weekRangeTitle">
                             <div class="student-period-bar">
                                 <label class="panel-label" for="studentTermSelect" id="studentYearLabel">Учебный период</label>
-                                <label class="student-calendar-control" title="Выбрать дату">
-                                    <school-icon name="calendar-outline" aria-hidden="true"></school-icon>
-                                    <input type="date" id="studentDatePicker" aria-label="Выбрать дату">
-                                </label>
+                                <div class="student-calendar-control">
+                                    <button type="button" id="studentCalendarButton" aria-label="Выбрать дату" aria-expanded="false" aria-controls="studentCalendarPopover">
+                                        <school-icon name="calendar-outline" aria-hidden="true"></school-icon>
+                                    </button>
+                                    <input type="date" id="studentDatePicker" aria-label="Выбранная дата" tabindex="-1" hidden>
+                                    <section class="student-calendar-popover" id="studentCalendarPopover" aria-label="Календарь" hidden>
+                                        <header>
+                                            <button type="button" id="studentCalendarPrevious" aria-label="Предыдущий месяц"><school-icon name="chevron-back-outline"></school-icon></button>
+                                            <strong id="studentCalendarMonth">—</strong>
+                                            <button type="button" id="studentCalendarNext" aria-label="Следующий месяц"><school-icon name="chevron-forward-outline"></school-icon></button>
+                                        </header>
+                                        <div class="student-calendar-weekdays" aria-hidden="true"><span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span></div>
+                                        <div class="student-calendar-grid" id="studentCalendarGrid"></div>
+                                    </section>
+                                </div>
                                 <span class="student-term-control">
                                     <select id="studentTermSelect" aria-label="Учебный период"></select>
                                     <span class="student-term-arrow" aria-hidden="true"></span>
@@ -292,7 +303,7 @@
 
                                 <p class="teacher-line">Классный руководитель: <span id="teacherName">—</span></p>
 
-                                <details class="account-disclosure" id="accountDisclosure" open>
+                                <details class="account-disclosure" id="accountDisclosure" open hidden>
                                     <summary>
                                         <span>Данные аккаунта</span>
                                         <span class="disclosure-icon" aria-hidden="true"></span>
@@ -333,6 +344,7 @@
             <button class="support-icon-button" type="button" data-support-menu aria-label="Открыть список бесед"><school-icon name="menu-outline"></school-icon></button>
             <span class="support-avatar"><school-icon name="headset-outline"></school-icon></span>
             <div><strong id="supportTitle">Поддержка</strong><small>School++</small></div>
+            <button class="support-new-button" type="button" data-support-new>Новый</button>
             <button class="support-icon-button" type="button" data-close-support aria-label="Закрыть"><school-icon name="close-outline"></school-icon></button>
         </header>
         <section class="support-menu" id="supportMenu" hidden>
@@ -350,10 +362,32 @@
         </div>
         <p class="support-status" id="supportStatus" role="status" hidden></p>
         <form class="support-form" id="supportForm">
-            <input id="supportInput" maxlength="2000" autocomplete="off" placeholder="Напишите сообщение" aria-label="Сообщение">
+            <section class="support-attachment-preview" id="supportAttachmentPreview" hidden></section>
+            <span class="support-attach-control">
+                <button class="support-attach-button" id="supportAttachButton" type="button" aria-label="Прикрепить файл" aria-expanded="false"><school-icon name="attach-outline"></school-icon></button>
+                <span class="support-attach-menu" id="supportAttachMenu" hidden>
+                    <button type="button" data-support-file-kind="photo"><school-icon name="image-outline"></school-icon>Фото</button>
+                    <button type="button" data-support-file-kind="video"><school-icon name="video-outline"></school-icon>Видео</button>
+                    <button type="button" data-support-file-kind="file"><school-icon name="documents-outline"></school-icon>Файл</button>
+                </span>
+            </span>
+            <span class="support-input-wrap">
+                <textarea id="supportInput" rows="1" autocomplete="off" placeholder="Напишите сообщение" aria-label="Сообщение"></textarea>
+                <small class="support-character-count" id="supportCharacterCount" hidden>0/2000</small>
+            </span>
             <button id="supportSend" type="submit" aria-label="Отправить" disabled><school-icon name="send-outline"></school-icon></button>
+            <input class="support-file-input" id="supportPhotoInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/heic,image/heif" data-support-file-input="photo" multiple hidden>
+            <input class="support-file-input" id="supportVideoInput" type="file" accept="video/mp4,video/webm,video/quicktime,video/x-m4v" data-support-file-input="video" multiple hidden>
+            <input class="support-file-input" id="supportFileInput" type="file" data-support-file-input="file" multiple hidden>
         </form>
         <button class="support-close-conversation" id="supportCloseConversation" type="button" hidden>Закрыть беседу</button>
+        <section class="support-attachment-dialog" id="supportAttachmentDialog" hidden aria-label="Вложение">
+            <button type="button" data-close-support-attachment aria-label="Закрыть"><school-icon name="close-outline"></school-icon></button>
+            <div class="support-attachment-media" id="supportAttachmentMedia"></div>
+            <strong id="supportAttachmentName"></strong>
+            <p id="supportAttachmentStatus"></p>
+            <a id="supportAttachmentDownload" target="_blank" rel="noopener noreferrer" hidden><school-icon name="download-outline"></school-icon>Скачать</a>
+        </section>
     </aside>
 
     <div class="modal-overlay hidden" id="classModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="classModalTitle">

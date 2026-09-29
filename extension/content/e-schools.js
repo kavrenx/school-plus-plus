@@ -11,6 +11,13 @@
   const lessonCaptureByWeek = new Map();
   let latestLessonCapture = null;
   let networkSaveQueue = Promise.resolve();
+  let connectionWatchdog = 0;
+  let syncDeadlineTimer = 0;
+  let syncTimedOut = false;
+  let connectionWarningSent = false;
+  let materialCollectionPromise = null;
+  const CONNECTION_STALL_MS = 12_000;
+  const MAX_SYNC_DURATION_MS = 60_000;
 
   window.addEventListener("message", (event) => {
     if (
@@ -61,11 +68,25 @@
         .catch((error) => sendResponse({ ok: false, error: error.message }));
       return true;
     }
+    if (message?.type === "SCHOOLPP_RESOLVE_MATERIAL") {
+      resolveLessonMaterial(message.material)
+        .then(sendResponse)
+        .catch((error) =>
+          sendResponse({ ok: false, error: getPublicError(error) }),
+        );
+      return true;
+    }
     if (message?.type === "SCHOOLPP_SYNC") {
       if (!activeSync) {
         activeSyncController = new AbortController();
+        startConnectionWatchdog();
         activeSync = synchronize(activeSyncController.signal)
           .catch(async (error) => {
+            if (error.name === "AbortError" && syncTimedOut) {
+              const message = getSyncTimeoutMessage();
+              await reportProgress(message, "error");
+              return { ok: false, error: message };
+            }
             if (error.name === "AbortError")
               return { ok: false, cancelled: true };
             const publicError = getPublicError(error);
@@ -73,6 +94,7 @@
             throw new Error(publicError);
           })
           .finally(() => {
+            stopConnectionWatchdog();
             activeSync = null;
             activeSyncController = null;
           });
@@ -126,12 +148,18 @@
       )
         return;
       activeSyncController = new AbortController();
+      startConnectionWatchdog();
       activeSync = synchronize(activeSyncController.signal)
         .catch(async (error) => {
+          if (error.name === "AbortError" && syncTimedOut) {
+            await reportProgress(getSyncTimeoutMessage(), "error");
+            return;
+          }
           if (error.name === "AbortError") return;
           await reportProgress(getPublicError(error), "error");
         })
         .finally(() => {
+          stopConnectionWatchdog();
           activeSync = null;
           activeSyncController = null;
         });
@@ -144,22 +172,23 @@
   async function synchronize(signal) {
     await reportProgress("Подготавливаем синхронизацию", "running");
     await collectCurrentPage();
-    await loadEndpoint("/api/v1/education/diary/school_year", signal).catch(
-      (error) => {
-        if (signal.aborted) throw error;
-      },
+    await Promise.all(
+      [
+        "/api/v1/education/diary/school_year",
+        "/api/v1/education/diary/time_activities",
+        "/api/v1/education/diary/time_activities/week_activities",
+      ].map((url) =>
+        runWithTimeout(
+          (requestSignal) => loadEndpoint(url, requestSignal),
+          6_000,
+          signal,
+        ).catch((error) => {
+          if (signal.aborted) throw error;
+          if (error.message === "TIMEOUT") void notifyConnectionStall();
+          return "unavailable";
+        }),
+      ),
     );
-    await loadEndpoint("/api/v1/education/diary/time_activities", signal).catch(
-      (error) => {
-        if (signal.aborted) throw error;
-      },
-    );
-    await loadEndpoint(
-      "/api/v1/education/diary/time_activities/week_activities",
-      signal,
-    ).catch((error) => {
-      if (signal.aborted) throw error;
-    });
     await networkSaveQueue;
     const weekSeed = await api.runtime.sendMessage({
       type: "SCHOOLPP_GET_SNAPSHOT",
@@ -256,6 +285,7 @@
           if (outcome === "completed") completedUrls.add(url);
         } catch (error) {
           if (signal.aborted) throw createAbortError();
+          if (error.message === "TIMEOUT") void notifyConnectionStall();
           outcomes.set(url, "unavailable");
         } finally {
           if (!signal.aborted) {
@@ -288,6 +318,13 @@
       );
     }
 
+    const materialSync = await syncLessonMaterials(signal, (progress) => {
+      void reportProgress("Получаем прикреплённые материалы", "running", {
+        items: [...items, "Прикреплённые материалы"],
+        currentIndex: processed + progress,
+      });
+    });
+
     if (!discovered.size) throw new Error("NO_DATA");
 
     if (!completedUrls.size) {
@@ -298,7 +335,10 @@
 
     const missingWeekCount = weekCoverage.missing?.length || 0;
     const skipped =
-      discovered.size - completedUrls.size + (missingWeekCount ? 1 : 0);
+      discovered.size -
+      completedUrls.size +
+      (missingWeekCount ? 1 : 0) +
+      (materialSync.failed ? 1 : 0);
     const phase = skipped ? "warning" : "success";
     const label = missingWeekCount
       ? `Не удалось получить ${missingWeekCount} ${getWeekWord(missingWeekCount)}`
@@ -328,6 +368,68 @@
     return { ok: true, warning: skipped ? label : "" };
   }
 
+  async function syncLessonMaterials(signal, onProgress = () => {}) {
+    await networkSaveQueue;
+    const stored = await api.runtime.sendMessage({
+      type: "SCHOOLPP_GET_SNAPSHOT",
+    });
+    const requests = syncEngine.buildLessonAttachmentRequests(stored?.snapshot);
+    if (!requests.length) return { completed: 0, failed: 0 };
+
+    let completed = 0;
+    let failed = 0;
+    let progress = 0;
+    await mapWithConcurrency(requests, 6, async (request) => {
+      let response = null;
+      for (let attempt = 0; attempt < 2 && !response; attempt += 1) {
+        try {
+          response = await runWithTimeout(
+            (requestSignal) => fetchViaPage(request.url, requestSignal),
+            6_000,
+            signal,
+          );
+          if (response.status < 200 || response.status >= 300) response = null;
+        } catch (error) {
+          if (signal.aborted) throw error;
+          if (attempt === 0) await waitForRetry(180, signal);
+        }
+      }
+      if (!response) {
+        failed += 1;
+      } else {
+        const discoveredMaterials = parser.collectApiMaterials(response.body);
+        const materials = discoveredMaterials.map((material, index) => ({
+          url: createMaterialPlaceholder(request, material, index),
+          title: material.title || `Материал ${index + 1}`,
+          id: material.id || "",
+          source: "e-schools",
+          sourceLessonId: request.sourceLessonId,
+          sourceEndpoint: request.url,
+          sourceDate: request.date,
+          sourceLessonNumber: request.number,
+          sourceStartTime: String(request.startTime || "").slice(0, 5),
+          sourceSubject: request.subject,
+        }));
+        if (materials.length) {
+          await api.runtime.sendMessage({
+            type: "SCHOOLPP_MERGE_LESSON_MATERIALS",
+            lessonId: request.lessonId,
+            materials,
+          });
+        }
+        completed += 1;
+      }
+      progress += 1;
+      onProgress(progress);
+    });
+    return { completed, failed };
+  }
+
+  function createMaterialPlaceholder(request, material, index) {
+    const identity = material.id || material.title || index + 1;
+    return `https://diary.e-schools.by/#/diary?schoolpp-material=${encodeURIComponent(`${request.lessonId}:${identity}`)}`;
+  }
+
   function getWeekWord(value) {
     const tens = value % 100;
     const ones = value % 10;
@@ -355,6 +457,7 @@
 
     await reportProgress("Загружаем недели дневника", "running");
     const visited = new Set();
+    let captureFailures = 0;
     for (let step = 0; step < 60; step += 1) {
       if (signal.aborted) throw createAbortError();
       current = getVisibleWeek();
@@ -363,6 +466,11 @@
       await collectCurrentPage();
       if (bounds.startsOn && current.start <= bounds.startsOn) break;
       const result = await moveWeek("previous", current.key, signal);
+      captureFailures = result.captured ? 0 : captureFailures + 1;
+      if (captureFailures >= 3) {
+        await notifyConnectionStall();
+        throw new Error("SOURCE_UNAVAILABLE");
+      }
       if (!result.changed) break;
     }
 
@@ -377,6 +485,11 @@
       if (traversalEnd && current.end >= traversalEnd) break;
       if (bounds.endsOn && current.end >= bounds.endsOn) break;
       const result = await moveWeek("next", current.key, signal);
+      captureFailures = result.captured ? 0 : captureFailures + 1;
+      if (captureFailures >= 3) {
+        await notifyConnectionStall();
+        throw new Error("SOURCE_UNAVAILABLE");
+      }
       if (!result.changed) break;
     }
     if (visited.size > 1) await waitForRetry(350, signal);
@@ -600,7 +713,7 @@
         const captureVersion = lessonCaptureVersion;
         button.click();
         const startedAt = Date.now();
-        while (Date.now() - startedAt < 5_000) {
+        while (Date.now() - startedAt < 2_500) {
           if (signal.aborted) throw createAbortError();
           await waitForRetry(120, signal);
           const week = getVisibleWeek();
@@ -609,7 +722,7 @@
             const captured = await waitForLessonCapture(
               captureVersion,
               week.start,
-              8_000,
+              4_000,
               signal,
             );
             await networkSaveQueue;
@@ -807,7 +920,260 @@
   async function collectCurrentPage() {
     await networkSaveQueue;
     const page = parser.collectPage(document, location);
+    if (page.kind === "diary" && activeSyncController) {
+      const discovered = await collectVisibleLessonMaterials();
+      page.lessonMaterials = mergeLessonMaterialRows(
+        page.lessonMaterials || [],
+        discovered,
+      );
+    }
     return api.runtime.sendMessage({ type: "SCHOOLPP_SAVE_PAGE", page });
+  }
+
+  function collectVisibleLessonMaterials() {
+    if (materialCollectionPromise) return materialCollectionPromise;
+    materialCollectionPromise = discoverVisibleLessonMaterials().finally(() => {
+      materialCollectionPromise = null;
+    });
+    return materialCollectionPromise;
+  }
+
+  async function discoverVisibleLessonMaterials() {
+    const descriptors = parser.collectLessonMaterialRows(document);
+    const lessonRows = [...document.querySelectorAll("table tr")].filter(
+      (row) => {
+        const text = parser.cleanText(row.textContent);
+        return (
+          /^\d{1,2}:\d{2}/u.test(text) ||
+          /(?:^|\s)(?:0|\d+)\.\s*\S+/u.test(text)
+        );
+      },
+    );
+    const result = descriptors
+      .filter((row) => row.attachments.length)
+      .map((row) => ({ ...row, candidates: undefined }));
+    for (let index = 0; index < descriptors.length; index += 1) {
+      const descriptor = descriptors[index];
+      const row = lessonRows[index];
+      if (!row || !descriptor.candidates.length) continue;
+      const candidates = [
+        ...row.querySelectorAll("button, [role='button'], a"),
+      ].filter(isMaterialTrigger);
+      for (const candidate of candidates) {
+        if (candidate.tagName === "A" && candidate.href) continue;
+        const before = new Set(
+          parser.collectVisibleMaterials(document).map((item) => item.url),
+        );
+        candidate.click();
+        await waitForRetry(180, activeSyncController.signal);
+        const attachments = parser
+          .collectVisibleMaterials(document)
+          .filter((item) => !before.has(item.url))
+          .map((item) => ({
+            ...item,
+            source: "e-schools",
+            sourceDate: descriptor.date,
+            sourceLessonNumber: descriptor.number,
+            sourceStartTime: descriptor.startTime,
+            sourceSubject: descriptor.subject,
+          }));
+        if (attachments.length) {
+          result.push({
+            date: descriptor.date,
+            number: descriptor.number,
+            startTime: descriptor.startTime,
+            subject: descriptor.subject,
+            homework: descriptor.homework,
+            attachments,
+          });
+        }
+        document.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+        );
+        await waitForRetry(40, activeSyncController.signal);
+      }
+    }
+    return mergeLessonMaterialRows([], result);
+  }
+
+  function isMaterialTrigger(element) {
+    const signature = [
+      element.className,
+      element.getAttribute?.("title"),
+      element.getAttribute?.("aria-label"),
+      element.getAttribute?.("data-testid"),
+      element.getAttribute?.("data-tooltip"),
+      element.innerHTML?.slice(0, 800),
+    ]
+      .filter(Boolean)
+      .join(" ");
+    return /(?:paperclip|attach|attachment|material|document|download|file|скреп|влож|файл)/iu.test(
+      signature,
+    );
+  }
+
+  function mergeLessonMaterialRows(current, incoming) {
+    const merged = new Map();
+    [...current, ...incoming].forEach((row) => {
+      const key = [
+        row.date,
+        row.number ?? "",
+        row.startTime || "",
+        String(row.subject || "").toLocaleLowerCase("ru"),
+      ].join("|");
+      const existing = merged.get(key);
+      const attachments = [
+        ...(existing?.attachments || []),
+        ...(row.attachments || []),
+      ];
+      const unique = new Map(
+        attachments.map((item) => [`${item.url}|${item.title}`, item]),
+      );
+      merged.set(key, {
+        ...existing,
+        ...row,
+        attachments: [...unique.values()],
+      });
+    });
+    return [...merged.values()];
+  }
+
+  async function resolveLessonMaterial(material = {}) {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 20_000);
+    try {
+      if (material.sourceEndpoint) {
+        const response = await fetchViaPage(
+          material.sourceEndpoint,
+          controller.signal,
+        );
+        if (response.status >= 200 && response.status < 300) {
+          const direct = chooseMaterial(
+            parser.collectApiMaterials(response.body),
+            material,
+          );
+          if (direct?.url)
+            return {
+              ok: true,
+              url: direct.url,
+              title: direct.title || material.title,
+            };
+        }
+      }
+      if (!location.hash.includes("/diary")) {
+        location.hash = "#/diary";
+        const visible = await waitForVisibleWeek(controller.signal, 8_000);
+        if (!visible)
+          return { ok: false, error: "Не удалось открыть страницу дневника." };
+      }
+      const targetWeek = mondayForIso(material.sourceDate || "");
+      if (targetWeek) {
+        const moved = await moveToMaterialWeek(targetWeek, controller.signal);
+        if (!moved)
+          return { ok: false, error: "Не удалось открыть нужную неделю." };
+      }
+      const resolved = await openMaterialLink(material, controller.signal);
+      return resolved
+        ? { ok: true, url: resolved.url, title: resolved.title }
+        : {
+            ok: false,
+            error: "Материал не найден. Обнови данные и попробуй ещё раз.",
+          };
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
+
+  async function moveToMaterialWeek(targetWeek, signal) {
+    for (let step = 0; step < 42; step += 1) {
+      const visible = getVisibleWeek();
+      if (!visible) {
+        await waitForRetry(160, signal);
+        continue;
+      }
+      if (visible.start === targetWeek) return true;
+      const direction = visible.start < targetWeek ? "next" : "previous";
+      const button = findWeekButtons(direction)[0];
+      if (!button) return false;
+      const previousKey = visible.key;
+      button.click();
+      const startedAt = Date.now();
+      while (Date.now() - startedAt < 3_000) {
+        await waitForRetry(120, signal);
+        const next = getVisibleWeek();
+        if (next && next.key !== previousKey) break;
+      }
+    }
+    return getVisibleWeek()?.start === targetWeek;
+  }
+
+  async function openMaterialLink(material, signal) {
+    const descriptors = parser.collectLessonMaterialRows(document);
+    const lessonRows = [...document.querySelectorAll("table tr")].filter(
+      (row) => {
+        const text = parser.cleanText(row.textContent);
+        return (
+          /^\d{1,2}:\d{2}/u.test(text) ||
+          /(?:^|\s)(?:0|\d+)\.\s*\S+/u.test(text)
+        );
+      },
+    );
+    const targetIndex = descriptors.findIndex((row) =>
+      isMatchingMaterialRow(row, material),
+    );
+    if (targetIndex < 0) return null;
+    const descriptor = descriptors[targetIndex];
+    const row = lessonRows[targetIndex];
+    const direct = chooseMaterial(descriptor.attachments, material);
+    if (direct) return direct;
+    const candidates = [
+      ...row.querySelectorAll("button, [role='button'], a"),
+    ].filter(isMaterialTrigger);
+    for (const candidate of candidates) {
+      if (candidate.tagName === "A" && candidate.href) continue;
+      const before = new Set(
+        parser.collectVisibleMaterials(document).map((item) => item.url),
+      );
+      candidate.click();
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        await waitForRetry(100, signal);
+        const found = parser
+          .collectVisibleMaterials(document)
+          .filter((item) => !before.has(item.url));
+        const selected = chooseMaterial(found, material);
+        if (selected) return selected;
+      }
+    }
+    return null;
+  }
+
+  function isMatchingMaterialRow(row, material) {
+    if (material.sourceDate && row.date !== material.sourceDate) return false;
+    if (
+      material.sourceLessonNumber != null &&
+      Number(row.number) !== Number(material.sourceLessonNumber)
+    )
+      return false;
+    if (
+      material.sourceStartTime &&
+      row.startTime !== String(material.sourceStartTime).slice(0, 5)
+    )
+      return false;
+    return true;
+  }
+
+  function chooseMaterial(items, material) {
+    if (!items?.length) return null;
+    const title = String(material.title || "").toLocaleLowerCase("ru");
+    return (
+      items.find((item) =>
+        title
+          ? String(item.title || "")
+              .toLocaleLowerCase("ru")
+              .includes(title)
+          : false,
+      ) || items[0]
+    );
   }
 
   async function reportProgress(label, phase, details = {}) {
@@ -819,9 +1185,60 @@
         }),
         new Promise((resolve) => setTimeout(resolve, 1_500)),
       ]);
+      if (phase === "running") touchConnectionWatchdog();
+      else stopConnectionWatchdog();
     } catch {
       /* Progress reporting must never hold the data sync. */
     }
+  }
+
+  function startConnectionWatchdog() {
+    connectionWarningSent = false;
+    syncTimedOut = false;
+    clearTimeout(syncDeadlineTimer);
+    syncDeadlineTimer = window.setTimeout(() => {
+      syncTimedOut = true;
+      activeSyncController?.abort();
+      void notifyConnectionStall(getSyncTimeoutMessage());
+    }, MAX_SYNC_DURATION_MS);
+    touchConnectionWatchdog();
+  }
+
+  function touchConnectionWatchdog() {
+    clearTimeout(connectionWatchdog);
+    if (connectionWarningSent || !activeSyncController) return;
+    connectionWatchdog = window.setTimeout(
+      () => void notifyConnectionStall(),
+      CONNECTION_STALL_MS,
+    );
+  }
+
+  function stopConnectionWatchdog() {
+    clearTimeout(connectionWatchdog);
+    clearTimeout(syncDeadlineTimer);
+    connectionWatchdog = 0;
+    syncDeadlineTimer = 0;
+  }
+
+  async function notifyConnectionStall(message = "") {
+    if (connectionWarningSent) return;
+    connectionWarningSent = true;
+    clearTimeout(connectionWatchdog);
+    connectionWatchdog = 0;
+    try {
+      await api.runtime.sendMessage({
+        type: "SCHOOLPP_SYNC_STALLED",
+        label:
+          message ||
+          "e‑schools.by долго не отвечает. Отключи VPN, проверь соединение и запусти синхронизацию снова.",
+      });
+    } catch {
+      /* The popup still receives the final synchronization error. */
+    }
+  }
+
+  function getSyncTimeoutMessage() {
+    return "Синхронизация заняла слишком много времени. Отключи VPN, проверь соединение и попробуй снова.";
   }
 
   function getPublicError(error) {

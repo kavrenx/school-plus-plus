@@ -59,11 +59,90 @@ function requestExtensionPresence(windowRef, timeout = 700) {
   });
 }
 
+function requestExtensionLessonMaterials(windowRef, lessons, timeout = 4_000) {
+  const requestId = createRequestId(windowRef);
+  return new Promise((resolve) => {
+    let timer;
+    const finish = (materials) => {
+      windowRef.removeEventListener("message", onMessage);
+      windowRef.clearTimeout(timer);
+      resolve(materials && typeof materials === "object" ? materials : {});
+    };
+    const onMessage = (event) => {
+      if (
+        event.source !== windowRef ||
+        event.origin !== windowRef.location.origin ||
+        event.data?.source !== EXTENSION_SOURCE ||
+        event.data?.type !== "SCHOOLPP_LESSON_MATERIALS_RESPONSE" ||
+        event.data?.requestId !== requestId
+      )
+        return;
+      finish(event.data.materials);
+    };
+    windowRef.addEventListener("message", onMessage);
+    timer = windowRef.setTimeout(() => finish({}), timeout);
+    windowRef.postMessage(
+      {
+        source: WEB_SOURCE,
+        type: "SCHOOLPP_LESSON_MATERIALS_REQUEST",
+        requestId,
+        lessons: Array.isArray(lessons)
+          ? lessons.slice(0, 40).map((lesson) => ({
+              id: String(lesson?.id || ""),
+              date: String(lesson?.date || ""),
+              number: lesson?.number,
+              startTime: String(lesson?.startsAt || lesson?.startTime || ""),
+              subject: String(lesson?.subject || ""),
+            }))
+          : [],
+      },
+      windowRef.location.origin,
+    );
+  });
+}
+
 function notifyExtensionImported(windowRef) {
   windowRef.postMessage(
     { source: WEB_SOURCE, type: "SCHOOLPP_EXTENSION_IMPORTED" },
     windowRef.location.origin,
   );
+}
+
+function requestExtensionMaterial(windowRef, material, timeout = 25_000) {
+  const requestId = createRequestId(windowRef);
+  return new Promise((resolve) => {
+    let timer;
+    const finish = (result) => {
+      windowRef.removeEventListener("message", onMessage);
+      windowRef.clearTimeout(timer);
+      resolve(result || { ok: false, error: "Расширение не ответило." });
+    };
+    const onMessage = (event) => {
+      if (
+        event.source !== windowRef ||
+        event.origin !== windowRef.location.origin ||
+        event.data?.source !== EXTENSION_SOURCE ||
+        event.data?.type !== "SCHOOLPP_MATERIAL_RESPONSE" ||
+        event.data?.requestId !== requestId
+      )
+        return;
+      finish(event.data.result);
+    };
+    windowRef.addEventListener("message", onMessage);
+    timer = windowRef.setTimeout(
+      () => finish({ ok: false, error: "Расширение не ответило." }),
+      timeout,
+    );
+    windowRef.postMessage(
+      {
+        source: WEB_SOURCE,
+        type: "SCHOOLPP_MATERIAL_REQUEST",
+        requestId,
+        material,
+      },
+      windowRef.location.origin,
+    );
+  });
 }
 
 function subscribeToExtensionSnapshots(windowRef, listener) {
@@ -90,7 +169,9 @@ function createRequestId(windowRef) {
 
 export {
   notifyExtensionImported,
+  requestExtensionLessonMaterials,
   requestExtensionPresence,
+  requestExtensionMaterial,
   requestExtensionSnapshot,
   subscribeToExtensionSnapshots,
 };

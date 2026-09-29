@@ -23,6 +23,10 @@ import {
 } from "./academic-navigation.js";
 import { renderStudentSchedule } from "./student-schedule.js";
 import {
+  requestExtensionLessonMaterials,
+  requestExtensionMaterial,
+} from "./extension-import.js";
+import {
   ATTENDANCE_STATUS,
   resolveLessonProgress,
   resolveStudentAttendance,
@@ -123,6 +127,8 @@ function createStudentDashboardController({
   let selectedSubjectId = "";
   let selectedSubjectPeriod = null;
   let subjectDetailOrigin = "results";
+  const extensionMaterialsByLesson = new Map();
+  const requestedMaterialLessons = new Set();
   const achievementPanel = root.getElementById("studentAchievements");
   const diaryButton = root.getElementById("studentDiaryButton");
   const achievementButton = root.getElementById("studentAchievementsButton");
@@ -130,6 +136,13 @@ function createStudentDashboardController({
   const scheduleButton = root.getElementById("studentScheduleButton");
   const currentWeekButton = root.getElementById("studentCurrentWeek");
   const datePicker = root.getElementById("studentDatePicker");
+  const calendarButton = root.getElementById("studentCalendarButton");
+  const calendarPopover = root.getElementById("studentCalendarPopover");
+  const calendarGrid = root.getElementById("studentCalendarGrid");
+  const calendarMonthLabel = root.getElementById("studentCalendarMonth");
+  const calendarPrevious = root.getElementById("studentCalendarPrevious");
+  const calendarNext = root.getElementById("studentCalendarNext");
+  let calendarMonth = `${initialDate.slice(0, 7)}-01`;
   if (datePicker) {
     datePicker.min = terms[0]?.startsOn || year.startsOn;
     datePicker.max = terms.at(-1)?.endsOn || year.endsOn;
@@ -314,8 +327,68 @@ function createStudentDashboardController({
     }
     selectedWeekIndex = index;
     selectedDayKey = getDayKeyByIsoDate(date);
+    calendarMonth = `${date.slice(0, 7)}-01`;
     renderTermSelect();
     showSection("diary");
+  }
+
+  function toggleCalendar(force) {
+    if (!calendarPopover || !calendarButton) return;
+    const shouldOpen = force ?? calendarPopover.hidden;
+    calendarPopover.hidden = !shouldOpen;
+    calendarButton.setAttribute("aria-expanded", String(shouldOpen));
+    if (shouldOpen) {
+      calendarMonth = `${(datePicker?.value || initialDate).slice(0, 7)}-01`;
+      renderCalendar();
+      calendarPopover.querySelector("button:not(:disabled)")?.focus();
+    }
+  }
+
+  function moveCalendarMonth(offset) {
+    const [yearNumber, monthNumber] = calendarMonth.split("-").map(Number);
+    const shifted = new Date(Date.UTC(yearNumber, monthNumber - 1 + offset, 1));
+    calendarMonth = `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, "0")}-01`;
+    renderCalendar();
+  }
+
+  function renderCalendar() {
+    if (!calendarGrid || !calendarMonthLabel) return;
+    const [yearNumber, monthNumber] = calendarMonth.split("-").map(Number);
+    const monthStart = new Date(Date.UTC(yearNumber, monthNumber - 1, 1));
+    const daysInMonth = new Date(
+      Date.UTC(yearNumber, monthNumber, 0),
+    ).getUTCDate();
+    const leading = (monthStart.getUTCDay() + 6) % 7;
+    calendarMonthLabel.textContent = monthStart.toLocaleDateString("ru-RU", {
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+    const cells = Array.from(
+      { length: leading },
+      () => '<span class="student-calendar-blank" aria-hidden="true"></span>',
+    );
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const date = `${yearNumber}-${String(monthNumber).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      const available = isInstructionDate(year, date);
+      const selected = datePicker?.value === date;
+      const label = new Date(`${date}T00:00:00Z`).toLocaleDateString("ru-RU", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        timeZone: "UTC",
+      });
+      cells.push(
+        `<button type="button" data-calendar-date="${date}" aria-label="${label}"${selected ? ' class="is-selected" aria-current="date"' : ""}${available ? "" : " disabled"}>${day}</button>`,
+      );
+    }
+    calendarGrid.innerHTML = cells.join("");
+    const minimumMonth = (datePicker?.min || year.startsOn).slice(0, 7);
+    const maximumMonth = (datePicker?.max || year.endsOn).slice(0, 7);
+    if (calendarPrevious)
+      calendarPrevious.disabled = calendarMonth.slice(0, 7) <= minimumMonth;
+    if (calendarNext)
+      calendarNext.disabled = calendarMonth.slice(0, 7) >= maximumMonth;
   }
 
   function bind() {
@@ -323,12 +396,15 @@ function createStudentDashboardController({
     achievementButton?.addEventListener("click", () => showSection("results"));
     scheduleButton?.addEventListener("click", () => showSection("schedule"));
     datePicker?.addEventListener("change", () => goToDate(datePicker.value));
-    datePicker?.addEventListener("click", () => {
-      try {
-        datePicker.showPicker?.();
-      } catch {
-        /* Native date input remains available. */
-      }
+    calendarButton?.addEventListener("click", () => toggleCalendar());
+    calendarPrevious?.addEventListener("click", () => moveCalendarMonth(-1));
+    calendarNext?.addEventListener("click", () => moveCalendarMonth(1));
+    calendarGrid?.addEventListener("click", (event) => {
+      const target = event.target.closest("[data-calendar-date]");
+      if (!target || target.disabled) return;
+      if (datePicker) datePicker.value = target.dataset.calendarDate;
+      goToDate(target.dataset.calendarDate);
+      toggleCalendar(false);
     });
     currentWeekButton?.addEventListener("click", () =>
       goToDate(getSchoolDateIso(now())),
@@ -351,6 +427,27 @@ function createStudentDashboardController({
     elements.nextWeekButton.addEventListener("click", () => moveWeek(1));
     elements.termSelect?.addEventListener("change", selectTerm);
     elements.diaryTableWrap.addEventListener("click", (event) => {
+      const materialDownload = event.target.closest("[data-es-material]");
+      if (materialDownload) {
+        void downloadESchoolsMaterial(materialDownload);
+        return;
+      }
+      const materialButton = event.target.closest("[data-material-toggle]");
+      if (materialButton) {
+        const popover = materialButton.parentElement?.querySelector(
+          ".lesson-material-popover",
+        );
+        const shouldOpen = Boolean(popover?.hidden);
+        elements.diaryTableWrap
+          .querySelectorAll(".lesson-material-popover:not([hidden])")
+          .forEach((item) => {
+            item.hidden = true;
+          });
+        if (popover) popover.hidden = !shouldOpen;
+        if (popover && shouldOpen) positionMaterialPopover(materialButton, popover);
+        materialButton.setAttribute("aria-expanded", String(shouldOpen));
+        return;
+      }
       const button = event.target.closest("[data-diary-subject]");
       if (!button || !currentUser) return;
       const studentId = currentUser.id || currentUser.userId;
@@ -381,8 +478,32 @@ function createStudentDashboardController({
       selectDay(button.dataset.day, true);
     });
     elements.dayTabs.addEventListener("keydown", handleDayTabKeydown);
+    root.addEventListener("click", handleDocumentClick);
+    root.addEventListener("keydown", handleOverlayKeydown);
     mobileLayout?.addEventListener?.("change", syncAccountDisclosure);
     compactProfileLayout?.addEventListener?.("change", syncProfileDisclosure);
+  }
+
+  async function downloadESchoolsMaterial(button) {
+    if (button.disabled) return;
+    let material;
+    try {
+      material = JSON.parse(decodeURIComponent(button.dataset.esMaterial));
+    } catch {
+      return;
+    }
+    const originalLabel = button.querySelector("span")?.textContent || "Материал";
+    button.disabled = true;
+    button.classList.add("is-loading");
+    const result = await requestExtensionMaterial(root.defaultView, material);
+    button.disabled = false;
+    button.classList.remove("is-loading");
+    if (result?.ok) return;
+    const label = button.querySelector("span");
+    if (label) label.textContent = result?.error || "Не удалось скачать файл";
+    root.defaultView?.setTimeout(() => {
+      if (label) label.textContent = originalLabel;
+    }, 4_000);
   }
 
   function show(user) {
@@ -409,7 +530,49 @@ function createStudentDashboardController({
     selectedSubjectPeriod = null;
     root.body?.classList.remove("subject-detail-open");
     root.removeEventListener("keydown", handleAchievementKeydown);
+    root.removeEventListener("click", handleDocumentClick);
+    root.removeEventListener("keydown", handleOverlayKeydown);
     currentUser = null;
+  }
+
+  function handleDocumentClick(event) {
+    if (
+      !calendarPopover?.hidden &&
+      !event.target.closest(".student-calendar-control")
+    )
+      toggleCalendar(false);
+    elements.diaryTableWrap
+      .querySelectorAll(".lesson-material-popover:not([hidden])")
+      .forEach((popover) => {
+        if (!event.target.closest(".lesson-material-control"))
+          popover.hidden = true;
+      });
+  }
+
+  function handleOverlayKeydown(event) {
+    if (event.key !== "Escape") return;
+    toggleCalendar(false);
+    elements.diaryTableWrap
+      .querySelectorAll(".lesson-material-popover:not([hidden])")
+      .forEach((popover) => {
+        popover.hidden = true;
+      });
+  }
+
+  function positionMaterialPopover(button, popover) {
+    const bounds = button.getBoundingClientRect();
+    const viewportWidth = root.documentElement?.clientWidth || 1024;
+    const viewportHeight = root.documentElement?.clientHeight || 768;
+    const width = Math.min(320, viewportWidth - 28);
+    const left = Math.max(14, Math.min(bounds.right - width, viewportWidth - width - 14));
+    const preferredTop = bounds.bottom + 7;
+    const estimatedHeight = Math.min(260, 72 + popover.querySelectorAll("a").length * 52);
+    const top =
+      preferredTop + estimatedHeight <= viewportHeight - 14
+        ? preferredTop
+        : Math.max(14, bounds.top - estimatedHeight - 7);
+    popover.style.left = `${left}px`;
+    popover.style.top = `${top}px`;
   }
 
   function renderStudent(user) {
@@ -490,7 +653,11 @@ function createStudentDashboardController({
     const dayState = resolveDayState(week, selectedDayKey, lessons);
     elements.journalMain?.classList.toggle("is-empty-day", !lessons.length);
     const dayDate = getIsoDateForDay(week.start, selectedDayKey);
-    if (datePicker) datePicker.value = dayDate;
+    if (datePicker) {
+      datePicker.value = dayDate;
+      calendarMonth = `${dayDate.slice(0, 7)}-01`;
+    }
+    if (!calendarPopover?.hidden) renderCalendar();
     const absenceCount = root.getElementById("studentAbsenceCount");
     const absenceSummary = absenceCount?.parentElement;
     const dayFooter = root.getElementById("studentDayFooter");
@@ -524,6 +691,31 @@ function createStudentDashboardController({
     }
 
     elements.diaryTableWrap.innerHTML = renderDiaryTable(lessons, translate);
+    void hydrateVisibleLessonMaterials(lessons);
+  }
+
+  async function hydrateVisibleLessonMaterials(lessons) {
+    const lessonIds = lessons
+      .map((lesson) => String(lesson?.id || "").trim())
+      .filter(
+        (lessonId) => lessonId && !requestedMaterialLessons.has(lessonId),
+      );
+    if (!lessonIds.length) return;
+    lessonIds.forEach((lessonId) => requestedMaterialLessons.add(lessonId));
+    const received = await requestExtensionLessonMaterials(
+      root.defaultView,
+      lessons.filter((lesson) => lessonIds.includes(String(lesson?.id || "").trim())),
+    );
+    let changed = false;
+    lessonIds.forEach((lessonId) => {
+      const materials = Array.isArray(received?.[lessonId])
+        ? received[lessonId]
+        : [];
+      if (!materials.length) return;
+      extensionMaterialsByLesson.set(lessonId, materials);
+      changed = true;
+    });
+    if (changed && selectedSection === "diary") renderDiary();
   }
 
   function renderDayTabs(week) {
@@ -663,7 +855,20 @@ function createStudentDashboardController({
     const studentId = currentUser?.id || currentUser?.userId;
     if (!studentId) return lessons;
     return lessons.map((lesson) => {
-      const merged = journalStore.mergeLessonForStudent(lesson, studentId);
+      const extensionMaterials = extensionMaterialsByLesson.get(lesson.id) || [];
+      const lessonWithMaterials = extensionMaterials.length
+        ? {
+            ...lesson,
+            materials: mergeMaterialLists(
+              lesson.materials,
+              extensionMaterials,
+            ),
+          }
+        : lesson;
+      const merged = journalStore.mergeLessonForStudent(
+        lessonWithMaterials,
+        studentId,
+      );
       const lessonWork = journalStore.getLessonWork(lesson.id);
       const lessonProgress = resolveLessonProgress({
         lesson,
@@ -684,6 +889,19 @@ function createStudentDashboardController({
   }
 
   return { bind, destroy, show, updateUser };
+}
+
+function mergeMaterialLists(...collections) {
+  const result = new Map();
+  collections.flat().filter(Boolean).forEach((material) => {
+    const url =
+      typeof material === "object" ? String(material.url || "") : String(material);
+    const title =
+      typeof material === "object" ? String(material.title || "") : "";
+    const key = `${url}|${title}`;
+    if (url && !result.has(key)) result.set(key, material);
+  });
+  return [...result.values()];
 }
 
 function findInitialWeekIndex(weeks, todayIso) {

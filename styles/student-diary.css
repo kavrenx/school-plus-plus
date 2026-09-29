@@ -364,6 +364,114 @@ body.dark .journal-main {
   font-size: 14px;
 }
 
+.homework-cell {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  gap: 8px;
+  align-items: start;
+  min-width: 0;
+}
+
+.homework-copy {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lesson-material-space {
+  width: 36px;
+  height: 36px;
+}
+
+.lesson-material-control {
+  position: relative;
+  display: block;
+  width: 36px;
+}
+
+.lesson-material-control > button {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--accent-dark);
+}
+
+.lesson-material-control > button:hover,
+.lesson-material-control > button:focus-visible,
+.lesson-material-control > button[aria-expanded="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.lesson-material-control > button school-icon {
+  width: 21px;
+  height: 21px;
+}
+
+.lesson-material-popover {
+  position: fixed;
+  z-index: 65;
+  width: min(320px, calc(100vw - 28px));
+  display: grid;
+  gap: 11px;
+  padding: 14px;
+  border: 1px solid var(--line-dark);
+  background: var(--paper);
+  box-shadow: 0 15px 40px rgba(9, 18, 14, 0.2);
+}
+
+.lesson-material-popover[hidden] {
+  display: none;
+}
+
+.lesson-material-popover > strong {
+  font-size: 15px;
+}
+
+.lesson-material-popover > span {
+  display: grid;
+  gap: 7px;
+}
+
+.lesson-material-popover a,
+.lesson-material-popover [data-es-material] {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 10px;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-weight: 750;
+  text-decoration: none;
+  text-align: left;
+}
+
+.lesson-material-popover a:hover,
+.lesson-material-popover [data-es-material]:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.lesson-material-popover a > span,
+.lesson-material-popover [data-es-material] > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lesson-material-popover a school-icon,
+.lesson-material-popover [data-es-material] school-icon {
+  width: 22px;
+  height: 22px;
+  color: var(--accent-dark);
+}
+
 .grade {
   display: inline;
   color: var(--accent-dark);

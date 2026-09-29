@@ -97,6 +97,9 @@ function normalizeDiaryData(rawDiary, dayOrder, schoolData = {}) {
             endsAt: time.endsAt,
             room: lesson.room,
             homework: lesson.homework,
+            materials: Array.isArray(lesson.materials)
+              ? lesson.materials
+              : [],
             grade: lesson.grade || ""
           };
 

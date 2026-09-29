@@ -44,6 +44,32 @@ test("saves a journal entry and merges it into a student lesson", () => {
   assert.equal(merged.journalEntry.materials.length, 1);
 });
 
+test("keeps the e-schools endpoint needed to download a material", () => {
+  const store = createJournalStore(createLocalStorage());
+  store.saveJournalEntry({
+    lessonId: "lesson-file",
+    studentId: "student-1",
+    materials: [
+      {
+        url: "https://diary.e-schools.by/#/diary?schoolpp-material=file-1",
+        title: "Диктант.docx",
+        source: "e-schools",
+        sourceLessonId: "lesson-file",
+        sourceEndpoint:
+          "/api/v1/education/diary/lessons/lesson-file/attachments_and_links",
+      },
+    ],
+  });
+
+  const material = store.mergeLessonForStudent(
+    { id: "lesson-file" },
+    "student-1",
+  ).journalEntry.materials[0];
+  assert.equal(material.source, "e-schools");
+  assert.equal(material.sourceLessonId, "lesson-file");
+  assert.match(material.sourceEndpoint, /attachments_and_links$/);
+});
+
 test("keeps the base lesson when there is no entry for the student", () => {
   const store = createJournalStore(createLocalStorage());
   const lesson = { id: "lesson-2", homework: "Задание", grade: "8" };

@@ -166,6 +166,9 @@
 .account-disclosure {
   display: grid;
 }
+.account-disclosure[hidden] {
+  display: none;
+}
 
 .account-disclosure > summary {
   display: none;

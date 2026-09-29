@@ -44,9 +44,34 @@ test("renders lesson and journal data while escaping user-controlled text", () =
   assert.match(html, /a=1&amp;b=2/);
   assert.match(html, /target="_blank"/);
   assert.match(html, /rel="noopener noreferrer"/);
+  assert.match(html, /Прикреплённые материалы/);
+  assert.match(html, /data-material-toggle/);
   assert.match(html, /data-label="Посещение"/);
   assert.match(html, /class="attendance-mark is-absent">Отсутствие</);
   assert.doesNotMatch(html, /<script>/);
+});
+
+test("renders imported material titles in the attachment popover", () => {
+  const html = renderDiaryTable(
+    [
+      {
+        id: "chemistry-1",
+        number: 2,
+        subject: "Химия",
+        homework: "§ 8",
+        materials: [
+          {
+            url: "https://diary.e-schools.by/files/task.pdf",
+            title: "Задание.pdf",
+          },
+        ],
+      },
+    ],
+    translate,
+  );
+  assert.match(html, /Задание\.pdf/);
+  assert.match(html, /download-outline/);
+  assert.match(html, /class="homework-cell"/);
 });
 
 test("shows inferred presence and lesson-level materials", () => {

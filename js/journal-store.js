@@ -256,14 +256,27 @@ function replaceStudentLessonEntities(document, entry) {
   addTextEntity(document.homeworkEntries, entry, "homework", entry.homework);
   addTextEntity(document.commentEntries, entry, "comment", entry.comment);
 
-  entry.materials.forEach((url, index) => {
+  entry.materials.forEach((material, index) => {
+    const normalizedMaterial = normalizeMaterial(material);
+    if (!normalizedMaterial) return;
+    const materialRecord =
+      typeof normalizedMaterial === "string"
+        ? { url: normalizedMaterial, title: "" }
+        : normalizedMaterial;
     const id = getEntityId(entry.lessonId, entry.studentId, "material", index);
     document.materialEntries[id] = {
       id,
       lessonId: entry.lessonId,
       studentId: entry.studentId,
-      url,
-      title: "",
+      url: materialRecord.url,
+      title: materialRecord.title,
+      source: materialRecord.source || "",
+      sourceLessonId: materialRecord.sourceLessonId || "",
+      sourceEndpoint: materialRecord.sourceEndpoint || "",
+      sourceDate: materialRecord.sourceDate || "",
+      sourceLessonNumber: materialRecord.sourceLessonNumber ?? null,
+      sourceStartTime: materialRecord.sourceStartTime || "",
+      sourceSubject: materialRecord.sourceSubject || "",
       authorId: entry.authorId,
       position: index,
       updatedAt: entry.updatedAt,
@@ -331,7 +344,24 @@ function assembleJournalEntry(document, lessonId, studentId) {
     attendance: attendance?.status === "absent" ? "absent" : "",
     comment: comment?.text || "",
     homework: homework?.text || "",
-    materials: materials.map((entity) => entity.url),
+    materials: materials.map((entity) => {
+      if (!entity.title && !entity.source) return entity.url;
+      return {
+        url: entity.url,
+        title: entity.title || "",
+        ...(entity.source
+          ? {
+              source: entity.source,
+              sourceLessonId: entity.sourceLessonId || "",
+              sourceEndpoint: entity.sourceEndpoint || "",
+              sourceDate: entity.sourceDate || "",
+              sourceLessonNumber: entity.sourceLessonNumber,
+              sourceStartTime: entity.sourceStartTime || "",
+              sourceSubject: entity.sourceSubject || "",
+            }
+          : {}),
+      };
+    }),
     authorId: latestEntity?.authorId || "",
     updatedAt: latestEntity?.updatedAt || "",
   };
@@ -369,10 +399,39 @@ function normalizeEntry(entry, timestamp = new Date().toISOString()) {
     comment: entry.comment?.trim() || "",
     homework: entry.homework?.trim() || "",
     materials: Array.isArray(entry.materials)
-      ? entry.materials.map((item) => item.trim()).filter(Boolean)
+      ? entry.materials.map(normalizeMaterial).filter(Boolean)
       : [],
     authorId: entry.authorId ? String(entry.authorId) : "",
     updatedAt: timestamp,
+  };
+}
+
+function normalizeMaterial(value) {
+  const url = String(
+    value && typeof value === "object" ? value.url || "" : value || "",
+  ).trim();
+  if (!url) return null;
+  const title =
+    value && typeof value === "object"
+      ? String(value.title || "").trim()
+      : "";
+  const source =
+    value && typeof value === "object" ? String(value.source || "") : "";
+  if (!title && !source) return url;
+  return {
+    url,
+    title,
+    ...(source
+      ? {
+          source,
+          sourceLessonId: String(value.sourceLessonId || ""),
+          sourceEndpoint: String(value.sourceEndpoint || ""),
+          sourceDate: String(value.sourceDate || ""),
+          sourceLessonNumber: value.sourceLessonNumber,
+          sourceStartTime: String(value.sourceStartTime || ""),
+          sourceSubject: String(value.sourceSubject || ""),
+        }
+      : {}),
   };
 }
 

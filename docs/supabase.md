@@ -18,11 +18,18 @@
    `supabase/migrations/202609250002_admin_dashboard.sql`.
 6. Для статуса прочтения сообщений выполните
    `supabase/migrations/202609260001_support_read_receipts.sql`.
-7. В **Table Editor** проверьте RLS у `diary_snapshots`,
-   `support_conversations`, `support_messages`, `support_agents` и
-   `diary_requests`. У `site_activity_daily` прямой доступ для клиентов должен
-   оставаться закрытым.
-8. В настройках хостинга задайте:
+7. Для вложений поддержки, ограничения частоты сообщений и защиты от спама
+   выполните `supabase/migrations/202609290001_support_attachments.sql`.
+8. Для отправки до десяти вложений одним сообщением затем выполните
+   `supabase/migrations/202609290002_support_multiple_attachments.sql`.
+9. Разверните и поставьте на почасовое расписание функцию очистки по инструкции
+   `supabase/functions/cleanup-support-attachments/README.md`.
+10. В **Table Editor** проверьте RLS у `diary_snapshots`,
+    `support_conversations`, `support_messages`, `support_agents` и
+    `diary_requests`, `support_attachments`. У `site_activity_daily` прямой
+    доступ для клиентов должен оставаться закрытым, а Storage bucket
+    `support-attachments` должен оставаться приватным.
+11. В настройках хостинга задайте:
 
 ```text
 VITE_APP_MODE=cloud

@@ -27,6 +27,25 @@ test("e-schools adapter builds the student diary from captured API responses", (
         headings: [
           "Электронный дневник обучающегося 8 «Б» класса, Споняков Т.А.",
         ],
+        lessonMaterials: [
+          {
+            date: "2026-09-17",
+            number: 1,
+            startTime: "08:00",
+            subject: "Математика",
+            attachments: [
+              {
+                url: "https://objectsstore.e-schools.by/journal/file-id?X-Amz-Expires=10",
+                title: "Памятка.docx",
+                source: "e-schools",
+                sourceDate: "2026-09-17",
+                sourceLessonNumber: 1,
+                sourceStartTime: "08:00",
+                sourceSubject: "Математика",
+              },
+            ],
+          },
+        ],
       },
     },
     network: {
@@ -174,6 +193,12 @@ test("e-schools adapter builds the student diary from captured API responses", (
               subject_title: "Математика",
               teacher_id: "teacher-1",
               homework: "№ 10",
+              attachments: [
+                {
+                  title: "Задание.pdf",
+                  url: "/media/homework/task.pdf",
+                },
+              ],
               lesson_marks: [{ mark: "8" }, { mark: "9" }],
             },
             {
@@ -232,10 +257,28 @@ test("e-schools adapter builds the student diary from captured API responses", (
     time: "08:00–08:45",
     room: "74",
     homework: "№ 10",
+    materials: [
+      {
+        url: "https://diary.e-schools.by/media/homework/task.pdf",
+        title: "Задание.pdf",
+        id: "",
+      },
+      {
+        url: "https://objectsstore.e-schools.by/journal/file-id?X-Amz-Expires=10",
+        title: "Памятка.docx",
+        id: "",
+        source: "e-schools",
+        sourceDate: "2026-09-17",
+        sourceLessonNumber: 1,
+        sourceStartTime: "08:00",
+        sourceSubject: "Математика",
+      },
+    ],
     grade: "8/9",
     status: "scheduled",
   });
   assert.deepEqual(adapted.journalEntries[0].grades, ["8", "9"]);
+  assert.equal(adapted.journalEntries[0].materials[0].title, "Задание.pdf");
   assert.equal(adapted.journalEntries.length, 1);
   assert.equal(adapted.journalEntries[0].lessonId, "lesson-1");
   assert.ok(adapted.diary.weeks.length > 1);
@@ -271,4 +314,52 @@ test("e-schools adapter accepts seconds, milliseconds and ISO dates", () => {
   assert.equal(toIsoDate(null), "");
   assert.equal(normalizeTime("09:00:00"), "09:00");
   assert.equal(normalizeTime("9:05"), "09:05");
+});
+
+test("e-schools adapter keeps the endpoint used to refresh a material link", () => {
+  const endpoint =
+    "/api/v1/education/diary/schools/s/classes/c/students/u/lessons/lesson-1/attachments_and_links";
+  const adapted = adaptESchoolsSnapshot({
+    source: "e-schools.by",
+    pages: {},
+    network: {
+      lessons: record(
+        "/api/v1/education/diary/schools/s/classes/c/students/u/lessons?week_activity_uuid=w",
+        [
+          {
+            date: at("2026-09-30"),
+            day_of_week: 3,
+            slots: [
+              {
+                lesson_uuid: "lesson-1",
+                lesson_template_id: "chemistry",
+                number: 2,
+                subject_title: "Химия",
+                homework: "§ 8",
+                attachments: [
+                  {
+                    url: "https://diary.e-schools.by/#/diary?schoolpp-material=file-1",
+                    title: "Диктант.docx",
+                    id: "file-1",
+                    source: "e-schools",
+                    sourceLessonId: "lesson-1",
+                    sourceEndpoint: endpoint,
+                    sourceDate: "2026-09-30",
+                    sourceLessonNumber: 2,
+                    sourceStartTime: "09:00",
+                    sourceSubject: "Химия",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      ),
+    },
+  });
+
+  const material = adapted.diary.weeks[0].days.wednesday[0].materials[0];
+  assert.equal(material.source, "e-schools");
+  assert.equal(material.sourceLessonId, "lesson-1");
+  assert.equal(material.sourceEndpoint, endpoint);
 });

@@ -3,10 +3,51 @@ import test from "node:test";
 import { Window } from "happy-dom";
 import {
   notifyExtensionImported,
+  requestExtensionLessonMaterials,
   requestExtensionPresence,
   requestExtensionSnapshot,
   subscribeToExtensionSnapshots,
 } from "../js/extension-import.js";
+
+test("web bridge requests materials for visible lesson ids", async () => {
+  const window = new Window({ url: "https://schoolpp.com/" });
+  window.addEventListener("message", (event) => {
+    if (event.data?.type !== "SCHOOLPP_LESSON_MATERIALS_REQUEST") return;
+    window.postMessage(
+      {
+        source: "schoolpp-extension",
+        type: "SCHOOLPP_LESSON_MATERIALS_RESPONSE",
+        requestId: event.data.requestId,
+        materials: {
+          "lesson-1": [
+            {
+              url: "https://diary.e-schools.by/#/diary?material=1",
+              title: "Задание.docx",
+              source: "e-schools",
+            },
+          ],
+        },
+      },
+      window.location.origin,
+    );
+  });
+
+  const materials = await requestExtensionLessonMaterials(
+    window,
+    [
+      {
+        id: "lesson-1",
+        date: "2026-09-30",
+        number: 2,
+        startsAt: "09:00",
+        subject: "Химия",
+      },
+    ],
+    100,
+  );
+  assert.equal(materials["lesson-1"][0].title, "Задание.docx");
+  await window.happyDOM.close();
+});
 
 test("web bridge detects an installed extension", async () => {
   const window = new Window({ url: "https://schoolpp.com/" });

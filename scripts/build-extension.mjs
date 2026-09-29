@@ -25,6 +25,7 @@ async function build(name, manifestName, includeLocalSite = false) {
     `${JSON.stringify(manifest, null, 2)}\n`,
   );
   await rm(resolve(target, "manifest.firefox.json"), { force: true });
+  if (includeLocalSite) await enableLocalDiagnostics(target);
 }
 
 function addLocalSiteAccess(manifest) {
@@ -37,6 +38,18 @@ function addLocalSiteAccess(manifest) {
   );
   if (bridge)
     bridge.matches = [...new Set([...(bridge.matches || []), ...localMatches])];
+}
+
+async function enableLocalDiagnostics(target) {
+  const popupPath = resolve(target, "popup", "popup.js");
+  const source = await readFile(popupPath, "utf8");
+  await writeFile(
+    popupPath,
+    source.replace(
+      "const DIAGNOSTICS_DOWNLOAD_ENABLED = false;",
+      "const DIAGNOSTICS_DOWNLOAD_ENABLED = true;",
+    ),
+  );
 }
 
 console.log(

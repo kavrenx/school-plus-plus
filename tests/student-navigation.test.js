@@ -188,6 +188,19 @@ test("calendar rejects holidays and summer, and current week link returns to tod
     f.$("studentTermSelect").dispatchEvent(new f.window.Event("change"));
     assert.equal(f.$("studentDatePicker").value, "2026-11-09");
     assert.ok(f.$("weekRangeTitle").textContent.includes("9–15 ноября"));
+    f.$("studentCalendarButton").click();
+    assert.equal(
+      f
+        .$("studentCalendarGrid")
+        .querySelector('[data-calendar-date="2026-11-04"]').disabled,
+      true,
+    );
+    assert.equal(
+      f
+        .$("studentCalendarGrid")
+        .querySelector('[data-calendar-date="2026-11-10"]').disabled,
+      false,
+    );
     f.$("studentTermSelect").value = "term_2026_1";
     f.$("studentTermSelect").dispatchEvent(new f.window.Event("change"));
     f.$("studentDatePicker").value = "2026-09-01";
@@ -218,6 +231,15 @@ test("day footer counts actual absences and escapes teacher messages", async () 
     );
     f.$("dayTabs").querySelector('[data-day="sunday"]').click();
     assert.equal(f.$("studentAbsenceCount").parentElement.hidden, true);
+  } finally {
+    await f.window.happyDOM.close();
+  }
+});
+
+test("student account contacts remain hidden", async () => {
+  const f = fixture();
+  try {
+    assert.equal(f.$("accountDisclosure").hidden, true);
   } finally {
     await f.window.happyDOM.close();
   }

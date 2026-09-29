@@ -1,5 +1,6 @@
 (function registerSyncEngine(scope) {
   const BLOCKED_URL = /(?:auth|login|logout|password|token|session|captcha)/i;
+  const ON_DEMAND_URL = /\/attachments_and_links(?:\?|$)/i;
   const ALLOWED_URL =
     /^\/api\/v1\/(?:education\/(?:diary|planning)\/|institution\/schools\/[^/]+\/premises(?:\?|$))/;
   const PREMISES_QUERY = encodeURIComponent(
@@ -24,12 +25,18 @@
       if (
         record.method === "GET" &&
         ALLOWED_URL.test(record.url || "") &&
+        !ON_DEMAND_URL.test(record.url || "") &&
         !BLOCKED_URL.test(record.url)
       )
         urls.add(record.url);
     }
     for (const url of knownUrls) {
-      if (ALLOWED_URL.test(url || "") && !BLOCKED_URL.test(url)) urls.add(url);
+      if (
+        ALLOWED_URL.test(url || "") &&
+        !ON_DEMAND_URL.test(url || "") &&
+        !BLOCKED_URL.test(url)
+      )
+        urls.add(url);
     }
 
     const allUrls = [
@@ -87,6 +94,7 @@
         if (
           target.origin === origin &&
           ALLOWED_URL.test(target.pathname) &&
+          !ON_DEMAND_URL.test(target.pathname) &&
           !BLOCKED_URL.test(target.href)
         )
           urls.add(`${target.pathname}${target.search}`);
@@ -160,6 +168,52 @@
     );
   }
 
+  function buildLessonAttachmentRequests(snapshot) {
+    const requests = new Map();
+    const records = Object.values(snapshot?.network || {}).filter((record) =>
+      /\/classes\/[^/]+\/students\/[^/]+\/lessons(?:\?|$)/.test(
+        record?.url || "",
+      ),
+    );
+    for (const record of records) {
+      const base = String(record.url || "").split("?")[0];
+      if (!base) continue;
+      for (const day of Array.isArray(record.body) ? record.body : []) {
+        for (const slot of Array.isArray(day?.slots) ? day.slots : []) {
+          const lessonId = String(slot?.lesson_uuid || "").trim();
+          const sourceLessonId = String(
+            slot?.homework_source_id || lessonId,
+          ).trim();
+          if (!lessonId || !sourceLessonId || !hasLessonContent(slot)) continue;
+          const url = `${base}/${encodeURIComponent(sourceLessonId)}/attachments_and_links`;
+          requests.set(`${lessonId}:${sourceLessonId}`, {
+            lessonId,
+            sourceLessonId,
+            url,
+            date: timestampToIso(day?.date),
+            number: slot?.number,
+            startTime: String(slot?.start_time || ""),
+            subject: String(slot?.subject_title || ""),
+          });
+        }
+      }
+    }
+    return [...requests.values()];
+  }
+
+  function hasLessonContent(slot) {
+    if (String(slot?.homework || "").trim()) return true;
+    return [
+      slot?.attachments,
+      slot?.files,
+      slot?.materials,
+      slot?.documents,
+      slot?.resources,
+      slot?.homework_files,
+      slot?.homework_attachments,
+    ].some((value) => Array.isArray(value) && value.length);
+  }
+
   function timestampToIso(value) {
     if (/^\d{4}-\d{2}-\d{2}/.test(String(value || "")))
       return String(value).slice(0, 10);
@@ -205,6 +259,7 @@
   }
 
   scope.SchoolppSyncEngine = Object.freeze({
+    buildLessonAttachmentRequests,
     buildDiaryWeekRequests,
     discoverSyncUrls,
     getSyncLabel,

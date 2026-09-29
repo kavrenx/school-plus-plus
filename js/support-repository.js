@@ -47,7 +47,9 @@ function createSupportRepository(client) {
         unwrap(
           await client
             .from("support_messages")
-            .select("id, conversation_id, sender_id, body, created_at, read_at")
+            .select(
+              "id, conversation_id, sender_id, body, created_at, read_at, support_attachments(id, kind, file_name, content_type, size_bytes, storage_path, expires_at, deleted_at)",
+            )
             .eq("conversation_id", conversationId)
             .order("created_at", { ascending: true }),
         ) || []
@@ -66,6 +68,58 @@ function createSupportRepository(client) {
           .select("id, conversation_id, sender_id, body, created_at, read_at")
           .single(),
       );
+    },
+    async sendMessageWithAttachments(conversationId, body, attachments) {
+      const user = await getUser();
+      const bucket = client.storage.from("support-attachments");
+      const uploaded = [];
+      try {
+        for (const attachment of attachments || []) {
+          const { file, kind } = attachment;
+          const safeName = sanitizeFileName(file?.name || "attachment");
+          const storagePath = `${conversationId}/${user.id}/${crypto.randomUUID()}-${safeName}`;
+          const contentType = inferContentType(file, kind);
+          unwrap(
+            await bucket.upload(storagePath, file, {
+              contentType,
+              upsert: false,
+            }),
+          );
+          uploaded.push({
+            kind,
+            file_name: String(file?.name || "attachment").slice(0, 180),
+            content_type: contentType.slice(0, 120),
+            size_bytes: Number(file?.size) || 0,
+            storage_path: storagePath,
+          });
+        }
+        return unwrap(
+          await client.rpc("send_support_message_with_attachments", {
+            p_conversation_id: conversationId,
+            p_body: String(body || "").trim(),
+            p_attachments: uploaded,
+          }),
+        );
+      } catch (error) {
+        if (uploaded.length)
+          await bucket
+            .remove(uploaded.map((item) => item.storage_path))
+            .catch(() => {});
+        throw error;
+      }
+    },
+    async getAttachmentUrl(attachment) {
+      await getUser();
+      if (
+        attachment?.deleted_at ||
+        Date.parse(attachment?.expires_at || "") <= Date.now()
+      )
+        return "";
+      const result = await client.storage
+        .from("support-attachments")
+        .createSignedUrl(attachment.storage_path, 60);
+      const data = unwrap(result);
+      return data?.signedUrl || data?.signedURL || "";
     },
     async markConversationRead(conversationId) {
       await getUser();
@@ -144,6 +198,11 @@ function createSupportRepository(client) {
         )
         .on(
           "postgres_changes",
+          { event: "*", schema: "public", table: "support_attachments" },
+          onChange,
+        )
+        .on(
+          "postgres_changes",
           { event: "*", schema: "public", table: "diary_requests" },
           onChange,
         )
@@ -154,4 +213,38 @@ function createSupportRepository(client) {
   });
 }
 
-export { createSupportRepository };
+function sanitizeFileName(value) {
+  const normalized = String(value || "attachment")
+    .normalize("NFKC")
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\p{Cc}+/gu, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+  return (normalized || "attachment").slice(-120);
+}
+
+function inferContentType(file, kind = "file") {
+  const declared = String(file?.type || "").trim().toLowerCase();
+  if (declared) return declared;
+  const extension = String(file?.name || "")
+    .split(".")
+    .pop()
+    ?.toLowerCase();
+  const known = {
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    webp: "image/webp",
+    gif: "image/gif",
+    avif: "image/avif",
+    heic: "image/heic",
+    heif: "image/heif",
+    mp4: "video/mp4",
+    webm: "video/webm",
+    mov: "video/quicktime",
+    m4v: "video/x-m4v",
+  };
+  return known[extension] || `${kind === "photo" ? "image" : kind === "video" ? "video" : "application"}/${kind === "file" ? "octet-stream" : "unknown"}`;
+}
+
+export { createSupportRepository, inferContentType, sanitizeFileName };

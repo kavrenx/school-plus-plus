@@ -284,6 +284,22 @@ test("a background timeout closes the tab and creates one notification", async (
   assert.deepEqual(harness.badges.at(-1), { text: "!" });
 });
 
+test("a stalled synchronization creates an immediate VPN notification", async () => {
+  const harness = createBackgroundHarness();
+  await harness.settle();
+  const result = await harness.send({
+    type: "SCHOOLPP_SYNC_STALLED",
+    label: "e‑schools.by долго не отвечает. Отключи VPN.",
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(harness.notifications.length, 1);
+  assert.equal(harness.notifications[0].title, "Синхронизация остановилась");
+  assert.match(harness.notifications[0].message, /VPN/);
+  assert.equal(harness.notifications[0].priority, 2);
+  assert.deepEqual(harness.badges.at(-1), { text: "!" });
+});
+
 test("closing an automatic diary tab reports the failed update", async () => {
   const harness = createBackgroundHarness();
   await harness.settle();

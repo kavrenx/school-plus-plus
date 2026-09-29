@@ -27,15 +27,18 @@ Google и Mozilla. Коды восстановления сохраните от
    для администратора.
 7. Выполните `supabase/migrations/202609260001_support_read_receipts.sql`,
    чтобы сообщения поддержки получали отметку о прочтении.
-8. В **Authentication → Users** создайте пользователя
+8. Выполните `supabase/migrations/202609290001_support_attachments.sql`, затем
+   `supabase/migrations/202609290002_support_multiple_attachments.sql` и
+   настройте очистку по `supabase/functions/cleanup-support-attachments/README.md`.
+9. В **Authentication → Users** создайте пользователя
    `support@schoolpp.com`, задайте уникальный пароль и включите подтверждение
    адреса при создании.
-9. Выполните SQL из `docs/supabase.md`, который добавляет этого пользователя в
-   `support_agents`.
-10. В **Table Editor** проверьте, что RLS включён у `diary_snapshots`,
+10. Выполните SQL из `docs/supabase.md`, который добавляет этого пользователя в
+    `support_agents`.
+11. В **Table Editor** проверьте, что RLS включён у `diary_snapshots`,
     `support_agents`, `support_conversations`, `support_messages` и
     `diary_requests`.
-11. В **Authentication → URL Configuration** укажите
+12. В **Authentication → URL Configuration** укажите
     `https://schoolpp.com` как Site URL.
 
 Проверка: вход на `/support.html` с логином `support` должен открыть список
@@ -194,7 +197,7 @@ e-schools.by в понятный дневник School++.
 1. Включите двухэтапную проверку Google Account.
 2. Зарегистрируйте Chrome Web Store developer account и оплатите разовый сбор.
 3. В Developer Dashboard выберите **Add new item**.
-4. Загрузите `.extension-dist/schoolpp-chromium-1.0.3.zip`.
+4. Загрузите `.extension-dist/schoolpp-chromium-1.0.4.zip`.
 5. В **Store Listing** загрузите готовый скриншот
    `store-assets/chrome-web-store-screenshot-1280x800.png`. Значок 128×128 уже
    находится внутри ZIP-файла.
@@ -212,7 +215,7 @@ e-schools.by в понятный дневник School++.
 
 1. Войдите в Add-ons Developer Hub через Mozilla Account.
 2. Выберите **Submit a New Add-on → On this site**.
-3. Загрузите `.extension-dist/schoolpp-firefox-1.0.3.zip`.
+3. Загрузите `.extension-dist/schoolpp-firefox-1.0.4.zip`.
 4. Пройдите автоматическую проверку.
 5. Укажите, что код не минифицирован и находится в читаемом виде внутри архива.
 6. Добавьте описание, поддержку и ссылку на политику конфиденциальности.

@@ -421,7 +421,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   async function loadAppData() {
     try {
-      const snapshot = await requestExtensionSnapshot(window, 900);
+      const snapshot = await requestExtensionSnapshot(window, 4_000);
       if (snapshot) {
         if (mode === "cloud" && services) {
           await ensureCloudUser();

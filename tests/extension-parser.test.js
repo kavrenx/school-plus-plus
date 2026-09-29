@@ -60,6 +60,90 @@ test("extension parser stores each diary week under its own page key", () => {
   assert.match(page.key, /::week:2026-09-14$/);
 });
 
+test("extension parser connects a visible material link to its lesson", () => {
+  const window = new Window({ url: "https://diary.e-schools.by/#/diary" });
+  window.document.body.innerHTML = `
+    <h1>Электронный дневник</h1>
+    <table>
+      <tr><th colspan="4">Среда 30.09.2026</th></tr>
+      <tr><th>Начало</th><th>Предмет</th><th>Домашнее задание</th><th>Отметка</th></tr>
+      <tr>
+        <td>09:00</td><td>2. Химия</td><td>§8
+          <a class="paperclip" href="https://objectsstore.e-schools.by/journal/folder/file?X-Amz-Expires=10" download="Диктант.docx">Файл</a>
+        </td><td></td>
+      </tr>
+    </table>`;
+  const context = loadGlobal("../extension/shared/e-schools-parser.js", {
+    URL,
+  });
+  const page = context.SchoolppEschoolParser.collectPage(
+    window.document,
+    window.location,
+  );
+
+  assert.equal(page.lessonMaterials.length, 1);
+  assert.equal(page.lessonMaterials[0].date, "2026-09-30");
+  assert.equal(page.lessonMaterials[0].number, 2);
+  assert.equal(page.lessonMaterials[0].subject, "Химия");
+  assert.equal(page.lessonMaterials[0].attachments[0].title, "Диктант.docx");
+  assert.equal(page.lessonMaterials[0].attachments[0].source, "e-schools");
+});
+
+test("extension parser reads a signed material link from the lesson API", () => {
+  const context = loadGlobal("../extension/shared/e-schools-parser.js", {
+    URL,
+  });
+  const materials = Array.from(
+    context.SchoolppEschoolParser.collectApiMaterials({
+      attachments: [{ uuid: "file-1", file_name: "Химический диктант.docx" }],
+      links: [
+        {
+          uuid: "file-1",
+          download_url:
+            "https://objectsstore.e-schools.by/journal/file-1?X-Amz-Expires=10",
+        },
+      ],
+    }),
+    (item) => ({ ...item }),
+  );
+
+  assert.deepEqual(materials, [
+    {
+      url: "https://objectsstore.e-schools.by/journal/file-1?X-Amz-Expires=10",
+      title: "Химический диктант.docx",
+      id: "file-1",
+    },
+  ]);
+});
+
+test("extension parser keeps attachment metadata even before a link is issued", () => {
+  const context = loadGlobal("../extension/shared/e-schools-parser.js", {
+    URL,
+  });
+  const metadata = Array.from(
+    context.SchoolppEschoolParser.collectApiMaterials({
+      attachments: [
+        { uuid: "file-1", display_name: "Химический диктант.docx" },
+      ],
+    }),
+    (item) => ({ ...item }),
+  );
+  const directLink = Array.from(
+    context.SchoolppEschoolParser.collectApiMaterials({
+      attachment:
+        "https://objectsstore.e-schools.by/journal/file-1?X-Amz-Expires=10",
+      name: "Химический диктант.docx",
+    }),
+    (item) => ({ ...item }),
+  );
+
+  assert.deepEqual(metadata, [
+    { url: "", title: "Химический диктант.docx", id: "file-1" },
+  ]);
+  assert.equal(directLink[0].title, "Химический диктант.docx");
+  assert.match(directLink[0].url, /objectsstore\.e-schools\.by/);
+});
+
 test("extension parser rejects nearby diary text as a class teacher", () => {
   const window = new Window({ url: "https://diary.e-schools.by/#/diary" });
   window.document.body.innerHTML = `
@@ -120,12 +204,19 @@ test("extension snapshot keeps a full school year of compact weekly records", ()
           slots: [
             {
               lesson_uuid: `lesson-${week}`,
+              homework_source_id: `source-lesson-${week}`,
               lesson_template_id: "math",
               homework: "№ 10",
               topic: "Поле, которое не нужно приложению",
               lesson_mark: { mark: "9", comment: "", summary: null },
               lesson_marks: [{ mark: "8" }, { value: "10" }],
               grade: { score: "7" },
+              homework_files: [
+                {
+                  file_name: "Задание.pdf",
+                  download_url: "/files/task.pdf",
+                },
+              ],
             },
           ],
         },
@@ -135,13 +226,69 @@ test("extension snapshot keeps a full school year of compact weekly records", ()
   assert.equal(Object.keys(snapshot.network).length, 70);
   const first = Object.values(snapshot.network)[0].body[0].slots[0];
   assert.equal(first.homework, "№ 10");
+  assert.equal(first.homework_source_id, "source-lesson-0");
   assert.equal(first.lesson_mark.mark, "9");
   assert.deepEqual(
     Array.from(first.lesson_marks, (item) => ({ ...item })),
     [{ mark: "8" }, { value: "10" }],
   );
   assert.deepEqual({ ...first.grade }, { score: "7" });
+  assert.deepEqual(
+    Array.from(first.attachments, (item) => ({ ...item })),
+    [{ url: "/files/task.pdf", title: "Задание.pdf", id: "" }],
+  );
   assert.equal("topic" in first, false);
+});
+
+test("extension diagnostics inspect the richest lesson instead of only the first one", () => {
+  const context = loadGlobal("../extension/shared/snapshot-store.js");
+  const store = context.SchoolppSnapshotStore;
+  const url =
+    "/api/v1/education/diary/schools/s/classes/c/students/u/lessons?week_activity_uuid=week";
+  const snapshot = store.mergeNetworkRecord(store.createEmptySnapshot(), {
+    key: `GET:${url}`,
+    url,
+    method: "GET",
+    status: 200,
+    body: [
+      { date: 1_800_000_000, slots: [{ homework: "Без файла" }] },
+      {
+        date: 1_800_086_400,
+        slots: [
+          {
+            homework: {
+              text: "С файлом",
+              details: {
+                homework_files: [
+                  { file_name: "Задание.pdf", download_url: "/files/task.pdf" },
+                ],
+              },
+            },
+          },
+        ],
+      },
+    ],
+  });
+  const diagnostics = store.createDiagnostics(snapshot);
+
+  assert.equal(
+    diagnostics.network[0].bodyShape.items.slots.items.attachments.length,
+    1,
+  );
+  assert.deepEqual(
+    Array.from(diagnostics.network[0].attachmentSamples, (item) => ({
+      ...item,
+      fields: Array.from(item.fields),
+    })),
+    [
+      {
+        fields: ["id", "title", "url"],
+        hasUrl: true,
+        hasTitle: true,
+        hasId: false,
+      },
+    ],
+  );
 });
 
 test("extension keeps a week identity when an empty lesson response is refreshed", () => {
@@ -168,6 +315,140 @@ test("extension keeps a week identity when an empty lesson response is refreshed
   });
 
   assert.equal(snapshot.network[`GET:${url}`].weekStart, "2026-11-09");
+});
+
+test("extension merges separately loaded materials into their lesson", () => {
+  const context = loadGlobal("../extension/shared/snapshot-store.js");
+  const store = context.SchoolppSnapshotStore;
+  const url =
+    "/api/v1/education/diary/schools/s/classes/c/students/u/lessons?week_activity_uuid=week";
+  let snapshot = store.mergeNetworkRecord(store.createEmptySnapshot(), {
+    key: `GET:${url}`,
+    url,
+    method: "GET",
+    status: 200,
+    body: [
+      {
+        date: 1_800_000_000,
+        slots: [{ lesson_uuid: "lesson-1", homework: "§ 8" }],
+      },
+    ],
+  });
+  snapshot = store.mergeLessonMaterials(snapshot, "lesson-1", [
+    {
+      url: "https://diary.e-schools.by/#/diary?schoolpp-material=file-1",
+      title: "Диктант.docx",
+      id: "file-1",
+      source: "e-schools",
+      sourceLessonId: "lesson-1",
+      sourceEndpoint: `${url.split("?")[0]}/lesson-1/attachments_and_links`,
+    },
+  ]);
+
+  const material =
+    snapshot.network[`GET:${url}`].body[0].slots[0].attachments[0];
+  assert.equal(material.title, "Диктант.docx");
+  assert.equal(material.sourceLessonId, "lesson-1");
+  assert.match(material.sourceEndpoint, /attachments_and_links$/);
+});
+
+test("extension returns materials for the exact lessons requested by the site", () => {
+  const context = loadGlobal("../extension/shared/snapshot-store.js");
+  const store = context.SchoolppSnapshotStore;
+  const url =
+    "/api/v1/education/diary/schools/s/classes/c/students/u/lessons?week_activity_uuid=week";
+  let snapshot = store.mergeNetworkRecord(store.createEmptySnapshot(), {
+    key: `GET:${url}`,
+    url,
+    method: "GET",
+    status: 200,
+    body: [
+      {
+        date: 1_800_000_000,
+        day_of_week: 3,
+        slots: [
+          { lesson_uuid: "lesson-file", homework: "§ 8" },
+          { lesson_uuid: "lesson-empty", homework: "№ 3" },
+        ],
+      },
+    ],
+  });
+  snapshot = store.mergeLessonMaterials(snapshot, "lesson-file", [
+    {
+      url: "https://diary.e-schools.by/#/diary?schoolpp-material=file-1",
+      title: "Диктант.docx",
+      source: "e-schools",
+      sourceLessonId: "lesson-file",
+      sourceEndpoint: "/lessons/lesson-file/attachments_and_links",
+    },
+  ]);
+
+  const materials = store.getLessonMaterials(snapshot, [
+    "lesson-file",
+    "lesson-empty",
+    "missing",
+  ]);
+
+  assert.equal(materials["lesson-file"].length, 1);
+  assert.equal(materials["lesson-file"][0].title, "Диктант.docx");
+  assert.equal(materials["lesson-file"][0].source, "e-schools");
+  assert.match(
+    materials["lesson-file"][0].sourceEndpoint,
+    /attachments_and_links$/,
+  );
+  assert.deepEqual(Array.from(materials["lesson-empty"]), []);
+  assert.deepEqual(Array.from(materials.missing), []);
+});
+
+test("extension matches a scheduled site lesson to an attached API lesson by date and subject", () => {
+  const context = loadGlobal("../extension/shared/snapshot-store.js");
+  const store = context.SchoolppSnapshotStore;
+  const url =
+    "/api/v1/education/diary/schools/s/classes/c/students/u/lessons?week_activity_uuid=week";
+  let snapshot = store.mergeNetworkRecord(store.createEmptySnapshot(), {
+    key: `GET:${url}`,
+    url,
+    method: "GET",
+    status: 200,
+    weekStart: "2026-09-28",
+    body: [
+      {
+        date: 1_790_542_800_000,
+        day_of_week: 3,
+        slots: [
+          {
+            lesson_uuid: "api-chemistry",
+            number: 6,
+            start_time: "12:55:00",
+            subject_title: "Химия",
+            attachments: [
+              {
+                url: "https://diary.e-schools.by/#/diary?material=chemistry",
+                title: "Химический диктант.docx",
+                source: "e-schools",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  const materials = store.getLessonMaterials(snapshot, [
+    {
+      id: "scheduled-2026-09-30-2-chemistry",
+      date: "2026-09-30",
+      number: 2,
+      startTime: "09:00",
+      subject: "Химия",
+    },
+  ]);
+
+  assert.equal(materials["scheduled-2026-09-30-2-chemistry"].length, 1);
+  assert.equal(
+    materials["scheduled-2026-09-30-2-chemistry"][0].title,
+    "Химический диктант.docx",
+  );
 });
 
 test("extension sync discovers the student's related diary endpoints", () => {
@@ -331,6 +612,50 @@ test("extension builds lesson requests for every week exposed by the diary API",
   );
 });
 
+test("extension builds attachment requests for lessons with homework", () => {
+  const context = loadGlobal("../extension/shared/sync-engine.js", { URL });
+  const engine = context.SchoolppSyncEngine;
+  const root = "/api/v1/education/diary/schools/s/classes/c/students/u/lessons";
+  const requests = Array.from(
+    engine.buildLessonAttachmentRequests({
+      network: {
+        week: {
+          url: `${root}?week_activity_uuid=week`,
+          body: [
+            {
+              date: "2026-09-30",
+              slots: [
+                {
+                  lesson_uuid: "chemistry-1",
+                  homework_source_id: "chemistry-source",
+                  homework: "§ 8",
+                  number: 2,
+                  start_time: "09:00:00",
+                  subject_title: "Химия",
+                },
+                { lesson_uuid: "empty-1", homework: null },
+              ],
+            },
+          ],
+        },
+      },
+    }),
+    (item) => ({ ...item }),
+  );
+
+  assert.deepEqual(requests, [
+    {
+      lessonId: "chemistry-1",
+      sourceLessonId: "chemistry-source",
+      url: `${root}/chemistry-source/attachments_and_links`,
+      date: "2026-09-30",
+      number: 2,
+      startTime: "09:00:00",
+      subject: "Химия",
+    },
+  ]);
+});
+
 test("extension background settings default to enabled and respect the cooldown", () => {
   const context = loadGlobal("../extension/shared/extension-settings.js");
   const policy = context.SchoolppExtensionSettings;
@@ -390,7 +715,7 @@ test("extension manifests expose background updates and notifications", () => {
     ),
   );
   for (const manifest of [chromium, firefox]) {
-    assert.equal(manifest.version, "1.0.3");
+    assert.equal(manifest.version, "1.0.4");
     assert.ok(manifest.permissions.includes("alarms"));
     assert.ok(manifest.permissions.includes("notifications"));
     assert.ok(

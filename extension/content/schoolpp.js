@@ -32,10 +32,40 @@
         location.origin,
       );
     }
+    if (event.data.type === "SCHOOLPP_LESSON_MATERIALS_REQUEST") {
+      const result = await api.runtime.sendMessage({
+        type: "SCHOOLPP_GET_LESSON_MATERIALS",
+        lessons: event.data.lessons,
+      });
+      window.postMessage(
+        {
+          source: "schoolpp-extension",
+          type: "SCHOOLPP_LESSON_MATERIALS_RESPONSE",
+          requestId: event.data.requestId,
+          materials: result?.ok ? result.materials : {},
+        },
+        location.origin,
+      );
+    }
     if (event.data.type === "SCHOOLPP_EXTENSION_IMPORTED") {
       await api.runtime.sendMessage({
         type: "SCHOOLPP_CLOUD_IMPORT_COMPLETE",
       });
+    }
+    if (event.data.type === "SCHOOLPP_MATERIAL_REQUEST") {
+      const result = await api.runtime.sendMessage({
+        type: "SCHOOLPP_RESOLVE_MATERIAL",
+        material: event.data.material,
+      });
+      window.postMessage(
+        {
+          source: "schoolpp-extension",
+          type: "SCHOOLPP_MATERIAL_RESPONSE",
+          requestId: event.data.requestId,
+          result,
+        },
+        location.origin,
+      );
     }
   });
 

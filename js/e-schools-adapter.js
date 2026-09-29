@@ -86,6 +86,7 @@ function adaptESchoolsSnapshot(snapshot) {
   const lessonDays = records
     .filter((record) => /\/students\/[^/]+\/lessons(?:\?|$)/.test(record.url))
     .flatMap((record) => asArray(record.body));
+  const pageMaterialIndex = createPageMaterialIndex(snapshot.pages);
   const diary = supplementDiaryFromTimetable(
     createDiary({
       lessonDays,
@@ -97,6 +98,7 @@ function adaptESchoolsSnapshot(snapshot) {
       roomBySubject: roomIndex.bySubject,
       bellTimeByStart,
       studentId,
+      pageMaterialIndex,
     }),
     timetable,
     academicYear,
@@ -580,6 +582,7 @@ function createDiary({
   roomBySubject,
   bellTimeByStart,
   studentId,
+  pageMaterialIndex,
 }) {
   const weeks = new Map();
   const lessonTemplates = new Map();
@@ -615,6 +618,22 @@ function createDiary({
         .filter((value, markIndex, values) => values.indexOf(value) === markIndex)
         .slice(0, 2)
         .join("/");
+      const materials = mergeMaterials(
+        extractLessonMaterials(slot).map((material) =>
+          enrichESchoolsMaterial(material, {
+            date,
+            number: slot.number ?? index + 1,
+            startTime,
+            subject,
+          }),
+        ),
+        findPageLessonMaterials(pageMaterialIndex, {
+          date,
+          number: slot.number ?? index + 1,
+          startTime,
+          subject,
+        }),
+      );
       const templateId =
         clean(slot.lesson_template_id) ||
         `template-${stableId(subject)}-${dayKey}-${slot.number || index + 1}`;
@@ -631,6 +650,7 @@ function createDiary({
           roomBySubject.get(normalizeSubject(subject)) ||
           "",
         homework: clean(slot.homework),
+        ...(materials.length ? { materials } : {}),
         grade,
         status: "scheduled",
       };
@@ -674,6 +694,60 @@ function createDiary({
   };
 }
 
+function createPageMaterialIndex(pages = {}) {
+  const index = new Map();
+  Object.values(pages || {})
+    .flatMap((page) => asArray(page?.lessonMaterials))
+    .forEach((row) => {
+      const materials = asArray(row?.attachments)
+        .map((item) => normalizePageMaterial(item))
+        .filter(Boolean);
+      if (!materials.length || !row?.date) return;
+      const subject = normalizeSubjectName(row.subject || "");
+      const keys = [
+        `${row.date}|number:${row.number ?? ""}`,
+        `${row.date}|time:${normalizeTime(row.startTime)}|subject:${subject}`,
+      ];
+      keys.forEach((key) =>
+        index.set(key, mergeMaterials(index.get(key) || [], materials)),
+      );
+    });
+  return index;
+}
+
+function findPageLessonMaterials(index, lesson) {
+  if (!index?.size) return [];
+  const keys = [
+    `${lesson.date}|number:${lesson.number ?? ""}`,
+    `${lesson.date}|time:${normalizeTime(lesson.startTime)}|subject:${normalizeSubjectName(lesson.subject || "")}`,
+  ];
+  return mergeMaterials(...keys.map((key) => index.get(key) || []));
+}
+
+function normalizePageMaterial(value) {
+  if (!value) return null;
+  const url = normalizeMaterialUrl(
+    typeof value === "object" ? value.url : String(value),
+  );
+  if (!url) return null;
+  return {
+    url,
+    title:
+      clean(typeof value === "object" ? value.title : "") ||
+      inferMaterialTitle(url),
+    id: clean(typeof value === "object" ? value.id : ""),
+    ...(typeof value === "object" && value.source === "e-schools"
+      ? {
+          source: "e-schools",
+          sourceDate: clean(value.sourceDate),
+          sourceLessonNumber: value.sourceLessonNumber,
+          sourceStartTime: normalizeTime(value.sourceStartTime),
+          sourceSubject: clean(value.sourceSubject),
+        }
+      : {}),
+  };
+}
+
 function mergeJournalEntries(entries) {
   const merged = new Map();
   entries.forEach((entry) => {
@@ -697,10 +771,20 @@ function mergeJournalEntries(entries) {
         .filter(Boolean)
         .filter((value, index, values) => values.indexOf(value) === index)
         .join(" · "),
+      materials: mergeMaterials(current.materials, entry.materials),
       authorId: current.authorId || entry.authorId || "",
     });
   });
   return [...merged.values()];
+}
+
+function mergeMaterials(...collections) {
+  const result = new Map();
+  collections.flat().filter(Boolean).forEach((item) => {
+    const url = typeof item === "object" ? item.url : String(item || "");
+    if (url && !result.has(url)) result.set(url, item);
+  });
+  return [...result.values()];
 }
 
 function createJournalEntry({ lesson, marks = [], studentId, capturedAt }) {
@@ -724,10 +808,141 @@ function createJournalEntry({ lesson, marks = [], studentId, capturedAt }) {
     comment: [
       ...new Set(marks.map((mark) => clean(mark?.comment)).filter(Boolean)),
     ].join(" · "),
-    materials: [],
+    materials: lesson.materials || [],
     authorId: clean(marks.find((mark) => mark?.author)?.author),
     updatedAt: capturedAt ? `${capturedAt}T00:00:00.000Z` : undefined,
   };
+}
+
+function extractLessonMaterials(slot = {}) {
+  const sources = [
+    slot.attachments,
+    slot.attachment,
+    slot.files,
+    slot.file,
+    slot.materials,
+    slot.material,
+    slot.documents,
+    slot.document,
+    slot.resources,
+    slot.resource,
+    slot.homework_files,
+    slot.homework_attachments,
+  ];
+  const result = [];
+  sources.forEach((value) => collectLessonMaterials(value, result));
+  const unique = new Map();
+  result.forEach((item) => {
+    const key = item.url || `${item.id}:${item.title}`;
+    if (key && !unique.has(key)) unique.set(key, item);
+  });
+  return [...unique.values()];
+}
+
+function enrichESchoolsMaterial(material, lesson) {
+  const temporaryUrl = /(?:objectsstore\.e-schools\.by|X-Amz-(?:Expires|Signature))/iu.test(
+    material.url || "",
+  );
+  if (!temporaryUrl && material.url) return material;
+  return {
+    ...material,
+    url: material.url || "https://diary.e-schools.by/#/diary",
+    title: material.title || "Прикреплённый материал",
+    source: "e-schools",
+    sourceDate: lesson.date,
+    sourceLessonNumber: lesson.number,
+    sourceStartTime: lesson.startTime,
+    sourceSubject: lesson.subject,
+  };
+}
+
+function collectLessonMaterials(value, result, depth = 0) {
+  if (value == null || depth > 5) return;
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectLessonMaterials(item, result, depth + 1));
+    return;
+  }
+  if (typeof value === "string") {
+    const url = normalizeMaterialUrl(value);
+    if (url) result.push({ url, title: inferMaterialTitle(url), id: "" });
+    return;
+  }
+  if (typeof value !== "object") return;
+  const rawUrl = firstMaterialText(value, [
+    "download_url",
+    "downloadUrl",
+    "file_url",
+    "fileUrl",
+    "url",
+    "href",
+    "link",
+    "path",
+  ]);
+  const url = normalizeMaterialUrl(rawUrl);
+  const title = firstMaterialText(value, [
+    "original_name",
+    "originalName",
+    "file_name",
+    "filename",
+    "name",
+    "title",
+    "label",
+    "caption",
+  ]);
+  const id = firstMaterialText(value, [
+    "uuid",
+    "file_uuid",
+    "fileId",
+    "attachment_uuid",
+    "document_uuid",
+    "resource_uuid",
+    "id",
+  ]);
+  if (url || id) {
+    result.push({
+      url,
+      title: title || inferMaterialTitle(url) || "Прикреплённый материал",
+      id,
+      ...(value.source === "e-schools"
+        ? {
+            source: "e-schools",
+            sourceLessonId: clean(value.sourceLessonId),
+            sourceEndpoint: clean(value.sourceEndpoint),
+            sourceDate: clean(value.sourceDate),
+            sourceLessonNumber: value.sourceLessonNumber,
+            sourceStartTime: normalizeTime(value.sourceStartTime),
+            sourceSubject: clean(value.sourceSubject),
+          }
+        : {}),
+    });
+    return;
+  }
+  Object.values(value).forEach((item) =>
+    collectLessonMaterials(item, result, depth + 1),
+  );
+}
+
+function firstMaterialText(value, keys) {
+  const key = keys.find((item) => value?.[item] != null);
+  return key ? clean(value[key]) : "";
+}
+
+function normalizeMaterialUrl(value) {
+  if (!value) return "";
+  try {
+    const url = new URL(String(value), "https://diary.e-schools.by/");
+    return ["https:", "http:"].includes(url.protocol) ? url.href : "";
+  } catch {
+    return "";
+  }
+}
+
+function inferMaterialTitle(url) {
+  try {
+    return decodeURIComponent(new URL(url).pathname.split("/").filter(Boolean).at(-1) || "");
+  } catch {
+    return "";
+  }
 }
 
 function getLessonMarks(slot = {}) {

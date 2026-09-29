@@ -12,6 +12,7 @@ const CLOUD_RELAY_TAB_KEY = "schoolpp_cloud_relay_tab";
 const NOTIFICATION_STATE_KEY = "schoolpp_notification_state";
 const SYNC_ALARM = "schoolpp_auto_sync";
 const BACKGROUND_TIMEOUT_ALARM = "schoolpp_background_timeout";
+const BACKGROUND_TIMEOUT_MINUTES = 1.5;
 const CLOUD_RELAY_TIMEOUT_ALARM = "schoolpp_cloud_relay_timeout";
 const NOTIFICATION_ID = "schoolpp-sync-problem";
 const DIARY_URL = "https://diary.e-schools.by/";
@@ -56,6 +57,18 @@ async function handleMessage(message, sender = {}) {
       return { ok: true, stats: store.getSnapshotStats(next) };
     });
   }
+  if (message.type === "SCHOOLPP_MERGE_LESSON_MATERIALS") {
+    return queueSnapshotMutation(async () => {
+      const snapshot = await loadSnapshot();
+      const next = store.mergeLessonMaterials(
+        snapshot,
+        message.lessonId,
+        message.materials,
+      );
+      await saveSnapshot(next);
+      return { ok: true, stats: store.getSnapshotStats(next) };
+    });
+  }
   if (message.type === "SCHOOLPP_GET_SNAPSHOT") {
     await snapshotMutationQueue;
     const snapshot = await loadSnapshot();
@@ -64,6 +77,16 @@ async function handleMessage(message, sender = {}) {
       snapshot,
       stats: store.getSnapshotStats(snapshot),
       syncTargets: await loadSyncTargets(),
+    };
+  }
+  if (message.type === "SCHOOLPP_GET_LESSON_MATERIALS") {
+    await snapshotMutationQueue;
+    return {
+      ok: true,
+      materials: store.getLessonMaterials(
+        await loadSnapshot(),
+        message.lessons || message.lessonIds,
+      ),
     };
   }
   if (message.type === "SCHOOLPP_GET_STATUS") {
@@ -83,6 +106,10 @@ async function handleMessage(message, sender = {}) {
   if (message.type === "SCHOOLPP_GET_SETTINGS") {
     return { ok: true, settings: await loadSettings() };
   }
+  if (message.type === "SCHOOLPP_SYNC_STALLED") {
+    await showSyncStallIssue(message.label);
+    return { ok: true };
+  }
   if (message.type === "SCHOOLPP_SET_SETTINGS") {
     const settings = settingsPolicy.normalizeSettings(message.settings);
     await api.storage.local.set({ [SETTINGS_KEY]: settings });
@@ -94,6 +121,8 @@ async function handleMessage(message, sender = {}) {
     return { ok: true, settings };
   }
   if (message.type === "SCHOOLPP_OPEN_APP") return openSchoolpp();
+  if (message.type === "SCHOOLPP_RESOLVE_MATERIAL")
+    return resolveSchoolMaterial(message.material);
   if (message.type === "SCHOOLPP_CLOUD_IMPORT_COMPLETE") {
     await closeCloudRelay(sender.tab?.id);
     return { ok: true };
@@ -135,6 +164,12 @@ async function handleMessage(message, sender = {}) {
     await saveSyncState(next);
     if (["success", "warning", "error"].includes(next.phase))
       await ensureSyncAlarm(next.nextSyncAt);
+    if (next.phase === "success") await clearSyncIssue();
+    else if (next.phase === "warning" || next.phase === "error")
+      await showSyncIssue(
+        next.phase === "error" ? next.label : "",
+        next.phase === "warning" ? next.label : "",
+      );
     if (["success", "warning"].includes(next.phase)) {
       const openTabs = await notifySchoolppTabs();
       if (!openTabs) await openCloudRelay();
@@ -166,6 +201,46 @@ async function handleMessage(message, sender = {}) {
     });
   }
   return { ok: false, error: "Неизвестная команда." };
+}
+
+async function resolveSchoolMaterial(material) {
+  const tabs = await api.tabs.query({ url: "https://diary.e-schools.by/*" });
+  let tab = tabs.find((item) => item.id);
+  let temporary = false;
+  if (!tab) {
+    tab = await api.tabs.create({ url: `${DIARY_URL}#/diary`, active: false });
+    temporary = true;
+  }
+  if (!tab?.id)
+    return { ok: false, error: "Не удалось открыть электронный дневник." };
+  try {
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      try {
+        const result = await api.tabs.sendMessage(tab.id, {
+          type: "SCHOOLPP_RESOLVE_MATERIAL",
+          material,
+        });
+        if (result?.ok && result.url) {
+          await api.tabs.create({ url: result.url, active: true });
+          return { ok: true, title: result.title || material?.title || "" };
+        }
+        if (result) return result;
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+    }
+    return {
+      ok: false,
+      error: "e-schools.by не ответил. Открой дневник и попробуй ещё раз.",
+    };
+  } finally {
+    if (temporary)
+      try {
+        await api.tabs.remove(tab.id);
+      } catch {
+        /* The temporary tab may already be closed. */
+      }
+  }
 }
 
 function sanitizeSyncReport(report) {
@@ -303,7 +378,7 @@ async function runAutomaticSync(force = false) {
       [BACKGROUND_TAB_KEY]: { id: backgroundTab.id, createdAt: Date.now() },
     });
     await api.alarms.create(BACKGROUND_TIMEOUT_ALARM, {
-      delayInMinutes: 0.75,
+      delayInMinutes: BACKGROUND_TIMEOUT_MINUTES,
     });
     await openAutomaticPopup(backgroundTab);
     return;
@@ -460,6 +535,27 @@ async function showSyncIssue(message, warning = "") {
   });
   await api.storage.local.set({
     [NOTIFICATION_STATE_KEY]: { signature, shownAt: Date.now() },
+  });
+}
+
+async function showSyncStallIssue(message = "") {
+  const title = "Синхронизация остановилась";
+  const text =
+    String(message || "").trim() ||
+    "e‑schools.by долго не отвечает. Отключи VPN, проверь соединение и запусти синхронизацию снова.";
+  await setIssueBadge();
+  await api.notifications.create(NOTIFICATION_ID, {
+    type: "basic",
+    iconUrl: api.runtime.getURL("assets/icon128.png"),
+    title,
+    message: text,
+    priority: 2,
+  });
+  await api.storage.local.set({
+    [NOTIFICATION_STATE_KEY]: {
+      signature: "connection-stalled",
+      shownAt: Date.now(),
+    },
   });
 }
 

@@ -45,7 +45,11 @@ function renderLessonRow(lesson, translate) {
       : lesson.attendance === "present"
         ? '<span class="attendance-mark is-present">Присутствовал</span>'
       : '<span class="attendance-mark is-unmarked">Не отмечено</span>';
-  const details = renderJournalDetails(lesson.journalEntry, lesson.lessonWork);
+  const { details, materials } = renderJournalDetails(
+    lesson.journalEntry,
+    lesson.lessonWork,
+    lesson.materials,
+  );
   const lessonMeta = [
     lesson.time,
     lesson.room ? `${translate("room")} ${lesson.room}` : "",
@@ -62,9 +66,11 @@ function renderLessonRow(lesson, translate) {
           ${lessonMeta ? `<span>${lessonMeta}</span>` : ""}
         </div>
       </td>
-      <td data-label="${translate("homeworkHeader")}">
-        ${homework}
-        ${details}
+      <td data-label="${translate("homeworkHeader")}" class="diary-homework-cell">
+        <div class="homework-cell">
+          <div class="homework-copy">${homework}${details}</div>
+          ${renderMaterialControl(materials, lesson.id)}
+        </div>
       </td>
       <td data-label="${translate("gradeHeader")}">${grade}</td>
       <td data-label="${translate("attendanceHeader")}">${attendance}</td>
@@ -72,8 +78,7 @@ function renderLessonRow(lesson, translate) {
   `;
 }
 
-function renderJournalDetails(entry, lessonWork) {
-  if (!entry && !lessonWork) return "";
+function renderJournalDetails(entry, lessonWork, lessonMaterials = []) {
 
   const comment = entry?.comment
     ? `
@@ -83,29 +88,86 @@ function renderJournalDetails(entry, lessonWork) {
       </div>
     `
     : "";
-  const materialLinks = Array.isArray(lessonWork?.materials)
-    ? lessonWork.materials.map(renderMaterialLink).filter(Boolean).join("")
-    : Array.isArray(entry?.materials)
-      ? entry.materials.map(renderMaterialLink).filter(Boolean).join("")
-    : "";
-  const materials = materialLinks
-    ? `
-      <div class="lesson-materials">
-        <strong>Материалы:</strong>
-        <span>${materialLinks}</span>
-      </div>
-    `
-    : "";
-
-  return comment || materials
-    ? `<div class="lesson-extras">${comment}${materials}</div>`
-    : "";
+  const materials = normalizeMaterials(
+    Array.isArray(lessonWork?.materials) && lessonWork.materials.length
+      ? lessonWork.materials
+      : Array.isArray(entry?.materials) && entry.materials.length
+        ? entry.materials
+        : lessonMaterials,
+  );
+  return {
+    details: comment
+      ? `<div class="lesson-extras">${comment}</div>`
+      : "",
+    materials,
+  };
 }
 
-function renderMaterialLink(value, index) {
-  const url = getSafeMaterialUrl(value);
-  if (!url) return "";
-  return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Материал ${index + 1}</a>`;
+function renderMaterialControl(materials, lessonId) {
+  if (!materials.length) return '<span class="lesson-material-space" aria-hidden="true"></span>';
+  const links = materials
+    .map(
+      (material, index) =>
+        material.source === "e-schools"
+          ? `
+        <button type="button" data-es-material="${escapeHtml(encodeURIComponent(JSON.stringify(material)))}">
+          <span>${escapeHtml(material.title || `Материал ${index + 1}`)}</span>
+          <school-icon name="download-outline"></school-icon>
+        </button>`
+          : `
+        <a href="${escapeHtml(material.url)}" target="_blank" rel="noopener noreferrer" download>
+          <span>${escapeHtml(material.title || `Материал ${index + 1}`)}</span>
+          <school-icon name="download-outline"></school-icon>
+        </a>`,
+    )
+    .join("");
+  return `
+    <span class="lesson-material-control">
+      <button type="button" data-material-toggle="${escapeHtml(lessonId)}" aria-label="Открыть прикреплённые материалы" aria-expanded="false">
+        <school-icon name="attach-outline"></school-icon>
+      </button>
+      <span class="lesson-material-popover" hidden>
+        <strong>Прикреплённые материалы</strong>
+        <span>${links}</span>
+      </span>
+    </span>`;
+}
+
+function normalizeMaterials(values) {
+  if (!Array.isArray(values)) return [];
+  const result = [];
+  values.forEach((value, index) => {
+    const rawUrl = typeof value === "object" ? value?.url : value;
+    const url = getSafeMaterialUrl(rawUrl);
+    if (!url) return;
+    result.push({
+      url,
+      title:
+        (typeof value === "object" && String(value?.title || "").trim()) ||
+        inferMaterialTitle(url) ||
+        `Материал ${index + 1}`,
+      ...(typeof value === "object" && value?.source === "e-schools"
+        ? {
+            source: "e-schools",
+            sourceLessonId: String(value.sourceLessonId || ""),
+            sourceEndpoint: String(value.sourceEndpoint || ""),
+            sourceDate: String(value.sourceDate || ""),
+            sourceLessonNumber: value.sourceLessonNumber,
+            sourceStartTime: String(value.sourceStartTime || ""),
+            sourceSubject: String(value.sourceSubject || ""),
+          }
+        : {}),
+    });
+  });
+  return result;
+}
+
+function inferMaterialTitle(url) {
+  try {
+    return decodeURIComponent(new URL(url).pathname.split("/").filter(Boolean).at(-1) || "");
+  } catch {
+    return "";
+  }
 }
 
 function getSafeMaterialUrl(value) {
@@ -156,6 +218,7 @@ function escapeHtml(value) {
 export {
   countHomework,
   getSafeMaterialUrl,
+  normalizeMaterials,
   getLessonWord,
   renderDiaryEmptyState,
   renderDiaryTable,
