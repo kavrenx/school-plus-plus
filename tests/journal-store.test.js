@@ -77,7 +77,7 @@ test("keeps the base lesson when there is no entry for the student", () => {
   assert.equal(store.mergeLessonForStudent(lesson, "student-2"), lesson);
 });
 
-test("keeps no more than two distinct grades for one lesson", () => {
+test("keeps no more than two grades for one lesson", () => {
   const store = createJournalStore(createLocalStorage());
   const result = store.saveJournalEntry({
     lessonId: "lesson-3",
@@ -91,6 +91,24 @@ test("keeps no more than two distinct grades for one lesson", () => {
     store.mergeLessonForStudent({ id: "lesson-3", grade: "" }, "student-3")
       .grade,
     "8 / 9",
+  );
+});
+
+test("keeps two equal grades received for one lesson", () => {
+  const store = createJournalStore(createLocalStorage());
+  const result = store.saveJournalEntry({
+    lessonId: "lesson-double",
+    studentId: "student-double",
+    grades: ["9", "9"],
+  });
+
+  assert.deepEqual(result.entry.grades, ["9", "9"]);
+  assert.equal(
+    store.mergeLessonForStudent(
+      { id: "lesson-double", grade: "" },
+      "student-double",
+    ).grade,
+    "9 / 9",
   );
 });
 

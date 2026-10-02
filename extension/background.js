@@ -12,7 +12,7 @@ const CLOUD_RELAY_TAB_KEY = "schoolpp_cloud_relay_tab";
 const NOTIFICATION_STATE_KEY = "schoolpp_notification_state";
 const SYNC_ALARM = "schoolpp_auto_sync";
 const BACKGROUND_TIMEOUT_ALARM = "schoolpp_background_timeout";
-const BACKGROUND_TIMEOUT_MINUTES = 1.5;
+const BACKGROUND_TIMEOUT_MINUTES = 2;
 const CLOUD_RELAY_TIMEOUT_ALARM = "schoolpp_cloud_relay_timeout";
 const NOTIFICATION_ID = "schoolpp-sync-problem";
 const DIARY_URL = "https://diary.e-schools.by/";
@@ -23,11 +23,15 @@ const SCHOOLPP_URL_PATTERNS = api.runtime
   ?.matches || ["https://schoolpp.com/*"];
 const SYNC_INTERVAL_MINUTES = 15;
 const SYNC_INTERVAL_MS = SYNC_INTERVAL_MINUTES * 60_000;
+const RETRY_INTERVAL_MINUTES = 2;
+const RETRY_INTERVAL_MS = RETRY_INTERVAL_MINUTES * 60_000;
 const ALARM_TOLERANCE_MS = 2_000;
 const NOTIFICATION_COOLDOWN = 6 * 60 * 60 * 1_000;
 const store = globalThis.SchoolppSnapshotStore;
 const settingsPolicy = globalThis.SchoolppExtensionSettings;
 let snapshotMutationQueue = Promise.resolve();
+let syncStateMutationQueue = Promise.resolve();
+let manualSyncPromise = null;
 
 api.runtime.onMessage.addListener((message, sender, sendResponse) => {
   handleMessage(message, sender)
@@ -39,6 +43,13 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
 async function handleMessage(message, sender = {}) {
   if (!message || typeof message.type !== "string") {
     return { ok: false, error: "Некорректная команда." };
+  }
+  if (message.type === "SCHOOLPP_SYNC_PROGRESS" && !message.serialized) {
+    const operation = syncStateMutationQueue.then(() =>
+      handleMessage({ ...message, serialized: true }, sender),
+    );
+    syncStateMutationQueue = operation.catch(() => {});
+    return operation;
   }
   if (message.type === "SCHOOLPP_SAVE_PAGE") {
     return queueSnapshotMutation(async () => {
@@ -107,8 +118,15 @@ async function handleMessage(message, sender = {}) {
     return { ok: true, settings: await loadSettings() };
   }
   if (message.type === "SCHOOLPP_SYNC_STALLED") {
-    await showSyncStallIssue(message.label);
+    // A slow request can recover. Only the final result may notify the user.
     return { ok: true };
+  }
+  if (message.type === "SCHOOLPP_START_SYNC") {
+    if (!manualSyncPromise)
+      manualSyncPromise = runManualSync().finally(() => {
+        manualSyncPromise = null;
+      });
+    return manualSyncPromise;
   }
   if (message.type === "SCHOOLPP_SET_SETTINGS") {
     const settings = settingsPolicy.normalizeSettings(message.settings);
@@ -131,6 +149,8 @@ async function handleMessage(message, sender = {}) {
     const now = new Date();
     const progress = message.progress || {};
     const previous = await loadSyncState();
+    if (progress.phase === "error" && previous.phase === "error")
+      return { ok: true, syncState: previous };
     const next = {
       ...previous,
       phase: progress.phase || "running",
@@ -146,30 +166,39 @@ async function handleMessage(message, sender = {}) {
         : previous.report || [],
     };
     if (next.phase === "running") {
-      next.lastError = "";
       next.lastWarning = "";
-    } else if (next.phase === "success" || next.phase === "warning") {
+    } else if (next.phase === "success") {
       next.lastSyncAt = now.toISOString();
       next.nextSyncAt = new Date(
         now.getTime() + SYNC_INTERVAL_MINUTES * 60_000,
       ).toISOString();
       next.lastError = "";
+      next.lastWarning = "";
+      next.consecutiveFailures = 0;
+      next.retrying = false;
+    } else if (next.phase === "error" || next.phase === "warning") {
+      next.lastError = next.phase === "error" ? next.label : "";
       next.lastWarning = next.phase === "warning" ? next.label : "";
-    } else if (next.phase === "error") {
-      next.lastError = next.label;
       next.nextSyncAt = new Date(
-        now.getTime() + SYNC_INTERVAL_MINUTES * 60_000,
+        now.getTime() + RETRY_INTERVAL_MS,
       ).toISOString();
+      next.consecutiveFailures = Number(previous.consecutiveFailures || 0) + 1;
+      next.retrying = true;
     }
     await saveSyncState(next);
     if (["success", "warning", "error"].includes(next.phase))
       await ensureSyncAlarm(next.nextSyncAt);
     if (next.phase === "success") await clearSyncIssue();
-    else if (next.phase === "warning" || next.phase === "error")
-      await showSyncIssue(
-        next.phase === "error" ? next.label : "",
-        next.phase === "warning" ? next.label : "",
-      );
+    else if (
+      next.phase === "warning" &&
+      shouldNotifyFailure(next.consecutiveFailures)
+    )
+      await showSyncIssue("", next.label, { force: true });
+    else if (
+      next.phase === "error" &&
+      shouldNotifyFailure(next.consecutiveFailures)
+    )
+      await showSyncIssue(next.label, "", { force: true });
     if (["success", "warning"].includes(next.phase)) {
       const openTabs = await notifySchoolppTabs();
       if (!openTabs) await openCloudRelay();
@@ -184,6 +213,16 @@ async function handleMessage(message, sender = {}) {
       diagnostics: {
         ...store.createDiagnostics(await loadSnapshot()),
         syncReport: syncState.report || [],
+        syncState: {
+          phase: syncState.phase,
+          label: syncState.label,
+          lastSyncAt: syncState.lastSyncAt,
+          nextSyncAt: syncState.nextSyncAt,
+          lastError: syncState.lastError,
+          lastWarning: syncState.lastWarning,
+          consecutiveFailures: syncState.consecutiveFailures,
+          retrying: syncState.retrying,
+        },
       },
     };
   }
@@ -309,6 +348,8 @@ async function loadSyncState() {
       lastWarning: "",
       items: [],
       currentIndex: 0,
+      consecutiveFailures: 0,
+      retrying: false,
     }
   );
 }
@@ -324,7 +365,7 @@ async function ensureSyncAlarm(requestedNextSyncAt = "") {
     return;
   }
   const syncState = await loadSyncState();
-  if (!syncState.lastSyncAt) {
+  if (!syncState.lastSyncAt && !syncState.retrying && !syncState.nextSyncAt) {
     await api.alarms.clear(SYNC_ALARM);
     return;
   }
@@ -356,12 +397,23 @@ async function ensureSyncAlarm(requestedNextSyncAt = "") {
 }
 
 async function runAutomaticSync(force = false) {
+  if (manualSyncPromise || (await getBackgroundTab())) return;
   const settings = await loadSettings();
   const syncState = await loadSyncState();
+  if (!settings.backgroundSync) return;
+  const retryTime = Date.parse(syncState.nextSyncAt || "");
+  const retryDue =
+    syncState.retrying &&
+    (force || !Number.isFinite(retryTime) || retryTime <= Date.now());
   if (
+    !retryDue &&
     !settingsPolicy.isAutomaticSyncDue(settings, syncState, Date.now(), force)
   )
     return;
+  await handleMessage({
+    type: "SCHOOLPP_SYNC_PROGRESS",
+    progress: { phase: "running", label: "Подключаемся к дневнику" },
+  });
   const tabs = await api.tabs.query({ url: "https://diary.e-schools.by/*" });
   const tab = tabs.find((item) => item.id);
   if (!tab) {
@@ -370,8 +422,7 @@ async function runAutomaticSync(force = false) {
       active: false,
     });
     if (!backgroundTab?.id) {
-      await showSyncIssue("Не удалось открыть дневник.");
-      await scheduleAutomaticRetry();
+      await registerAutomaticFailure("Не удалось открыть дневник.");
       return;
     }
     await api.storage.local.set({
@@ -380,7 +431,6 @@ async function runAutomaticSync(force = false) {
     await api.alarms.create(BACKGROUND_TIMEOUT_ALARM, {
       delayInMinutes: BACKGROUND_TIMEOUT_MINUTES,
     });
-    await openAutomaticPopup(backgroundTab);
     return;
   }
   try {
@@ -388,20 +438,103 @@ async function runAutomaticSync(force = false) {
       type: "SCHOOLPP_SYNC",
       automatic: true,
     });
-    if (!result?.ok || result.warning)
-      await showSyncIssue(result?.error || "", result?.warning || "");
-    else await clearSyncIssue();
+    if (!result?.ok) {
+      const latest = await loadSyncState();
+      if (latest.phase !== "error")
+        await registerAutomaticFailure(
+          result?.error || "Не удалось синхронизировать данные.",
+        );
+    }
   } catch (error) {
-    await showSyncIssue(error?.message || "Дневник не ответил.");
-    await scheduleAutomaticRetry();
+    await registerAutomaticFailure(error?.message || "Дневник не ответил.");
   }
 }
 
-async function scheduleAutomaticRetry() {
+async function runManualSync() {
+  const tabs = await api.tabs.query({ url: "https://diary.e-schools.by/*" });
+  let tab = tabs.find((item) => item.id);
+  let timeoutId;
+  try {
+    await handleMessage({
+      type: "SCHOOLPP_SYNC_PROGRESS",
+      progress: { phase: "running", label: "Подключаемся к дневнику" },
+    });
+    if (!tab) tab = await api.tabs.create({ url: DIARY_URL, active: true });
+    if (!tab?.id) throw new Error("Не удалось открыть дневник.");
+    const readyDeadline = Date.now() + 30_000;
+    for (;;) {
+      try {
+        const ready = await api.tabs.sendMessage(tab.id, {
+          type: "SCHOOLPP_PING",
+        });
+        if (ready?.ok) break;
+      } catch {
+        // Wait for the newly opened page to load its extension bridge.
+      }
+      if (Date.now() >= readyDeadline)
+        throw new Error(
+          "Дневник не открылся. Проверь соединение, отключи VPN и попробуй снова.",
+        );
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+    const result = await Promise.race([
+      api.tabs.sendMessage(tab.id, { type: "SCHOOLPP_SYNC" }),
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+          void api.tabs
+            .sendMessage(tab.id, { type: "SCHOOLPP_CANCEL_SYNC" })
+            .catch(() => {});
+          reject(
+            new Error(
+              "Дневник отвечает слишком долго. Отключи VPN и попробуй снова.",
+            ),
+          );
+        }, 100_000);
+      }),
+    ]);
+    if (!result?.ok)
+      throw new Error(
+        result?.error || "Синхронизация прервана. Попробуй снова.",
+      );
+    return result;
+  } catch (error) {
+    const latest = await loadSyncState();
+    if (latest.phase !== "error") await registerAutomaticFailure(error.message);
+    return { ok: false, error: error.message };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function shouldNotifyFailure(count) {
+  return count === 1 || count % 10 === 0;
+}
+
+function registerAutomaticFailure(message) {
+  const operation = syncStateMutationQueue.then(() =>
+    saveAutomaticFailure(message),
+  );
+  syncStateMutationQueue = operation.catch(() => {});
+  return operation;
+}
+
+async function saveAutomaticFailure(message) {
   const syncState = await loadSyncState();
-  const nextSyncAt = new Date(Date.now() + SYNC_INTERVAL_MS).toISOString();
-  await saveSyncState({ ...syncState, nextSyncAt });
+  if (syncState.phase === "error") return;
+  const consecutiveFailures = Number(syncState.consecutiveFailures || 0) + 1;
+  const nextSyncAt = new Date(Date.now() + RETRY_INTERVAL_MS).toISOString();
+  await saveSyncState({
+    ...syncState,
+    phase: "error",
+    label: String(message || "Не удалось синхронизировать данные."),
+    lastError: String(message || "Не удалось синхронизировать данные."),
+    nextSyncAt,
+    consecutiveFailures,
+    retrying: true,
+  });
   await ensureSyncAlarm(nextSyncAt);
+  if (shouldNotifyFailure(consecutiveFailures))
+    await showSyncIssue(message, "", { force: true });
 }
 
 async function getSchoolppTabs() {
@@ -478,28 +611,9 @@ async function getBackgroundTab() {
   return result[BACKGROUND_TAB_KEY] || null;
 }
 
-async function openAutomaticPopup(tab) {
-  const openPopup = api.action?.openPopup || api.browserAction?.openPopup;
-  if (typeof openPopup !== "function") return false;
-  try {
-    await openPopup.call(api.action || api.browserAction, {
-      ...(tab?.windowId ? { windowId: tab.windowId } : {}),
-    });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 async function finishBackgroundTabSync(tabId, syncState) {
   if (!tabId || !(await isBackgroundTab(tabId))) return;
   if (!["success", "warning", "error"].includes(syncState.phase)) return;
-  if (syncState.phase === "success") await clearSyncIssue();
-  else
-    await showSyncIssue(
-      syncState.phase === "error" ? syncState.label : "",
-      syncState.phase === "warning" ? syncState.label : "",
-    );
   await closeBackgroundTab(tabId);
 }
 
@@ -516,13 +630,14 @@ async function closeBackgroundTab(tabId) {
   }
 }
 
-async function showSyncIssue(message, warning = "") {
+async function showSyncIssue(message, warning = "", { force = false } = {}) {
   const issue = settingsPolicy.describeSyncIssue(message, warning);
   const result = await api.storage.local.get(NOTIFICATION_STATE_KEY);
   const previous = result[NOTIFICATION_STATE_KEY] || {};
   const signature = `${issue.code}:${issue.title}`;
   await setIssueBadge();
   if (
+    !force &&
     previous.signature === signature &&
     Date.now() - Number(previous.shownAt || 0) < NOTIFICATION_COOLDOWN
   )
@@ -535,27 +650,6 @@ async function showSyncIssue(message, warning = "") {
   });
   await api.storage.local.set({
     [NOTIFICATION_STATE_KEY]: { signature, shownAt: Date.now() },
-  });
-}
-
-async function showSyncStallIssue(message = "") {
-  const title = "Синхронизация остановилась";
-  const text =
-    String(message || "").trim() ||
-    "e‑schools.by долго не отвечает. Отключи VPN, проверь соединение и запусти синхронизацию снова.";
-  await setIssueBadge();
-  await api.notifications.create(NOTIFICATION_ID, {
-    type: "basic",
-    iconUrl: api.runtime.getURL("assets/icon128.png"),
-    title,
-    message: text,
-    priority: 2,
-  });
-  await api.storage.local.set({
-    [NOTIFICATION_STATE_KEY]: {
-      signature: "connection-stalled",
-      shownAt: Date.now(),
-    },
   });
 }
 
@@ -584,16 +678,25 @@ async function setIssueBadge() {
 
 api.runtime.onInstalled.addListener(() => void ensureSyncAlarm());
 api.runtime.onStartup.addListener(() => {
-  void closeCloudRelay();
-  void ensureSyncAlarm();
+  void (async () => {
+    await closeCloudRelay();
+    await ensureSyncAlarm();
+    await runAutomaticSync(true);
+  })();
 });
 api.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === SYNC_ALARM) void runAutomaticSync(true);
   if (alarm.name === BACKGROUND_TIMEOUT_ALARM)
     void (async () => {
-      await showSyncIssue("Не удалось открыть дневник.");
+      const tab = await getBackgroundTab();
+      if (!tab) return;
+      try {
+        await api.tabs.sendMessage(tab.id, { type: "SCHOOLPP_CANCEL_SYNC" });
+      } catch {
+        // The page may have failed before the content script loaded.
+      }
       await closeBackgroundTab();
-      await scheduleAutomaticRetry();
+      await registerAutomaticFailure("Не удалось открыть дневник.");
     })();
   if (alarm.name === CLOUD_RELAY_TIMEOUT_ALARM) void closeCloudRelay();
 });
@@ -607,8 +710,7 @@ api.tabs.onRemoved?.addListener((tabId) => {
     if (!(await isBackgroundTab(tabId))) return;
     await api.storage.local.remove(BACKGROUND_TAB_KEY);
     await api.alarms.clear(BACKGROUND_TIMEOUT_ALARM);
-    await showSyncIssue("Не удалось открыть дневник.");
-    await scheduleAutomaticRetry();
+    await registerAutomaticFailure("Не удалось открыть дневник.");
   })();
 });
 void ensureSyncAlarm();

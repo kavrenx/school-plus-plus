@@ -14,10 +14,9 @@
   let connectionWatchdog = 0;
   let syncDeadlineTimer = 0;
   let syncTimedOut = false;
-  let connectionWarningSent = false;
   let materialCollectionPromise = null;
-  const CONNECTION_STALL_MS = 12_000;
-  const MAX_SYNC_DURATION_MS = 60_000;
+  const CONNECTION_STALL_MS = 20_000;
+  const MAX_SYNC_DURATION_MS = 90_000;
 
   window.addEventListener("message", (event) => {
     if (
@@ -62,6 +61,10 @@
   });
 
   api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type === "SCHOOLPP_PING") {
+      sendResponse({ ok: true });
+      return true;
+    }
     if (message?.type === "SCHOOLPP_COLLECT_PAGE") {
       collectCurrentPage()
         .then(sendResponse)
@@ -184,7 +187,6 @@
           signal,
         ).catch((error) => {
           if (signal.aborted) throw error;
-          if (error.message === "TIMEOUT") void notifyConnectionStall();
           return "unavailable";
         }),
       ),
@@ -285,7 +287,6 @@
           if (outcome === "completed") completedUrls.add(url);
         } catch (error) {
           if (signal.aborted) throw createAbortError();
-          if (error.message === "TIMEOUT") void notifyConnectionStall();
           outcomes.set(url, "unavailable");
         } finally {
           if (!signal.aborted) {
@@ -318,12 +319,17 @@
       );
     }
 
+    let materialProgressQueue = Promise.resolve();
     const materialSync = await syncLessonMaterials(signal, (progress) => {
-      void reportProgress("Получаем прикреплённые материалы", "running", {
-        items: [...items, "Прикреплённые материалы"],
-        currentIndex: processed + progress,
-      });
+      materialProgressQueue = materialProgressQueue.then(() =>
+        reportProgress("Получаем прикреплённые материалы", "running", {
+          items: [...items, "Прикреплённые материалы"],
+          currentIndex: processed + progress,
+        }),
+      );
     });
+    await materialProgressQueue;
+    if (signal.aborted) throw createAbortError();
 
     if (!discovered.size) throw new Error("NO_DATA");
 
@@ -362,6 +368,9 @@
                 attempts: 2,
               },
             ]
+          : []),
+        ...(materialSync.failed
+          ? [{ url: "lesson-materials", outcome: "unavailable", attempts: 2 }]
           : []),
       ],
     });
@@ -468,7 +477,6 @@
       const result = await moveWeek("previous", current.key, signal);
       captureFailures = result.captured ? 0 : captureFailures + 1;
       if (captureFailures >= 3) {
-        await notifyConnectionStall();
         throw new Error("SOURCE_UNAVAILABLE");
       }
       if (!result.changed) break;
@@ -487,7 +495,6 @@
       const result = await moveWeek("next", current.key, signal);
       captureFailures = result.captured ? 0 : captureFailures + 1;
       if (captureFailures >= 3) {
-        await notifyConnectionStall();
         throw new Error("SOURCE_UNAVAILABLE");
       }
       if (!result.changed) break;
@@ -1193,24 +1200,22 @@
   }
 
   function startConnectionWatchdog() {
-    connectionWarningSent = false;
     syncTimedOut = false;
     clearTimeout(syncDeadlineTimer);
     syncDeadlineTimer = window.setTimeout(() => {
       syncTimedOut = true;
       activeSyncController?.abort();
-      void notifyConnectionStall(getSyncTimeoutMessage());
     }, MAX_SYNC_DURATION_MS);
     touchConnectionWatchdog();
   }
 
   function touchConnectionWatchdog() {
     clearTimeout(connectionWatchdog);
-    if (connectionWarningSent || !activeSyncController) return;
-    connectionWatchdog = window.setTimeout(
-      () => void notifyConnectionStall(),
-      CONNECTION_STALL_MS,
-    );
+    if (!activeSyncController) return;
+    connectionWatchdog = window.setTimeout(() => {
+      syncTimedOut = true;
+      activeSyncController?.abort();
+    }, CONNECTION_STALL_MS);
   }
 
   function stopConnectionWatchdog() {
@@ -1218,23 +1223,6 @@
     clearTimeout(syncDeadlineTimer);
     connectionWatchdog = 0;
     syncDeadlineTimer = 0;
-  }
-
-  async function notifyConnectionStall(message = "") {
-    if (connectionWarningSent) return;
-    connectionWarningSent = true;
-    clearTimeout(connectionWatchdog);
-    connectionWatchdog = 0;
-    try {
-      await api.runtime.sendMessage({
-        type: "SCHOOLPP_SYNC_STALLED",
-        label:
-          message ||
-          "e‑schools.by долго не отвечает. Отключи VPN, проверь соединение и запусти синхронизацию снова.",
-      });
-    } catch {
-      /* The popup still receives the final synchronization error. */
-    }
   }
 
   function getSyncTimeoutMessage() {

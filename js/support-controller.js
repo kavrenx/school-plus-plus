@@ -53,7 +53,10 @@ function createSupportController({
   let messageGeneration = 0;
   let pendingAttachments = [];
   let recentSendTimes = [];
+  let renderedConversationId = "";
+  let renderedMessagesSignature = "";
   const attachmentsById = new Map();
+  const attachmentUrlCache = new Map();
 
   function bind() {
     root.addEventListener("click", handleClick);
@@ -118,7 +121,7 @@ function createSupportController({
 
   function scheduleRefresh() {
     windowRef.clearTimeout(refreshTimer);
-    refreshTimer = windowRef.setTimeout(() => void refresh(), 120);
+    refreshTimer = windowRef.setTimeout(() => void refresh(), 650);
   }
 
   function renderConversationList() {
@@ -159,6 +162,8 @@ function createSupportController({
       !agent || !conversation || conversation.status === "closed";
     if (!conversation) {
       attachmentsById.clear();
+      renderedConversationId = "";
+      renderedMessagesSignature = "";
       messages.replaceChildren();
       empty.hidden = false;
       syncComposer(conversation);
@@ -171,16 +176,45 @@ function createSupportController({
       conversation.id !== selectedId
     )
       return;
-    const fragment = root.createDocumentFragment();
-    attachmentsById.clear();
+    const signature = getMessageRecordsSignature(records);
     empty.hidden = records.length > 0;
-    records.forEach((record) => {
-      fragment.append(createMessageElement(record));
-    });
-    messages.replaceChildren(fragment);
+    if (
+      renderedConversationId !== conversation.id ||
+      renderedMessagesSignature !== signature
+    ) {
+      const keepAtBottom =
+        messages.scrollHeight - messages.scrollTop - messages.clientHeight < 80;
+      const fragment = root.createDocumentFragment();
+      attachmentsById.clear();
+      records.forEach((record) => {
+        normalizeAttachmentRecords(
+          record.support_attachments || record.attachments || [],
+        ).forEach((attachment) => {
+          if (attachment.id != null)
+            attachmentsById.set(String(attachment.id), attachment);
+        });
+      });
+      const existing = new Map(
+        [...messages.querySelectorAll("[data-message-id]")].map((element) => [
+          element.dataset.messageId,
+          element,
+        ]),
+      );
+      records.forEach((record) => {
+        const recordSignature = getMessageRecordSignature(record);
+        const current = existing.get(String(record.id));
+        if (current?.dataset.recordSignature === recordSignature)
+          fragment.append(current);
+        else fragment.append(createMessageElement(record));
+      });
+      messages.replaceChildren(fragment);
+      renderedConversationId = conversation.id;
+      renderedMessagesSignature = signature;
+      if (keepAtBottom || !messages.scrollTop)
+        messages.scrollTop = messages.scrollHeight;
+    }
     syncComposer(conversation);
     showStatus("");
-    messages.scrollTop = messages.scrollHeight;
     if (
       records.some(
         (record) => record.sender_id !== currentUser.id && !record.read_at,
@@ -194,13 +228,30 @@ function createSupportController({
     const own = record.sender_id === currentUser.id;
     article.className = own ? "support-message is-own" : "support-message";
     article.classList.toggle("is-pending", pending);
-    if (record.id != null) article.dataset.messageId = String(record.id);
+    if (record.id != null) {
+      article.dataset.messageId = String(record.id);
+      article.dataset.recordSignature = getMessageRecordSignature(record);
+    }
     const body = root.createElement("p");
     body.textContent = record.body;
     if (!record.body) body.hidden = true;
     const attachmentList = createMessageAttachments(
       record.support_attachments || record.attachments || [],
       pending,
+    );
+    const attachmentRecords = normalizeAttachmentRecords(
+      record.support_attachments || record.attachments || [],
+    );
+    const mediaOnly =
+      !record.body &&
+      attachmentRecords.length > 0 &&
+      attachmentRecords.every((item) =>
+        ["photo", "video"].includes(item.kind),
+      );
+    article.classList.toggle("has-only-media", mediaOnly);
+    article.classList.toggle(
+      "has-single-media",
+      mediaOnly && attachmentRecords.length === 1,
     );
     const metadata = root.createElement("div");
     metadata.className = "support-message-meta";
@@ -226,11 +277,7 @@ function createSupportController({
   }
 
   function createMessageAttachments(records, pending = false) {
-    const attachmentRecords = Array.isArray(records)
-      ? records
-      : records
-        ? [records]
-        : [];
+    const attachmentRecords = normalizeAttachmentRecords(records);
     if (!attachmentRecords.length) return null;
     const container = root.createElement("div");
     container.className = "support-message-attachments";
@@ -263,7 +310,8 @@ function createSupportController({
         icon.setAttribute("name", getAttachmentIcon(attachment.kind));
         const copy = root.createElement("span");
         const label = root.createElement("strong");
-        label.textContent = attachment.file_name || "Вложение";
+        label.textContent = shortenFileName(attachment.file_name || "Вложение");
+        label.title = attachment.file_name || "Вложение";
         const meta = root.createElement("small");
         meta.textContent = `${SUPPORT_ATTACHMENT_LABELS.file} · ${formatFileSize(attachment.size_bytes)}`;
         copy.append(label, meta);
@@ -276,8 +324,14 @@ function createSupportController({
 
   async function hydrateAttachmentPreview(media, attachment) {
     if (isAttachmentExpired(attachment)) return;
+    const cached = attachmentUrlCache.get(String(attachment.id || ""));
+    if (cached) {
+      media.src = cached;
+      return;
+    }
     try {
       const url = await repository.getAttachmentUrl(attachment);
+      if (url) attachmentUrlCache.set(String(attachment.id || ""), url);
       if (url && media.isConnected) media.src = url;
     } catch {
       /* The attachment dialog shows the detailed unavailable state. */
@@ -324,6 +378,7 @@ function createSupportController({
     renderPendingAttachment();
     syncComposerHeight();
     ++messageGeneration;
+    renderedMessagesSignature = "";
     empty.hidden = true;
     const optimisticMessage = createMessageElement(
       {
@@ -560,7 +615,8 @@ function createSupportController({
       const copy = root.createElement("div");
       if (attachment.kind === "file") {
         const name = root.createElement("strong");
-        name.textContent = attachment.file.name;
+        name.textContent = shortenFileName(attachment.file.name);
+        name.title = attachment.file.name;
         copy.append(name);
       }
       const meta = root.createElement("small");
@@ -602,7 +658,9 @@ function createSupportController({
     const attachment = attachmentsById.get(String(id));
     if (!attachment || !attachmentDialog) return;
     attachmentDialog.hidden = false;
-    attachmentName.textContent = attachment.file_name || "Вложение";
+    const fullName = attachment.file_name || "Вложение";
+    attachmentName.textContent = shortenFileName(fullName, 42);
+    attachmentName.title = fullName;
     attachmentStatus.textContent = "Готовим файл…";
     attachmentDownload.hidden = true;
     attachmentDownload.removeAttribute("href");
@@ -612,11 +670,16 @@ function createSupportController({
       return;
     }
     try {
-      const url = attachment.preview_url || (await repository.getAttachmentUrl(attachment));
+      const cacheKey = String(attachment.id || "");
+      const url =
+        attachment.preview_url ||
+        attachmentUrlCache.get(cacheKey) ||
+        (await repository.getAttachmentUrl(attachment));
       if (!url) {
         showExpiredAttachment();
         return;
       }
+      if (cacheKey) attachmentUrlCache.set(cacheKey, url);
       attachmentStatus.textContent = "Вложение доступно в течение трёх дней.";
       attachmentDownload.href = url;
       attachmentDownload.download = attachment.file_name || "attachment";
@@ -711,6 +774,35 @@ function validateSupportAttachment(file, kind) {
   return { ok: true, message: "" };
 }
 
+function normalizeAttachmentRecords(records) {
+  return Array.isArray(records) ? records : records ? [records] : [];
+}
+
+function getMessageRecordsSignature(records = []) {
+  return records.map(getMessageRecordSignature).join("|");
+}
+
+function getMessageRecordSignature(record = {}) {
+  const attachments = normalizeAttachmentRecords(
+    record.support_attachments || record.attachments || [],
+  )
+    .map(
+      (item) =>
+        `${item.id || ""}:${item.storage_path || ""}:${item.deleted_at || ""}`,
+    )
+    .join(",");
+  return `${record.id || ""}:${record.read_at || ""}:${record.body || ""}:${attachments}`;
+}
+
+function shortenFileName(value, maximum = 34) {
+  const name = String(value || "Вложение");
+  if (name.length <= maximum) return name;
+  const dot = name.lastIndexOf(".");
+  const extension = dot > 0 && name.length - dot <= 12 ? name.slice(dot) : "";
+  const available = Math.max(8, maximum - extension.length - 1);
+  return `${name.slice(0, available)}…${extension}`;
+}
+
 function createPendingAttachmentRecord({ file, kind, previewUrl = "" }) {
   return {
     id: `pending-${file.name}-${file.size}`,
@@ -787,6 +879,7 @@ export {
   SUPPORT_ATTACHMENT_LIMITS,
   MAX_SUPPORT_ATTACHMENTS,
   createSupportController,
+  shortenFileName,
   isAttachmentExpired,
   validateSupportAttachment,
 };

@@ -39,6 +39,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     login.hidden = true;
     workspace.hidden = false;
     renderDashboard(createPreviewDashboard());
+    renderRegisteredStudents(createPreviewStudents());
     renderMaintenanceControl({ maintenanceEnabled: false }, { preview: true });
     maintenanceToggle.addEventListener("change", () =>
       renderMaintenanceControl(
@@ -60,11 +61,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     refresh.classList.add("is-loading");
     error.hidden = true;
     try {
-      const [dashboard, status] = await Promise.all([
+      const [dashboard, status, students] = await Promise.all([
         services.admin.getDashboard(14),
         services.admin.getSiteStatus(),
+        services.admin.getRegisteredStudents().catch(() => []),
       ]);
       renderDashboard(dashboard);
+      renderRegisteredStudents(students);
       renderMaintenanceControl(status);
       scheduleRefresh();
     } catch {
@@ -312,6 +315,37 @@ function renderBreakdown(id, items, labels) {
   });
 }
 
+function renderRegisteredStudents(students = []) {
+  const root = document.getElementById("adminStudents");
+  if (!root) return;
+  const rows = Array.isArray(students) ? students : [];
+  setText("adminStudentCount", number(rows.length));
+  root.replaceChildren();
+  if (!rows.length) {
+    const empty = document.createElement("p");
+    empty.className = "admin-empty";
+    empty.textContent = "Полностью подключённых учеников пока нет.";
+    root.append(empty);
+    return;
+  }
+  rows.forEach((student) => {
+    const row = document.createElement("div");
+    const copy = document.createElement("span");
+    const name = document.createElement("strong");
+    const className = document.createElement("small");
+    const updated = document.createElement("time");
+    name.textContent = student.name || "Ученик";
+    className.textContent = student.className || "Класс не указан";
+    updated.dateTime = student.updatedAt || "";
+    updated.textContent = student.updatedAt
+      ? `Обновлено ${relativeTime(student.updatedAt)}`
+      : "Дата синхронизации неизвестна";
+    copy.append(name, className);
+    row.append(copy, updated);
+    root.append(row);
+  });
+}
+
 function setText(id, value) {
   const element = document.getElementById(id);
   if (element) element.textContent = value;
@@ -382,4 +416,24 @@ function createPreviewDashboard() {
   };
 }
 
-export { ADMIN_EMAIL, renderDashboard, renderMaintenanceControl };
+function createPreviewStudents() {
+  return [
+    {
+      name: "Иванова Анна Сергеевна",
+      className: "11 «А»",
+      updatedAt: new Date(Date.now() - 4 * 60_000).toISOString(),
+    },
+    {
+      name: "Петров Максим Олегович",
+      className: "8 «Б»",
+      updatedAt: new Date(Date.now() - 38 * 60_000).toISOString(),
+    },
+  ];
+}
+
+export {
+  ADMIN_EMAIL,
+  renderDashboard,
+  renderMaintenanceControl,
+  renderRegisteredStudents,
+};

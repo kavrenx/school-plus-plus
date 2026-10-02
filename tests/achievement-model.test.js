@@ -79,12 +79,33 @@ test("subject report counts both grades, excludes cancelled lessons and separate
     formatIsoDateLong: (date) => date,
   });
   assert.ok(html.includes("&lt;Математика&gt; <span>•</span> I четверть"));
-  assert.match(html, /grade-tone-high[^>]*>[\s\S]*?<strong>8<\/strong>/);
-  assert.match(html, /grade-tone-high[^>]*>[\s\S]*?<strong>9<\/strong>/);
+  assert.match(html, /grade-tone-high[^>]*>[\s\S]*?<strong>8\/9<\/strong>/);
+  assert.equal((html.match(/class="subject-grade-tile/g) || []).length, 2);
   assert.ok(html.includes("2026-09-01"));
   assert.equal(html.includes("Пропуск"), false);
   assert.equal(html.includes("&lt;script&gt;"), false);
   assert.equal(period.remainingLessons.length, 0);
+});
+
+test("pass-fail subject keeps only its grade history", () => {
+  const { model, store } = fixture();
+  const assignment = {
+    id: "art",
+    title: "Искусство",
+    gradingScale: "pass-fail",
+  };
+  store.saveJournalEntry({
+    lessonId: "l1",
+    studentId: "s",
+    grades: ["зачёт"],
+  });
+  const result = getSubjectResult(model, store, assignment, "s");
+  const html = renderSubjectDetails(result, result.periods[0], {
+    formatIsoDateLong: (date) => date,
+  });
+
+  assert.match(html, /Все отметки/);
+  assert.doesNotMatch(html, /Средний балл|Форма оценки|1–3|4–6|7–10/);
 });
 
 test("annual result persists separately and is never inferred from averages", () => {

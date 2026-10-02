@@ -59,17 +59,17 @@ function renderAchievementTable(results, year, behavior = {}) {
 function renderSubjectDetails(result, period, dateTools) {
   if (!period) return "";
   const gradeTiles = period.records
-    .flatMap(({ lesson, entry }) => {
+    .map(({ lesson, entry }) => {
       const grades = (entry.grades || []).filter(
         (grade) => getGradeTone(grade) !== "neutral" || String(grade).trim(),
       );
-      return grades.map(
-        (grade) =>
-          `<li class="subject-grade-tile grade-tone-${getGradeTone(grade)}"><time datetime="${e(lesson.date)}" aria-label="${e(dateTools.formatIsoDateLong(lesson.date))}">${e(formatShortDate(lesson.date))}</time><strong>${e(grade)}</strong></li>`,
-      );
+      if (!grades.length) return "";
+      const display = grades.join("/");
+      return `<li class="subject-grade-tile grade-tone-${getGradeTone(display)}"><time datetime="${e(lesson.date)}" aria-label="${e(dateTools.formatIsoDateLong(lesson.date))}">${e(formatShortDate(lesson.date))}</time><strong>${e(display)}</strong></li>`;
     })
+    .filter(Boolean)
     .join("");
-  const lessonsLeft = period.remainingLessons.length;
+  const lessonsLeft = (period.remainingLessons || []).length;
   const passFail =
     result.assignment.gradingScale === "pass-fail" ||
     shortSubjectName(result.assignment.title) === "Искусство";
@@ -77,7 +77,7 @@ function renderSubjectDetails(result, period, dateTools) {
     <aside class="subject-detail-drawer" role="dialog" aria-modal="true" aria-labelledby="subjectDetailTitle">
       <button class="subject-detail-close" type="button" data-achievement-back aria-label="Закрыть">×</button>
       <h2 id="subjectDetailTitle" tabindex="-1" data-subject-detail-heading>${e(shortSubjectName(result.assignment.title))} <span>•</span> ${e(period.title)}</h2>
-      <section class="subject-average-card" aria-label="${passFail ? "Форма оценки" : "Средний балл"}"><span>${passFail ? "Форма оценки" : "Средний балл"}</span><strong>${passFail ? "Зачётная система" : average(period.average)}</strong></section>
+      ${passFail ? "" : `<section class="subject-average-card" aria-label="Средний балл"><span>Средний балл</span><strong>${average(period.average)}</strong></section>`}
       ${passFail ? "" : `<section class="grade-goal-card" aria-labelledby="gradeGoalTitle">
         <h3 id="gradeGoalTitle">Цель по предмету</h3>
         <p>До конца периода по расписанию: ${lessonsLeft} ${getLessonWord(lessonsLeft)}.</p>
@@ -89,7 +89,7 @@ function renderSubjectDetails(result, period, dateTools) {
         <small>Расчёт ориентируется на средний балл и предполагает не больше одной новой отметки за оставшийся урок.</small>
       </section>`}
       <section class="subject-grade-history" aria-labelledby="subjectGradesTitle">
-        <div class="subject-grade-heading"><h3 id="subjectGradesTitle">Все отметки</h3><ul aria-label="Цветовые диапазоны"><li class="grade-tone-low">1–3</li><li class="grade-tone-middle">4–6</li><li class="grade-tone-high">7–10</li></ul></div>
+        <div class="subject-grade-heading"><h3 id="subjectGradesTitle">Все отметки</h3>${passFail ? "" : '<ul aria-label="Цветовые диапазоны"><li class="grade-tone-low">1–3</li><li class="grade-tone-middle">4–6</li><li class="grade-tone-high">7–10</li></ul>'}</div>
         ${gradeTiles ? `<ol class="subject-grade-grid">${gradeTiles}</ol>` : '<p class="achievement-empty">Отметок за этот период пока нет.</p>'}
       </section>
     </aside>`;
@@ -113,8 +113,12 @@ function renderGradeGoalResult(plan) {
 }
 
 function getGradeTone(value) {
-  const grade = Number(value);
-  if (!Number.isInteger(grade) || grade < 1 || grade > 10) return "neutral";
+  const parts = String(value)
+    .split("/")
+    .map(Number)
+    .filter((grade) => Number.isInteger(grade) && grade >= 1 && grade <= 10);
+  if (!parts.length) return "neutral";
+  const grade = parts.reduce((sum, item) => sum + item, 0) / parts.length;
   if (grade <= 3) return "low";
   if (grade <= 6) return "middle";
   return "high";

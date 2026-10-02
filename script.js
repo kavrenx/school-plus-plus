@@ -46,6 +46,33 @@ document.addEventListener("DOMContentLoaded", async () => {
   let cloudUserPromise = null;
   let supportOwnerLabel = "Пользователь";
   let initialSiteStatus = { maintenanceEnabled: false, updatedAt: null };
+  let restoringRoute = false;
+  let appRouteReady = false;
+  let studentDashboardController = null;
+
+  function settleWithin(promise, duration, fallback) {
+    return Promise.race([
+      Promise.resolve(promise),
+      new Promise((resolve) => window.setTimeout(() => resolve(fallback), duration)),
+    ]);
+  }
+
+  function readRoute() {
+    const hash = window.location.hash.replace(/^#\/?/, "");
+    if (hash.startsWith("connect/"))
+      return { area: "connect", page: hash.slice("connect/".length) || "diary" };
+    if (["diary", "schedule", "results"].includes(hash))
+      return { area: "app", page: hash };
+    return { area: "", page: "" };
+  }
+
+  function writeRoute(area, page, replace = false) {
+    if (restoringRoute) return;
+    const hash = area === "connect" ? `#connect/${page}` : `#${page}`;
+    if (window.location.hash === hash) return;
+    const method = replace ? "replaceState" : "pushState";
+    window.history[method]({ schoolpp: true, area, page }, "", hash);
+  }
 
   async function ensureCloudUser() {
     if (!services) throw new Error("Подключение сервера не настроено.");
@@ -103,7 +130,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   if (mode === "cloud" && services) {
     try {
-      initialSiteStatus = await services.status.get();
+      initialSiteStatus = await settleWithin(services.status.get(), 5_000, initialSiteStatus);
       if (initialSiteStatus.maintenanceEnabled) {
         renderMaintenancePage(document);
         return;
@@ -140,6 +167,24 @@ document.addEventListener("DOMContentLoaded", async () => {
       return services.support.createDiaryRequest(request);
     },
     eventReporter: reportActivity,
+    onStepChange: (step) => writeRoute("connect", step, !window.location.hash),
+  });
+  window.addEventListener("popstate", () => {
+    const route = readRoute();
+    let normalizeAppRoute = false;
+    restoringRoute = true;
+    try {
+      if (appRouteReady) {
+        studentDashboardController?.showSection(
+          route.area === "app" ? route.page : "diary",
+          false,
+        );
+        normalizeAppRoute = route.area !== "app";
+      } else if (route.area === "connect") onboarding.navigateToStep(route.page);
+    } finally {
+      restoringRoute = false;
+    }
+    if (normalizeAppRoute) writeRoute("app", "diary", true);
   });
   if (
     mode === "local" &&
@@ -256,13 +301,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     storageKey: STORAGE_KEYS.theme,
     translate: t,
   });
-  const studentDashboardController = createStudentDashboardController({
+  studentDashboardController = createStudentDashboardController({
     root: document,
     diary,
     translate: t,
     onLogout: () => openModal(logoutModal),
     onThemeToggle: themeController.toggle,
     journalStore,
+    onSectionChange: (section) => {
+      if (appRouteReady) writeRoute("app", section);
+    },
   });
   const profileController = createProfileController({
     root: document,
@@ -288,7 +336,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const savedUser = syncedStudent || accounts[0];
     if (savedUser) {
+      appRouteReady = true;
+      const initialRoute = readRoute();
+      const initialSection =
+        initialRoute.area === "app" ? initialRoute.page : "diary";
+      writeRoute("app", initialSection, true);
       showAppForUser(savedUser);
+      studentDashboardController.showSection(initialSection, false);
     } else {
       returnToOnboarding();
     }
@@ -420,14 +474,35 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   async function loadAppData() {
+    const savedDiaryPromise =
+      mode === "cloud" && services
+        ? settleWithin(
+            (async () => {
+              await ensureCloudUser();
+              return services.diary.load();
+            })(),
+            5_000,
+            null,
+          ).catch((error) => {
+            console.warn("Не удалось загрузить сохранённый дневник.", error);
+            return null;
+          })
+        : Promise.resolve(null);
     try {
-      const snapshot = await requestExtensionSnapshot(window, 4_000);
+      const snapshot = await requestExtensionSnapshot(window, 2_500);
       if (snapshot) {
         if (mode === "cloud" && services) {
-          await ensureCloudUser();
-          await services.diary.save(snapshot);
-          void reportActivity("sync_received");
-          notifyExtensionImported(window);
+          void (async () => {
+            try {
+              const cloudUser = await settleWithin(ensureCloudUser(), 5_000, null);
+              if (!cloudUser) return;
+              await settleWithin(services.diary.save(snapshot), 7_000, null);
+              void reportActivity("sync_received");
+              notifyExtensionImported(window);
+            } catch (error) {
+              console.warn("Не удалось сохранить данные расширения в облаке.", error);
+            }
+          })();
         }
         const imported = adaptESchoolsSnapshot(snapshot);
         if (imported?.diary?.weeks?.length)
@@ -437,14 +512,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       console.warn("Не удалось получить данные расширения.", error);
     }
     if (mode === "cloud" && services) {
+      const saved = await savedDiaryPromise;
       try {
-        await ensureCloudUser();
-        const saved = await services.diary.load();
         const imported = adaptESchoolsSnapshot(saved?.payload);
         if (imported?.diary?.weeks?.length)
           return { ...imported, hasSyncedData: true };
       } catch (error) {
-        console.warn("Не удалось загрузить сохранённый дневник.", error);
+        console.warn("Не удалось разобрать сохранённый дневник.", error);
       }
     }
     return {

@@ -33,6 +33,10 @@ function createAdminRepository(client) {
         }),
       );
     },
+    async getRegisteredStudents() {
+      if (!(await getUser())) throw new Error("ADMIN_AUTH_REQUIRED");
+      return unwrap(await client.rpc("get_admin_registered_students")) || [];
+    },
     async getSiteStatus() {
       return unwrap(await client.rpc("get_public_site_status"));
     },

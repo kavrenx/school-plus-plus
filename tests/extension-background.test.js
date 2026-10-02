@@ -23,6 +23,7 @@ function createBackgroundHarness() {
   const queryTabs = [];
   const notifications = [];
   const runtimeMessage = createEvent();
+  const runtimeStartup = createEvent();
   const alarmEvent = createEvent();
   const notificationClick = createEvent();
   const tabRemoved = createEvent();
@@ -32,7 +33,7 @@ function createBackgroundHarness() {
     runtime: {
       onMessage: runtimeMessage,
       onInstalled: createEvent(),
-      onStartup: createEvent(),
+      onStartup: runtimeStartup,
       getURL: (path) => `chrome-extension://schoolpp/${path}`,
     },
     storage: {
@@ -132,7 +133,14 @@ function createBackgroundHarness() {
       },
     },
   };
-  const context = vm.createContext({ chrome, console, Date, TextEncoder });
+  const context = vm.createContext({
+    chrome,
+    console,
+    Date,
+    TextEncoder,
+    setTimeout,
+    clearTimeout,
+  });
   for (const path of [
     "../extension/shared/snapshot-store.js",
     "../extension/shared/extension-settings.js",
@@ -164,10 +172,12 @@ function createBackgroundHarness() {
     queryTabs,
     reloadedTabs,
     removedTabs,
+    runtimeStartup,
     send,
     settle,
     tabRemoved,
     updatedTabs,
+    chrome,
     values,
   };
 }
@@ -206,6 +216,59 @@ test("background updating waits for the first sync and can be disabled", async (
   assert.equal(harness.alarms.has("schoolpp_auto_sync"), false);
 });
 
+test("browser startup immediately checks previously synchronized data", async () => {
+  const harness = createBackgroundHarness();
+  await harness.settle();
+  harness.values.set("schoolpp_sync_state", {
+    phase: "success",
+    lastSyncAt: new Date().toISOString(),
+    nextSyncAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+  });
+
+  harness.runtimeStartup.listeners[0]();
+  await harness.settle();
+
+  assert.equal(harness.createdTabs.length, 1);
+  assert.equal(harness.createdTabs[0].url, "https://diary.e-schools.by/");
+  assert.equal(harness.createdTabs[0].active, false);
+});
+
+test("failed background updates retry every two minutes and limit notifications", async () => {
+  const harness = createBackgroundHarness();
+  await harness.settle();
+  const startedAt = Date.now();
+
+  for (let attempt = 1; attempt <= 21; attempt += 1) {
+    await harness.send({
+      type: "SCHOOLPP_SYNC_PROGRESS",
+      progress: { phase: "running", label: "Получаем данные" },
+    });
+    await harness.send({ type: "SCHOOLPP_SYNC_STALLED", label: "Отключи VPN" });
+    await harness.send({
+      type: "SCHOOLPP_SYNC_PROGRESS",
+      progress: { phase: "error", label: "Дневник не ответил" },
+    });
+    const state = harness.values.get("schoolpp_sync_state");
+    assert.equal(state.consecutiveFailures, attempt);
+    assert.equal(state.retrying, true);
+  }
+
+  const state = harness.values.get("schoolpp_sync_state");
+  assert.ok(Date.parse(state.nextSyncAt) >= startedAt + 2 * 60_000);
+  assert.ok(Date.parse(state.nextSyncAt) < Date.now() + 2 * 60_000 + 2_000);
+  assert.equal(harness.notifications.length, 3);
+  assert.ok(harness.alarms.has("schoolpp_auto_sync"));
+
+  await harness.send({
+    type: "SCHOOLPP_SYNC_PROGRESS",
+    progress: { phase: "success", label: "Готово" },
+  });
+  assert.equal(
+    harness.values.get("schoolpp_sync_state").consecutiveFailures,
+    0,
+  );
+});
+
 test("background updating opens an inactive diary tab and closes it after sync", async () => {
   const harness = createBackgroundHarness();
   await harness.settle();
@@ -225,7 +288,7 @@ test("background updating opens an inactive diary tab and closes it after sync",
   assert.equal(harness.createdTabs[1].url, "https://diary.e-schools.by/");
   assert.equal(harness.createdTabs[1].active, false);
   assert.equal(harness.values.get("schoolpp_background_tab").id, 92);
-  assert.equal(harness.openedPopups.length, 1);
+  assert.equal(harness.openedPopups.length, 0);
 
   await harness.send(
     {
@@ -248,6 +311,43 @@ test("background updating opens an inactive diary tab and closes it after sync",
     { tab: { id: 91 } },
   );
   assert.deepEqual(harness.removedTabs, [92, 91]);
+});
+
+test("partial updates keep the retry sequence until a complete success", async () => {
+  const harness = createBackgroundHarness();
+  await harness.settle();
+  for (let attempt = 1; attempt <= 10; attempt += 1) {
+    await harness.send({
+      type: "SCHOOLPP_SYNC_PROGRESS",
+      progress: { phase: "running", label: "Получаем данные" },
+    });
+    await harness.send({
+      type: "SCHOOLPP_SYNC_PROGRESS",
+      progress: {
+        phase: attempt % 2 ? "warning" : "error",
+        label: "Получено не всё",
+      },
+    });
+    assert.equal(
+      harness.values.get("schoolpp_sync_state").consecutiveFailures,
+      attempt,
+    );
+    assert.equal(harness.values.get("schoolpp_sync_state").retrying, true);
+  }
+  assert.equal(harness.notifications.length, 2);
+  assert.ok(
+    Date.parse(harness.values.get("schoolpp_sync_state").nextSyncAt) <=
+      Date.now() + 120_000,
+  );
+  await harness.send({
+    type: "SCHOOLPP_SYNC_PROGRESS",
+    progress: { phase: "success", label: "Готово" },
+  });
+  assert.equal(
+    harness.values.get("schoolpp_sync_state").consecutiveFailures,
+    0,
+  );
+  assert.equal(harness.values.get("schoolpp_sync_state").retrying, false);
 });
 
 test("scheduled alarm starts syncing even at the edge of the saved deadline", async () => {
@@ -284,7 +384,7 @@ test("a background timeout closes the tab and creates one notification", async (
   assert.deepEqual(harness.badges.at(-1), { text: "!" });
 });
 
-test("a stalled synchronization creates an immediate VPN notification", async () => {
+test("a slow request does not report failure before a successful retry", async () => {
   const harness = createBackgroundHarness();
   await harness.settle();
   const result = await harness.send({
@@ -293,11 +393,82 @@ test("a stalled synchronization creates an immediate VPN notification", async ()
   });
 
   assert.equal(result.ok, true);
+  assert.equal(harness.notifications.length, 0);
+  await harness.send({
+    type: "SCHOOLPP_SYNC_PROGRESS",
+    progress: { phase: "success", label: "Готово" },
+  });
+  assert.equal(harness.notifications.length, 0);
+  assert.equal(harness.values.get("schoolpp_sync_state").phase, "success");
+  assert.deepEqual(harness.badges.at(-1), { text: "" });
+});
+
+test("manual sync opens the diary from another site and waits for its bridge", async () => {
+  const harness = createBackgroundHarness();
+  await harness.settle();
+  const commands = [];
+  let readyChecks = 0;
+  harness.chrome.tabs.sendMessage = async (tabId, message) => {
+    commands.push({ tabId, type: message.type });
+    if (message.type === "SCHOOLPP_PING" && ++readyChecks === 1)
+      throw new Error("Receiving end does not exist");
+    if (message.type === "SCHOOLPP_SYNC") {
+      await harness.send(
+        {
+          type: "SCHOOLPP_SYNC_PROGRESS",
+          progress: { phase: "success", label: "Готово" },
+        },
+        { tab: { id: tabId } },
+      );
+    }
+    return { ok: true };
+  };
+  const result = await harness.send({ type: "SCHOOLPP_START_SYNC" });
+  assert.equal(result.ok, true);
+  assert.equal(harness.createdTabs[0].url, "https://diary.e-schools.by/");
+  assert.equal(harness.createdTabs[0].active, true);
+  assert.equal(readyChecks, 2);
+  assert.equal(
+    commands.filter((item) => item.type === "SCHOOLPP_SYNC").length,
+    1,
+  );
+  assert.equal(harness.values.get("schoolpp_sync_state").phase, "success");
+  assert.equal(harness.notifications.length, 0);
+  assert.equal(harness.openedPopups.length, 0);
+});
+
+test("manual sync reuses a diary tab and reports its failed result once", async () => {
+  const harness = createBackgroundHarness();
+  await harness.settle();
+  harness.queryTabs.push({ id: 44, url: "https://diary.e-schools.by/" });
+  harness.chrome.tabs.sendMessage = async (tabId, message) => {
+    if (message.type !== "SCHOOLPP_SYNC") return { ok: true };
+    await Promise.all([
+      harness.send(
+        {
+          type: "SCHOOLPP_SYNC_PROGRESS",
+          progress: { phase: "error", label: "Дневник не ответил" },
+        },
+        { tab: { id: tabId } },
+      ),
+      harness.send(
+        {
+          type: "SCHOOLPP_SYNC_PROGRESS",
+          progress: { phase: "error", label: "Дневник не ответил" },
+        },
+        { tab: { id: tabId } },
+      ),
+    ]);
+    return { ok: false, error: "Дневник не ответил" };
+  };
+  const result = await harness.send({ type: "SCHOOLPP_START_SYNC" });
+  assert.equal(result.ok, false);
+  assert.equal(harness.createdTabs.length, 0);
   assert.equal(harness.notifications.length, 1);
-  assert.equal(harness.notifications[0].title, "Синхронизация остановилась");
-  assert.match(harness.notifications[0].message, /VPN/);
-  assert.equal(harness.notifications[0].priority, 2);
-  assert.deepEqual(harness.badges.at(-1), { text: "!" });
+  assert.equal(
+    harness.values.get("schoolpp_sync_state").consecutiveFailures,
+    1,
+  );
 });
 
 test("closing an automatic diary tab reports the failed update", async () => {

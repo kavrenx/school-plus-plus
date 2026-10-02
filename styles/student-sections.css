@@ -159,15 +159,21 @@
   opacity: 0.55;
 }
 .current-week-link {
-  padding: 4px 6px;
-  margin-top: 4px;
-  background: transparent;
+  min-height: 34px;
+  padding: 7px 11px;
+  margin-top: 7px;
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
   color: var(--accent-dark);
-  font-size: 12px;
-  font-weight: 700;
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  font-size: 13px;
+  font-weight: 800;
   animation: fadeIn 0.18s ease;
+}
+
+.current-week-link:hover,
+.current-week-link:focus-visible {
+  background: var(--accent);
+  color: var(--on-accent);
 }
 .diary-day-footer {
   display: grid;

@@ -76,8 +76,8 @@ function createSupportRepository(client) {
       try {
         for (const attachment of attachments || []) {
           const { file, kind } = attachment;
-          const safeName = sanitizeFileName(file?.name || "attachment");
-          const storagePath = `${conversationId}/${user.id}/${crypto.randomUUID()}-${safeName}`;
+          const storageName = createStorageObjectName(file?.name);
+          const storagePath = `${conversationId}/${user.id}/${storageName}`;
           const contentType = inferContentType(file, kind);
           unwrap(
             await bucket.upload(storagePath, file, {
@@ -87,7 +87,7 @@ function createSupportRepository(client) {
           );
           uploaded.push({
             kind,
-            file_name: String(file?.name || "attachment").slice(0, 180),
+            file_name: truncateFileName(file?.name || "attachment", 180),
             content_type: contentType.slice(0, 120),
             size_bytes: Number(file?.size) || 0,
             storage_path: storagePath,
@@ -223,6 +223,23 @@ function sanitizeFileName(value) {
   return (normalized || "attachment").slice(-120);
 }
 
+function createStorageObjectName(fileName) {
+  const extension = String(fileName || "")
+    .normalize("NFKC")
+    .match(/\.([a-z0-9]{1,12})$/i)?.[1]
+    ?.toLowerCase();
+  return `${crypto.randomUUID()}${extension ? `.${extension}` : ""}`;
+}
+
+function truncateFileName(fileName, maxLength = 180) {
+  const value = String(fileName || "attachment").normalize("NFKC");
+  if (value.length <= maxLength) return value;
+  const match = value.match(/(\.[^./\\]{1,16})$/);
+  const extension = match?.[1] || "";
+  const available = Math.max(1, maxLength - extension.length - 1);
+  return `${value.slice(0, available)}…${extension}`;
+}
+
 function inferContentType(file, kind = "file") {
   const declared = String(file?.type || "").trim().toLowerCase();
   if (declared) return declared;
@@ -247,4 +264,10 @@ function inferContentType(file, kind = "file") {
   return known[extension] || `${kind === "photo" ? "image" : kind === "video" ? "video" : "application"}/${kind === "file" ? "octet-stream" : "unknown"}`;
 }
 
-export { createSupportRepository, inferContentType, sanitizeFileName };
+export {
+  createStorageObjectName,
+  createSupportRepository,
+  inferContentType,
+  sanitizeFileName,
+  truncateFileName,
+};

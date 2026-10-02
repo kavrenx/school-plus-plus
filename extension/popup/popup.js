@@ -29,15 +29,11 @@ let backgroundSyncEnabled = false;
 let latestStats = null;
 let latestSyncState = {};
 let statusClock = 0;
-let automaticPopup = false;
-let automaticCloseClock = 0;
 
 async function initialize() {
   [activeTab] = await api.tabs.query({ active: true, currentWindow: true });
   canSync = /^https:\/\/diary\.e-schools\.by\//.test(activeTab?.url || "");
   const result = await api.runtime.sendMessage({ type: "SCHOOLPP_GET_STATUS" });
-  automaticPopup = Boolean(result?.backgroundSyncActive && !canSync);
-  if (automaticPopup) startAutomaticCloseWatcher();
   backgroundSyncEnabled =
     Boolean(result?.stats?.ready) && result?.settings?.backgroundSync !== false;
   backgroundSyncToggle.checked = backgroundSyncEnabled;
@@ -84,7 +80,20 @@ function renderStatus(stats, syncState = {}) {
   clearButton.hidden = !stats?.ready;
   diagnosticsButton.hidden = !DIAGNOSTICS_DOWNLOAD_ENABLED || !stats?.ready;
   openSchoolppButton.hidden = !syncState.lastSyncAt;
-  syncButton.disabled = !canSync || syncing;
+  syncButton.disabled = syncing;
+  syncLabel.textContent = syncState.lastSyncAt
+    ? "Синхронизировать снова"
+    : "Синхронизировать";
+  if (syncState.phase === "error" || syncState.lastError) {
+    status.classList.add("is-error");
+    statusTitle.textContent = "Последнее обновление не выполнено";
+    setLinkedText(
+      statusText,
+      `${syncState.lastError || syncState.label}. ${stats?.ready ? "Сохранённые данные доступны. " : ""}${syncState.retrying && backgroundSyncEnabled ? `Повторная проверка ${formatNextSync(syncState.nextSyncAt)}.` : "Попробуй синхронизировать снова."}`,
+    );
+    startStatusClock();
+    return;
+  }
   if (stats?.ready) {
     status.classList.add("is-ready");
     statusTitle.textContent = "Данные готовы";
@@ -106,7 +115,7 @@ function renderStatus(stats, syncState = {}) {
     statusTitle.textContent = "Нужна первая синхронизация";
     setLinkedText(
       statusText,
-      "Открой e‑schools.by и синхронизируй данные. После этого они смогут обновляться автоматически.",
+      "Нажми «Синхронизировать» — мы откроем e‑schools.by и получим данные. После этого они смогут обновляться автоматически.",
     );
     return;
   }
@@ -137,7 +146,7 @@ function renderSources(items) {
 }
 
 syncButton.addEventListener("click", async () => {
-  if (!canSync || syncing) return;
+  if (syncing) return;
   const startedAt = Date.now();
   const runId = ++syncRunId;
   suppressProgressUntil = 0;
@@ -154,10 +163,9 @@ syncButton.addEventListener("click", async () => {
   let syncResponse = null;
   let syncFailed = false;
   try {
-    syncResponse = await withTimeout(
-      api.tabs.sendMessage(activeTab.id, { type: "SCHOOLPP_SYNC" }),
-      180_000,
-    );
+    syncResponse = await api.runtime.sendMessage({
+      type: "SCHOOLPP_START_SYNC",
+    });
     if (!syncResponse?.ok)
       throw new Error(
         syncResponse?.error || "Не удалось синхронизировать данные.",
@@ -168,7 +176,9 @@ syncButton.addEventListener("click", async () => {
     });
     await wait(Math.max(0, 1500 - (Date.now() - startedAt)));
     syncButton.classList.add("is-success");
-    syncLabel.textContent = "Всё синхронизировано";
+    syncLabel.textContent = syncResponse.warning
+      ? "Обновлено не всё"
+      : "Всё синхронизировано";
     await wait(500);
   } catch (error) {
     if (runId !== syncRunId) return;
@@ -181,7 +191,7 @@ syncButton.addEventListener("click", async () => {
     syncProgress.hidden = true;
     syncDetail.hidden = true;
     syncButton.classList.remove("is-success");
-    syncButton.disabled = !canSync;
+    syncButton.disabled = false;
     if (syncFailed) {
       syncLabel.textContent = "Повторить синхронизацию";
       return;
@@ -206,9 +216,8 @@ api.runtime.onMessage.addListener((message) => {
     syncing = false;
     syncProgress.hidden = true;
     syncDetail.hidden = true;
-    syncButton.disabled = !canSync;
+    syncButton.disabled = false;
     showError(progress.label || "Не удалось синхронизировать данные.");
-    if (automaticPopup) window.setTimeout(() => window.close(), 1_500);
     return;
   }
   if (!syncing && progress.phase === "running") {
@@ -275,6 +284,7 @@ openSchoolppButton.addEventListener("click", async () => {
 
 function showError(text) {
   stopStatusClock();
+  status.classList.remove("is-ready", "is-checking");
   status.classList.add("is-error");
   statusTitle.textContent = "Не удалось синхронизировать";
   setLinkedText(statusText, text);
@@ -302,7 +312,8 @@ function restoreProgress(syncState) {
 async function finishBackgroundSync(progress) {
   renderProgress(progress);
   syncButton.classList.add("is-success");
-  syncLabel.textContent = "Всё синхронизировано";
+  syncLabel.textContent =
+    progress.phase === "warning" ? "Обновлено не всё" : "Всё синхронизировано";
   await wait(650);
   syncing = false;
   syncProgress.hidden = true;
@@ -310,7 +321,6 @@ async function finishBackgroundSync(progress) {
   syncButton.classList.remove("is-success");
   const result = await api.runtime.sendMessage({ type: "SCHOOLPP_GET_STATUS" });
   renderStatus(result?.stats, result?.syncState);
-  if (automaticPopup) window.setTimeout(() => window.close(), 900);
 }
 
 function renderCompletedFallback(warning = "") {
@@ -320,7 +330,7 @@ function renderCompletedFallback(warning = "") {
   statusTitle.textContent = "Данные готовы";
   statusText.textContent = warning || "Синхронизация завершена.";
   syncLabel.textContent = "Синхронизировать снова";
-  syncButton.disabled = !canSync;
+  syncButton.disabled = false;
 }
 
 function setLinkedText(element, text) {
@@ -367,7 +377,7 @@ function getReadyStatusText(syncState = latestSyncState) {
   if (syncState.lastError)
     return "Сохранённые данные доступны. Последнюю проверку можно повторить.";
   if (!backgroundSyncEnabled)
-    return "Фоновое обновление выключено. Для ручной синхронизации открой e‑schools.by.";
+    return "Фоновое обновление выключено. Можно запустить синхронизацию кнопкой ниже.";
   if (syncState.lastWarning)
     return `${syncState.lastWarning}. Следующая проверка ${formatNextSync(syncState.nextSyncAt)}.`;
   if (syncState.lastSyncAt)
@@ -396,23 +406,6 @@ function stopStatusClock() {
   statusClock = 0;
 }
 
-function startAutomaticCloseWatcher() {
-  if (automaticCloseClock) return;
-  automaticCloseClock = window.setInterval(async () => {
-    try {
-      const result = await api.runtime.sendMessage({
-        type: "SCHOOLPP_GET_STATUS",
-      });
-      if (result?.backgroundSyncActive) return;
-      window.clearInterval(automaticCloseClock);
-      automaticCloseClock = 0;
-      window.setTimeout(() => window.close(), 500);
-    } catch {
-      /* The next tick will retry while the popup is still visible. */
-    }
-  }, 500);
-}
-
 function pluralWord(value, one, few, many) {
   const tens = value % 100;
   const ones = value % 10;
@@ -426,15 +419,21 @@ function wait(duration) {
   return new Promise((resolve) => setTimeout(resolve, duration));
 }
 
-function withTimeout(promise, duration) {
-  return Promise.race([
-    promise,
-    wait(duration).then(() => {
-      throw new Error(
-        "Дневник отвечает слишком долго. Обнови страницу и попробуй ещё раз.",
-      );
-    }),
-  ]);
+async function withTimeout(promise, duration) {
+  let timeoutId;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error("Расширение не ответило. Попробуй ещё раз.")),
+          duration,
+        );
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 void initialize().catch((error) => showError(getPublicPopupError(error)));

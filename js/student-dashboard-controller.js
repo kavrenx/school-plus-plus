@@ -40,6 +40,7 @@ function createStudentDashboardController({
   onThemeToggle,
   journalStore,
   now = () => new Date(),
+  onSectionChange = () => {},
 }) {
   diary.weeks = completeAcademicWeeks(diary.weeks, diary.school.academicYear);
   const year = diary.school.academicYear;
@@ -148,7 +149,8 @@ function createStudentDashboardController({
     datePicker.max = terms.at(-1)?.endsOn || year.endsOn;
   }
 
-  function showSection(section = "diary") {
+  function showSection(section = "diary", announce = true) {
+    if (!["diary", "schedule", "results"].includes(section)) section = "diary";
     const previousSection = selectedSection;
     if (section !== "results" && selectedSubjectId)
       closeSubjectDetails(false, false);
@@ -173,6 +175,7 @@ function createStudentDashboardController({
       else renderSchedule();
     } else renderDiary();
     if (previousSection !== section) animateSection(section);
+    if (announce) onSectionChange(section);
   }
 
   let sectionAnimations = [];
@@ -888,7 +891,7 @@ function createStudentDashboardController({
     });
   }
 
-  return { bind, destroy, show, updateUser };
+  return { bind, destroy, show, showSection, updateUser };
 }
 
 function mergeMaterialLists(...collections) {

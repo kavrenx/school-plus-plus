@@ -33,6 +33,26 @@ test("onboarding detects the device and recommends its browser store", () => {
   assert.equal(getRecommendedStore("brave"), "chromium");
 });
 
+test("onboarding exposes stable steps for browser history", async () => {
+  const window = createWindow();
+  const steps = [];
+  const controller = createOnboardingController({
+    root: window.document,
+    windowRef: window,
+    storeUrls: {},
+    onStepChange: (step) => steps.push(step),
+  });
+  void controller.start();
+  await new Promise((resolve) => setImmediate(resolve));
+
+  controller.navigateToStep("device-choice");
+  controller.navigateToStep("mobile");
+  controller.navigateToStep("diary");
+
+  assert.deepEqual(steps, ["diary", "device-choice", "mobile", "diary"]);
+  window.close();
+});
+
 test("returning users skip onboarding", async () => {
   const window = createWindow();
   window.localStorage.setItem(ONBOARDING_KEY, "true");

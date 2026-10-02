@@ -199,7 +199,7 @@ test("e-schools adapter builds the student diary from captured API responses", (
                   url: "/media/homework/task.pdf",
                 },
               ],
-              lesson_marks: [{ mark: "8" }, { mark: "9" }],
+              lesson_marks: [{ mark: "9" }, { mark: "9" }],
             },
             {
               lesson_uuid: "lesson-1",
@@ -274,10 +274,10 @@ test("e-schools adapter builds the student diary from captured API responses", (
         sourceSubject: "Математика",
       },
     ],
-    grade: "8/9",
+    grade: "9/9",
     status: "scheduled",
   });
-  assert.deepEqual(adapted.journalEntries[0].grades, ["8", "9"]);
+  assert.deepEqual(adapted.journalEntries[0].grades, ["9", "9"]);
   assert.equal(adapted.journalEntries[0].materials[0].title, "Задание.pdf");
   assert.equal(adapted.journalEntries.length, 1);
   assert.equal(adapted.journalEntries[0].lessonId, "lesson-1");

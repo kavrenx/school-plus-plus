@@ -615,7 +615,6 @@ function createDiary({
       const marks = getLessonMarks(slot);
       const grade = marks
         .flatMap((mark) => parseGradeDisplayValues(getMarkValue(mark)))
-        .filter((value, markIndex, values) => values.indexOf(value) === markIndex)
         .slice(0, 2)
         .join("/");
       const materials = mergeMaterials(
@@ -760,9 +759,7 @@ function mergeJournalEntries(entries) {
     merged.set(key, {
       ...current,
       ...entry,
-      grades: [...new Set([...(current.grades || []), ...(entry.grades || [])])]
-        .filter(Boolean)
-        .slice(0, 2),
+      grades: mergeGradeLists(current.grades, entry.grades),
       attendance:
         current.attendance === "absent" || entry.attendance === "absent"
           ? "absent"
@@ -946,8 +943,7 @@ function inferMaterialTitle(url) {
 }
 
 function getLessonMarks(slot = {}) {
-  const result = [];
-  [
+  const sources = [
     slot.lesson_mark,
     slot.lesson_marks,
     slot.marks,
@@ -958,15 +954,32 @@ function getLessonMarks(slot = {}) {
     slot.score,
     slot.student_mark,
     slot.student_marks,
-  ].forEach((value) => collectMarks(value, result));
-  const unique = new Map();
-  result.forEach((mark) => {
-    const key =
-      clean(mark?.uuid) ||
-      `${getMarkValue(mark)}:${clean(mark?.kind || mark?.type)}:${clean(mark?.comment)}`;
-    if (key && !unique.has(key)) unique.set(key, mark);
-  });
-  return [...unique.values()];
+  ];
+  for (const source of sources) {
+    const result = [];
+    collectMarks(source, result);
+    if (!result.length) continue;
+    const seenIds = new Set();
+    return result.filter((mark) => {
+      const id = clean(mark?.uuid || mark?.id);
+      if (!id) return true;
+      if (seenIds.has(id)) return false;
+      seenIds.add(id);
+      return true;
+    });
+  }
+  return [];
+}
+
+function mergeGradeLists(first = [], second = []) {
+  const left = first.filter(Boolean).slice(0, 2);
+  const right = second.filter(Boolean).slice(0, 2);
+  if (!left.length) return right;
+  if (!right.length) return left;
+  if (left.join("\u0000") === right.join("\u0000")) return left;
+  if (left.length === 2) return left;
+  if (right.length === 2) return right;
+  return [...left, ...right].slice(0, 2);
 }
 
 function collectMarks(value, result, depth = 0) {

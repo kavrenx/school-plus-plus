@@ -50,6 +50,7 @@ function createOnboardingController({
   presenceCheck = requestExtensionPresence,
   snapshotRequest = requestExtensionSnapshot,
   subscribe = subscribeToExtensionSnapshots,
+  onStepChange = () => {},
 }) {
   const screen = root.getElementById("onboardingScreen");
   const content = root.getElementById("onboardingContent");
@@ -59,6 +60,10 @@ function createOnboardingController({
   let finish;
   let unsubscribe = () => {};
   let completePromise;
+
+  function announceStep(step) {
+    onStepChange(step);
+  }
 
   function reportEvent(name) {
     return Promise.resolve(eventReporter(name)).catch(() => {});
@@ -119,6 +124,7 @@ function createOnboardingController({
   }
 
   function showDiaryConfirmation() {
+    announceStep("diary");
     content.innerHTML = `
       <p class="onboarding-eyebrow">Подключение дневника</p>
       <h1>Ваш дневник — <span class="service-domain">e&#8209;schools.by</span>?</h1>
@@ -131,6 +137,7 @@ function createOnboardingController({
   }
 
   function showUnsupportedDiary() {
+    announceStep("unsupported");
     content.innerHTML = `
       <p class="onboarding-eyebrow">Другой дневник</p>
       <h1>Пока мы работаем с <span class="service-domain">e&#8209;schools.by</span></h1>
@@ -142,6 +149,7 @@ function createOnboardingController({
   }
 
   function showDeviceConfirmation(device) {
+    announceStep(`device-${device}`);
     const desktop = device === "desktop";
     content.innerHTML = `
       <div class="onboarding-visual" aria-hidden="true">${deviceIllustration(device)}</div>
@@ -156,6 +164,7 @@ function createOnboardingController({
   }
 
   function showDeviceChoice() {
+    announceStep("device-choice");
     content.innerHTML = `
       <p class="onboarding-eyebrow">Выберите устройство</p>
       <h1>Где вы открываете School++?</h1>
@@ -166,6 +175,7 @@ function createOnboardingController({
   }
 
   async function showDesktopFlow() {
+    announceStep("extension");
     content.innerHTML = `<div class="onboarding-loading" role="status"><i></i><strong>Проверяем расширение…</strong></div>`;
     if (await presenceCheck(windowRef)) {
       void reportEvent("extension_detected");
@@ -176,6 +186,7 @@ function createOnboardingController({
   }
 
   function showMobileNotice() {
+    announceStep("mobile");
     content.innerHTML = `
       <div class="onboarding-visual" aria-hidden="true">${deviceIllustration("mobile")}</div>
       <p class="onboarding-eyebrow">Мобильная версия</p>
@@ -185,6 +196,7 @@ function createOnboardingController({
   }
 
   function showExtensionStores(message = "") {
+    announceStep("extension");
     const browser = detectBrowser(windowRef.navigator);
     const recommended = getRecommendedStore(browser);
     const stores = [
@@ -222,6 +234,7 @@ function createOnboardingController({
   }
 
   async function showGuide() {
+    announceStep("guide");
     const snapshot = await snapshotRequest(windowRef, 900);
     if (snapshot) {
       showSynchronized();
@@ -241,6 +254,7 @@ function createOnboardingController({
   }
 
   function showSynchronized() {
+    announceStep("done");
     content.innerHTML = `
       <div class="onboarding-success" aria-hidden="true">✓</div>
       <p class="onboarding-eyebrow">Всё готово</p>
@@ -292,7 +306,19 @@ function createOnboardingController({
     }
   });
 
-  return { complete, isComplete, start };
+  function navigateToStep(step) {
+    if (step === "unsupported") showUnsupportedDiary();
+    else if (step === "device-choice") showDeviceChoice();
+    else if (step === "device-mobile") showDeviceConfirmation("mobile");
+    else if (step === "device-desktop") showDeviceConfirmation("desktop");
+    else if (step === "mobile") showMobileNotice();
+    else if (step === "extension") void showDesktopFlow();
+    else if (step === "guide") void showGuide();
+    else if (step === "done") showSynchronized();
+    else showDiaryConfirmation();
+  }
+
+  return { complete, isComplete, navigateToStep, start };
 }
 
 function storeCard(store, url, recommended) {

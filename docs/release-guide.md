@@ -197,7 +197,7 @@ e-schools.by в понятный дневник School++.
 1. Включите двухэтапную проверку Google Account.
 2. Зарегистрируйте Chrome Web Store developer account и оплатите разовый сбор.
 3. В Developer Dashboard выберите **Add new item**.
-4. Загрузите `.extension-dist/schoolpp-chromium-1.0.4.zip`.
+4. Загрузите `.extension-dist/schoolpp-chromium-1.0.5.zip`.
 5. В **Store Listing** загрузите готовый скриншот
    `store-assets/chrome-web-store-screenshot-1280x800.png`. Значок 128×128 уже
    находится внутри ZIP-файла.
@@ -215,7 +215,7 @@ e-schools.by в понятный дневник School++.
 
 1. Войдите в Add-ons Developer Hub через Mozilla Account.
 2. Выберите **Submit a New Add-on → On this site**.
-3. Загрузите `.extension-dist/schoolpp-firefox-1.0.4.zip`.
+3. Загрузите `.extension-dist/schoolpp-firefox-1.0.5.zip`.
 4. Пройдите автоматическую проверку.
 5. Укажите, что код не минифицирован и находится в читаемом виде внутри архива.
 6. Добавьте описание, поддержку и ссылку на политику конфиденциальности.

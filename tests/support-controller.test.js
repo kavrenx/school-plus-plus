@@ -4,6 +4,7 @@ import { Window } from "happy-dom";
 import {
   MAX_SUPPORT_ATTACHMENTS,
   createSupportController,
+  shortenFileName,
   validateSupportAttachment,
 } from "../js/support-controller.js";
 
@@ -340,6 +341,16 @@ test("support validates attachment types and practical size limits", () => {
   );
 });
 
+test("support shortens long attachment names without hiding their format", () => {
+  const shortened = shortenFileName(
+    "gta_6_extended_look_on_netflix_how_to_watch_screenshot.png",
+    34,
+  );
+
+  assert.equal(shortened.length, 34);
+  assert.match(shortened, /…\.png$/);
+});
+
 test("support renders a Supabase attachment returned as one object", async () => {
   const window = new Window({ url: "https://schoolpp.com/" });
   createMarkup(window.document);
@@ -395,6 +406,88 @@ test("support renders a Supabase attachment returned as one object", async () =>
   assert.match(
     window.document.getElementById("supportMessages").textContent,
     /2 КБ/,
+  );
+  controller.destroy();
+  await window.happyDOM.close();
+});
+
+test("support keeps existing media nodes while new messages arrive", async () => {
+  const window = new Window({ url: "https://schoolpp.com/" });
+  createMarkup(window.document);
+  window.sessionStorage.setItem(
+    "schoolpp_support_selected_conversation",
+    "conversation-1",
+  );
+  const records = [
+    {
+      id: 1,
+      sender_id: "student-1",
+      body: "",
+      created_at: "2026-10-02T10:00:00Z",
+      support_attachments: [
+        {
+          id: "photo-1",
+          kind: "photo",
+          file_name: "Фото.png",
+          size_bytes: 1024,
+          storage_path: "conversation/student/photo.png",
+          expires_at: "2099-10-05T10:00:00Z",
+        },
+      ],
+    },
+  ];
+  let onChange = () => {};
+  const repository = {
+    async getUser() {
+      return { id: "student-1" };
+    },
+    async isAgent() {
+      return false;
+    },
+    async listConversations() {
+      return [{ id: "conversation-1", subject: "Фото", status: "open" }];
+    },
+    async listMessages() {
+      return records;
+    },
+    async getAttachmentUrl() {
+      return "https://example.test/photo.png";
+    },
+    async markConversationRead() {},
+    async closeConversation() {},
+    subscribe(callback) {
+      onChange = callback;
+      return () => {};
+    },
+  };
+  const controller = createSupportController({
+    root: window.document,
+    windowRef: window,
+    repositoryProvider: async () => repository,
+  });
+  controller.bind();
+  await controller.open();
+  const firstImage = window.document.querySelector(
+    ".support-message-attachment img",
+  );
+
+  records.push({
+    id: 2,
+    sender_id: "support-1",
+    body: "Готово",
+    created_at: "2026-10-02T10:01:00Z",
+    support_attachments: [],
+  });
+  onChange();
+  await new Promise((resolve) => window.setTimeout(resolve, 700));
+
+  assert.equal(
+    window.document.querySelector(".support-message-attachment img"),
+    firstImage,
+  );
+  assert.match(
+    window.document.getElementById("supportMessages").textContent,
+    /Готово/,
   );
   controller.destroy();
   await window.happyDOM.close();

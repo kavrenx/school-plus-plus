@@ -437,9 +437,10 @@ function normalizeMaterial(value) {
 
 function normalizeGrades(grades) {
   if (!Array.isArray(grades)) return [];
-  return Array.from(
-    new Set(grades.map((grade) => String(grade).trim()).filter(Boolean)),
-  ).slice(0, MAX_GRADES_PER_LESSON);
+  return grades
+    .map((grade) => String(grade).trim())
+    .filter(Boolean)
+    .slice(0, MAX_GRADES_PER_LESSON);
 }
 
 function mergeJournalEntryIntoLesson(baseLesson, entry, lessonWork = null) {

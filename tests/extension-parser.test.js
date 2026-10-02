@@ -715,7 +715,7 @@ test("extension manifests expose background updates and notifications", () => {
     ),
   );
   for (const manifest of [chromium, firefox]) {
-    assert.equal(manifest.version, "1.0.4");
+    assert.equal(manifest.version, "1.0.5");
     assert.ok(manifest.permissions.includes("alarms"));
     assert.ok(manifest.permissions.includes("notifications"));
     assert.ok(

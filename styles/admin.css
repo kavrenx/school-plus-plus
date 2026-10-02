@@ -399,6 +399,13 @@
   font-size: 13px;
 }
 
+.admin-funnel > div > span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
 .admin-funnel i,
 .admin-breakdown i {
   grid-column: 1 / -1;
@@ -465,6 +472,62 @@
   background: var(--amber);
 }
 
+.admin-students-panel {
+  grid-column: span 12;
+}
+
+.admin-student-count {
+  min-width: 38px;
+  padding: 6px 9px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-size: 18px;
+  text-align: center;
+}
+
+.admin-student-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  border: 1px solid var(--line);
+  background: var(--line);
+}
+
+.admin-student-list > div {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 13px 14px;
+  background: var(--paper);
+}
+
+.admin-student-list span,
+.admin-student-list strong,
+.admin-student-list small {
+  min-width: 0;
+  display: block;
+}
+
+.admin-student-list strong {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-student-list small,
+.admin-student-list time {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.admin-student-list time {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
 @media (max-width: 1050px) {
   .admin-metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -521,6 +584,20 @@
   .admin-panel,
   .admin-activity-panel {
     grid-column: 1 / -1;
+  }
+
+  .admin-student-list {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-student-list > div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .admin-student-list time {
+    text-align: left;
   }
 
   .admin-chart {

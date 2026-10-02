@@ -114,6 +114,44 @@ test("popup keeps prepared data ready while the diary tab is closed", async (t) 
     true,
   );
   assert.equal(document.getElementById("diagnosticsButton").hidden, true);
+  assert.equal(document.getElementById("syncButton").disabled, false);
+});
+
+test("popup distinguishes saved data from a failed latest update", async (t) => {
+  const { document, window } = await renderPopup({
+    ok: true,
+    stats: { ready: true },
+    syncState: {
+      phase: "error",
+      lastError: "Дневник недоступен",
+      lastSyncAt: "2026-10-02T10:00:00.000Z",
+      nextSyncAt: new Date(Date.now() + 120_000).toISOString(),
+      retrying: true,
+    },
+    settings: { backgroundSync: true },
+  });
+  t.after(() => window.close());
+  assert.equal(
+    document.querySelector(".status").classList.contains("is-error"),
+    true,
+  );
+  assert.equal(
+    document.querySelector(".status").classList.contains("is-ready"),
+    false,
+  );
+  assert.match(
+    document.getElementById("statusTitle").textContent,
+    /обновление не выполнено/,
+  );
+  assert.match(
+    document.getElementById("statusText").textContent,
+    /Сохранённые данные доступны/,
+  );
+  assert.match(
+    document.getElementById("statusText").textContent,
+    /Повторная проверка/,
+  );
+  assert.equal(document.getElementById("syncButton").disabled, false);
 });
 
 test("popup counts down in seconds during the final minute", async (t) => {
