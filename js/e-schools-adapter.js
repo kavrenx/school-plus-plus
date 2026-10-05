@@ -83,6 +83,7 @@ function adaptESchoolsSnapshot(snapshot) {
     templateById: subjectModel.templateById,
     roomIndex,
   });
+  resolveSubjectAssessmentPeriods(subjectModel, timetable);
   const lessonDays = records
     .filter((record) => /\/students\/[^/]+\/lessons(?:\?|$)/.test(record.url))
     .flatMap((record) => asArray(record.body));
@@ -374,7 +375,7 @@ function createSubjects({
       subjectId,
       groupId,
       teacherId,
-      assessmentPeriod: "quarter",
+      assessmentPeriod: getDeclaredAssessmentPeriod(item),
       gradingScale:
         shortSubjectName(item.subject_title || item.name) === "Искусство"
           ? "pass-fail"
@@ -395,7 +396,12 @@ function createSubjects({
     });
   });
 
-  studentSubjects.forEach((item) => addSubject(item.uuid, item.name));
+  studentSubjects.forEach((item) => {
+    const subjectId = addSubject(item.uuid, item.name);
+    const period = getDeclaredAssessmentPeriod(item);
+    if (subjectId && period)
+      subjectById.get(subjectId).assessmentPeriod = period;
+  });
 
   planningSubjects.forEach((item) => {
     const title =
@@ -432,6 +438,10 @@ function createSubjects({
         teacherId,
         teacher: teacherName,
         groupId,
+        assessmentPeriod:
+          getDeclaredAssessmentPeriod(template) ||
+          getDeclaredAssessmentPeriod(item),
+        studyHours: Number(template.study_hours) || 0,
       });
     });
   });
@@ -456,6 +466,77 @@ function createSubjects({
     templateById,
     lessonTemplates,
   };
+}
+
+function getDeclaredAssessmentPeriod(source = {}) {
+  const value = clean(
+    source.assessmentPeriod ||
+      source.assessment_period ||
+      source.reportingPeriod ||
+      source.reporting_period ||
+      source.gradingPeriod ||
+      source.grading_period,
+  ).toLowerCase().replace(/[\s_-]/g, "");
+  if (
+    ["halfyear", "half", "semester", "полугодие", "полугодовой"].includes(value)
+  )
+    return "half-year";
+  if (["quarter", "четверть", "четвертной"].includes(value)) return "quarter";
+  return "";
+}
+
+function resolveSubjectAssessmentPeriods(subjectModel, timetable) {
+  const resolve = (subject, assignment = {}) => {
+    const templates = [...subjectModel.templateById.values()].filter(
+      (template) =>
+        template.subjectId === subject.id &&
+        (!assignment.groupId ||
+          !template.groupId ||
+          template.groupId === assignment.groupId),
+    );
+    const explicit =
+      assignment.assessmentPeriod ||
+      subject.assessmentPeriod ||
+      templates.map((template) => template.assessmentPeriod).find(Boolean);
+    const subjectKey = normalizeSubjectName(shortSubjectName(subject.title));
+    const weeklySlots = new Set(
+      timetable.flatMap((day) =>
+        day.lessons
+          .filter(
+            (lesson) =>
+              normalizeSubjectName(shortSubjectName(lesson.subject)) === subjectKey &&
+              (!assignment.groupId ||
+                !lesson.groupId ||
+                lesson.groupId === assignment.groupId),
+          )
+          .map((lesson) => `${day.id}:${lesson.number ?? ""}:${lesson.time || ""}`),
+      ),
+    );
+    const plannedHours = Math.max(
+      0,
+      ...templates.map((template) => template.studyHours),
+    );
+    const weeklyLessons =
+      weeklySlots.size || (plannedHours <= 10 ? plannedHours : 0);
+    return explicit ||
+      (weeklyLessons > 0 && weeklyLessons <= 1 ? "half-year" : "quarter");
+  };
+  for (const assignment of subjectModel.assignments) {
+    const subject = subjectModel.subjects.find(
+      (item) => item.id === assignment.subjectId,
+    );
+    if (subject) assignment.assessmentPeriod = resolve(subject, assignment);
+  }
+  for (const subject of subjectModel.subjects) {
+    const assignments = subjectModel.assignments.filter(
+      (item) => item.subjectId === subject.id,
+    );
+    subject.assessmentPeriod = assignments.length
+      ? assignments.some((item) => item.assessmentPeriod === "quarter")
+        ? "quarter"
+        : "half-year"
+      : resolve(subject);
+  }
 }
 
 function createBellSchedule(source) {

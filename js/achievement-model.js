@@ -106,6 +106,7 @@ function getStudentSubjects(model, studentId) {
     );
     const variant = {
       ...template,
+      assessmentPeriod: model.school.subjectsById[template.subjectId]?.assessmentPeriod,
       ...assignment,
       id:
         assignment?.id ||
@@ -123,6 +124,8 @@ function getStudentSubjects(model, studentId) {
     }
     if (!current.variants.some((item) => item.id === variant.id))
       current.variants.push(variant);
+    if (variant.assessmentPeriod === "quarter")
+      current.assessmentPeriod = "quarter";
   }
   return [...subjects.values()].sort((a, b) =>
     a.title.localeCompare(b.title, "ru"),

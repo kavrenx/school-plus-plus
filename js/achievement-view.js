@@ -28,7 +28,7 @@ function renderAchievementTable(results, year, behavior = {}) {
     `<td><div class="result-period-value" aria-label="${e(label)}">${value}</div></td>`;
   return `<h2 tabindex="-1" data-achievement-heading>Успеваемость ${e(year.title)}</h2>
     <p class="result-legend"><span class="result-legend-forecast">10,0</span> — прогнозируемая отметка; <strong>10</strong> — выставленная учителем.</p>
-    <div class="achievement-scroll" tabindex="0" role="region" aria-label="Отметки за четверти и год. Таблицу можно прокручивать горизонтально.">
+    <div class="achievement-scroll" tabindex="0" role="region" aria-label="Отметки за четверти, полугодия и год. Таблицу можно прокручивать горизонтально.">
     <table class="achievement-table result-table"><colgroup><col class="result-subject-col">${columns.map(() => '<col class="result-mark-col">').join("")}</colgroup><thead><tr><th scope="col">Предмет</th>${columns.map((column) => `<th scope="col" aria-label="${e(periodName(column))}${column.half ? ` и ${e(periodName(column.half))}` : ""}">${e(column.label)}${column.half ? `<small>${column.half.label} п/г</small>` : ""}</th>`).join("")}</tr></thead>
     <tbody>${results
       .map(
@@ -80,7 +80,7 @@ function renderSubjectDetails(result, period, dateTools) {
       ${passFail ? "" : `<section class="subject-average-card" aria-label="Средний балл"><span>Средний балл</span><strong>${average(period.average)}</strong></section>`}
       ${passFail ? "" : `<section class="grade-goal-card" aria-labelledby="gradeGoalTitle">
         <h3 id="gradeGoalTitle">Цель по предмету</h3>
-        <p>До конца периода по расписанию: ${lessonsLeft} ${getLessonWord(lessonsLeft)}.</p>
+        <p>До конца ${period.column?.type === "half" ? "полугодия" : "четверти"} по расписанию: ${lessonsLeft} ${getLessonWord(lessonsLeft)}.</p>
         <form data-grade-goal-form>
           <label>Какую отметку хочешь получить?<input data-grade-goal type="number" min="1" max="10" step="1" inputmode="numeric" placeholder="9" required></label>
           <button type="submit">Рассчитать</button>

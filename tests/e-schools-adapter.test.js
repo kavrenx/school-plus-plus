@@ -5,6 +5,19 @@ import {
   normalizeTime,
   toIsoDate,
 } from "../js/e-schools-adapter.js";
+import { normalizeDiaryData } from "../js/diary-model.js";
+import { createJournalStore } from "../js/journal-store.js";
+import {
+  calculateGradeGoal,
+  getStudentSubjects,
+  getSubjectResult,
+} from "../js/achievement-model.js";
+import {
+  getCurrentResultPeriod,
+  getEffectiveResultColumn,
+  getResultDisplayColumns,
+} from "../js/result-periods.js";
+import { renderSubjectDetails } from "../js/achievement-view.js";
 
 const at = (iso) => Date.parse(`${iso}T00:00:00Z`) / 1000;
 const record = (url, body) => ({
@@ -12,6 +25,266 @@ const record = (url, body) => ({
   method: "GET",
   status: 200,
   body,
+});
+
+function halfYearSnapshot({ schedule = true, explicitPeriod = "" } = {}) {
+  const root = "/api/v1/education/diary/schools/s/classes/c/students/u";
+  return {
+    source: "e-schools.by",
+    network: {
+      year: record("/api/v1/education/diary/school_year", {
+        uuid: "y",
+        label: "2026/2027",
+        start_ts: at("2026-09-01"),
+        end_ts: at("2027-08-31"),
+      }),
+      activities: record(
+        "/api/v1/education/diary/time_activities",
+        [
+          ["q1", "2026-09-01", "2026-10-30"],
+          ["q2", "2026-11-09", "2026-12-24"],
+          ["q3", "2027-01-11", "2027-03-19"],
+          ["q4", "2027-03-29", "2027-05-31"],
+        ].map(([uuid, start, end], index) => ({
+          uuid,
+          title: `${index + 1} четверть`,
+          type: "quarter",
+          start_date: at(start),
+          end_date: at(end),
+        })),
+      ),
+      subjects: record(
+        "/api/v1/education/diary/schools/s/students/u/classes/c/subjects",
+        [
+          {
+            id: "literature",
+            subject_title: "Русская литература",
+            ...(explicitPeriod ? { assessment_period: explicitPeriod } : {}),
+          },
+          { id: "math", subject_title: "Математика" },
+        ],
+      ),
+      planning: record(
+        "/api/v1/education/planning/classes/c/educational_subjects",
+        [
+          ["literature", "Русская литература", 1],
+          ["math", "Математика", 2],
+        ].map(([uuid, title, hours]) => ({
+          uuid,
+          school_subject: { as_json: { short_name: title } },
+          templates: [{ uuid: `${uuid}-template`, study_hours: hours }],
+        })),
+      ),
+      ...(schedule
+        ? {
+            timetable: record(
+              "/api/v1/education/diary/schools/s/classes/c/timetables/whole",
+              [
+                {
+                  days_of_week: [
+                    [1, "literature"],
+                    [2, "math"],
+                    [4, "math"],
+                  ].map(([day, subject]) => ({
+                    day_of_week: day,
+                    timetable_slots: [
+                      {
+                        time_of_bells: {
+                          number: 1,
+                          start_time: "08:00",
+                          end_time: "08:45",
+                        },
+                        slots: [
+                          {
+                            number: 1,
+                            lesson_template_id: `${subject}-template`,
+                          },
+                        ],
+                      },
+                    ],
+                  })),
+                },
+              ],
+            ),
+          }
+        : {}),
+      lessons: record(
+        `${root}/lessons?week_activity_uuid=w`,
+        ["2026-09-07", "2026-09-14"].map((date, index) => ({
+          date: at(date),
+          day_of_week: 1,
+          slots: [
+            {
+              lesson_uuid: `literature-${index}`,
+              lesson_template_id: "literature-template",
+              number: 1,
+              start_time: "08:00",
+              subject_title: "Русская литература",
+              lesson_marks: [{ mark: "6" }],
+            },
+          ],
+        })),
+      ),
+    },
+  };
+}
+
+test("existing snapshots classify once-weekly subjects as half-year and keep frequent subjects quarterly", () => {
+  for (const schedule of [true, false]) {
+    const adapted = adaptESchoolsSnapshot(halfYearSnapshot({ schedule }));
+    const assignments = adapted.school.teacherAssignments;
+    assert.equal(
+      assignments.find((item) => item.subjectId === "literature")
+        .assessmentPeriod,
+      "half-year",
+    );
+    assert.equal(
+      assignments.find((item) => item.subjectId === "math").assessmentPeriod,
+      "quarter",
+    );
+  }
+  const explicitQuarter = adaptESchoolsSnapshot(
+    halfYearSnapshot({ explicitPeriod: "quarter" }),
+  );
+  assert.equal(
+    explicitQuarter.school.teacherAssignments.find(
+      (item) => item.subjectId === "literature",
+    ).assessmentPeriod,
+    "quarter",
+  );
+  const explicitHalf = halfYearSnapshot();
+  explicitHalf.network.subjects.body[1].assessment_period = "half_year";
+  assert.equal(
+    adaptESchoolsSnapshot(explicitHalf).school.teacherAssignments.find(
+      (item) => item.subjectId === "math",
+    ).assessmentPeriod,
+    "half-year",
+  );
+});
+
+test("half-year subjects include next-quarter lessons in the grade goal and both quarters in the history", () => {
+  const snapshot = halfYearSnapshot();
+  const makeResult = () => {
+    const adapted = adaptESchoolsSnapshot(snapshot);
+    const model = normalizeDiaryData(
+      adapted.diary,
+      [
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+      ],
+      adapted.school,
+    );
+    const storage = new Map();
+    const store = createJournalStore({
+      getItem: (key) => storage.get(key),
+      setItem: (key, value) => {
+        storage.set(key, value);
+        return true;
+      },
+    });
+    adapted.journalEntries.forEach((entry) => store.saveJournalEntry(entry));
+    const assignment = getStudentSubjects(model, "student_demo").find(
+      (item) => item.subjectId === "literature",
+    );
+    return {
+      year: model.school.academicYear,
+      result: getSubjectResult(model, store, assignment, "student_demo"),
+    };
+  };
+  const first = makeResult();
+  const autumn = getCurrentResultPeriod(
+    first.result,
+    first.year,
+    "q1",
+    "2026-10-27",
+  );
+  assert.equal(autumn.title, "I полугодие");
+  assert.equal(autumn.remainingLessons.length, 7);
+  const details = renderSubjectDetails(first.result, autumn, {
+    formatIsoDateLong: (date) => date,
+  });
+  assert.match(details, /I полугодие/);
+  assert.match(details, /До конца полугодия по расписанию: 7 уроков/);
+  assert.ok(
+    autumn.remainingLessons.every(
+      (lesson) => lesson.date >= "2026-11-09" && lesson.date <= "2026-12-24",
+    ),
+  );
+  assert.equal(
+    calculateGradeGoal(autumn.grades, 9, autumn.remainingLessons.length).status,
+    "possible",
+  );
+  const display = getResultDisplayColumns(first.year);
+  assert.equal(getEffectiveResultColumn(first.result, display[0]), null);
+  assert.equal(getEffectiveResultColumn(first.result, display[1]).type, "half");
+
+  snapshot.network.lessons.body.push({
+    date: at("2026-11-09"),
+    day_of_week: 1,
+    slots: [
+      {
+        lesson_uuid: "literature-november",
+        lesson_template_id: "literature-template",
+        number: 1,
+        start_time: "08:00",
+        subject_title: "Русская литература",
+        lesson_marks: [{ mark: "9" }],
+      },
+    ],
+  });
+  const second = makeResult();
+  const november = getCurrentResultPeriod(
+    second.result,
+    second.year,
+    "q2",
+    "2026-11-10",
+  );
+  assert.deepEqual(november.grades, [6, 6, 9]);
+  assert.equal(november.average, 7);
+  assert.equal(november.remainingLessons.length, 6);
+  const spring = getCurrentResultPeriod(
+    second.result,
+    second.year,
+    "q3",
+    "2027-01-12",
+  );
+  assert.equal(spring.title, "II полугодие");
+  assert.deepEqual(spring.grades, []);
+  assert.ok(
+    spring.remainingLessons.some((lesson) => lesson.date >= "2027-03-29"),
+  );
+  assert.ok(
+    spring.remainingLessons.every(
+      (lesson) => lesson.date >= "2027-01-12" && lesson.date <= "2027-05-31",
+    ),
+  );
+});
+
+test("duplicate timetable versions do not turn a once-weekly subject into a quarterly subject", () => {
+  const snapshot = halfYearSnapshot();
+  snapshot.network.timetable.body.push(
+    structuredClone(snapshot.network.timetable.body[0]),
+  );
+  const adapted = adaptESchoolsSnapshot(snapshot);
+  assert.equal(
+    adapted.school.teacherAssignments.find(
+      (item) => item.subjectId === "literature",
+    ).assessmentPeriod,
+    "half-year",
+  );
+  const unknown = halfYearSnapshot({ schedule: false });
+  unknown.network.planning.body[0].templates[0].study_hours = null;
+  assert.equal(
+    adaptESchoolsSnapshot(unknown).school.teacherAssignments.find(
+      (item) => item.subjectId === "literature",
+    ).assessmentPeriod,
+    "quarter",
+  );
 });
 
 test("e-schools adapter builds the student diary from captured API responses", () => {
