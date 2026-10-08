@@ -18,6 +18,7 @@ import {
   getResultDisplayColumns,
 } from "../js/result-periods.js";
 import { renderSubjectDetails } from "../js/achievement-view.js";
+import { createDiaryChangeTracker } from "../js/diary-changes.js";
 
 const at = (iso) => Date.parse(`${iso}T00:00:00Z`) / 1000;
 const record = (url, body) => ({
@@ -25,6 +26,33 @@ const record = (url, body) => ({
   method: "GET",
   status: 200,
   body,
+});
+
+test("change history works with imported e-schools responses without preview data", () => {
+  const values = new Map();
+  const tracker = createDiaryChangeTracker({
+    getItem: (key) => values.get(key),
+    setItem: (key, value) => values.set(key, value),
+  });
+  const snapshot = halfYearSnapshot();
+  tracker.record(adaptESchoolsSnapshot(snapshot));
+  assert.equal(tracker.getState().changes.length, 0);
+  const lesson = snapshot.network.lessons.body[0].slots[0];
+  lesson.lesson_marks = [{ mark: "9" }, { mark: "9" }];
+  lesson.homework = "Прочитать главу 2";
+  tracker.record(adaptESchoolsSnapshot(snapshot));
+  const changes = tracker.getState().changes;
+  assert.equal(changes.filter((change) => change.type === "grades").length, 1);
+  assert.deepEqual(changes.find((change) => change.type === "grades").after, [
+    "9",
+    "9",
+  ]);
+  assert.equal(
+    changes.find((change) => change.type === "homework").after,
+    "Прочитать главу 2",
+  );
+  tracker.record(adaptESchoolsSnapshot(snapshot));
+  assert.equal(tracker.getState().changes.length, changes.length);
 });
 
 function halfYearSnapshot({ schedule = true, explicitPeriod = "" } = {}) {
@@ -209,7 +237,7 @@ test("half-year subjects include next-quarter lessons in the grade goal and both
     formatIsoDateLong: (date) => date,
   });
   assert.match(details, /I полугодие/);
-  assert.match(details, /До конца полугодия по расписанию: 7 уроков/);
+  assert.match(details, /До конца полугодия: 7 уроков/);
   assert.ok(
     autumn.remainingLessons.every(
       (lesson) => lesson.date >= "2026-11-09" && lesson.date <= "2026-12-24",

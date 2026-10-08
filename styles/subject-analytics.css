@@ -1,0 +1,406 @@
+.subject-detail-drawer {
+  width: min(640px, 100%);
+}
+
+.subject-detail-drawer.is-static,
+.subject-detail-backdrop.is-static {
+  animation: none;
+}
+
+.subject-period-picker {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.subject-period-picker select,
+.grade-goal-card select {
+  width: 100%;
+  min-height: 44px;
+}
+
+.subject-detail-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 20px 0;
+}
+
+.subject-detail-tabs button {
+  border: 1px solid var(--line-dark);
+}
+
+.subject-detail-tabs button[aria-selected="true"] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.subject-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 16px 0 24px;
+  border: 1px solid var(--line-dark);
+}
+
+.subject-summary > div {
+  min-width: 0;
+  padding: 16px 12px;
+}
+
+.subject-summary > div + div {
+  border-left: 1px solid var(--line);
+}
+
+.subject-summary dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.subject-summary dd {
+  margin: 8px 0 0;
+  font-size: clamp(20px, 4vw, 28px);
+  font-weight: 800;
+  color: var(--accent-dark);
+}
+
+.subject-chart,
+.subject-distribution {
+  margin: 24px 0;
+}
+
+.subject-chart {
+  position: relative;
+}
+
+.subject-chart-tooltip {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  gap: 6px;
+  width: max-content;
+  max-width: min(280px, 100%);
+  padding: 12px 14px;
+  border: 1px solid var(--line-dark);
+  background: var(--paper-2);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.subject-chart-tooltip span {
+  color: var(--muted);
+}
+
+.subject-chart h3,
+.subject-distribution h3 {
+  margin-bottom: 8px;
+}
+
+.subject-chart svg {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+
+.subject-chart-grid line {
+  stroke: var(--line);
+}
+
+.subject-chart text {
+  fill: var(--muted);
+  font: 11px sans-serif;
+}
+
+.subject-chart-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
+}
+
+.subject-chart-point {
+  fill: var(--paper);
+  stroke: var(--accent);
+  stroke-width: 2px;
+}
+
+.subject-chart-point:hover,
+.subject-chart-point:focus {
+  fill: var(--accent);
+  stroke-width: 4px;
+}
+
+.subject-distribution-bars {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.subject-distribution-bars > div {
+  display: grid;
+  grid-template-rows: 20px 90px 20px;
+  gap: 6px;
+  align-items: end;
+  justify-items: center;
+  font-size: 12px;
+}
+
+.subject-distribution-bars span {
+  color: var(--muted);
+}
+
+.subject-distribution-bars i {
+  width: 100%;
+  height: var(--bar-height);
+  background: var(--accent);
+  min-height: 1px;
+}
+
+.subject-grade-history .subject-grade-tile {
+  padding: 0;
+}
+
+.subject-grade-tile button {
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  width: 100%;
+  height: 100%;
+  padding: 9px;
+  background: transparent;
+  color: inherit;
+  border: 0;
+}
+
+.grade-goal-card form {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.grade-options {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 0;
+  list-style: none;
+}
+
+.grade-options li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line-dark);
+  background: var(--paper);
+}
+
+.grade-options strong {
+  font-size: 21px;
+  color: var(--accent-dark);
+  overflow-wrap: anywhere;
+}
+
+.grade-option-content {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.grade-option-label,
+.grade-option-summary {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.grade-options li button {
+  align-self: center;
+}
+
+.grade-goal-card .grade-options-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
+  border: 0;
+  background: transparent !important;
+  color: var(--accent-dark) !important;
+  font-size: 13px;
+}
+
+.grade-options-toggle svg {
+  width: 18px;
+  height: 18px;
+  transition: transform 200ms ease;
+}
+
+.grade-options-toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.grade-options-more {
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  transition:
+    grid-template-rows 220ms ease,
+    visibility 220ms;
+}
+
+.grade-options-more.is-expanded {
+  grid-template-rows: 1fr;
+  visibility: visible;
+}
+
+.grade-options-more > div {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.grade-sandbox-controls {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+}
+
+.grade-sandbox-controls label {
+  flex: 1;
+}
+
+.trial-grade-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.grade-sandbox [data-trial-grades] {
+  margin: 20px 0;
+}
+
+.grade-sandbox [data-trial-result] {
+  margin: 20px 0;
+}
+
+.grade-sandbox [data-trial-clear] {
+  margin-top: 4px;
+}
+
+.grade-sandbox.is-trial-highlight {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  animation: trial-highlight 1s ease 200ms both;
+}
+
+@keyframes trial-highlight {
+  0%,
+  100% {
+    outline-color: transparent;
+  }
+  25%,
+  70% {
+    outline-color: var(--accent);
+  }
+}
+
+.trial-projection {
+  padding: 12px;
+  background: var(--accent-soft);
+  line-height: 1.7;
+}
+
+#studentChangesButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--line-dark);
+  background: var(--paper);
+  color: var(--accent-dark);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+#studentChangesCount {
+  padding: 2px 6px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 11px;
+}
+
+.diary-change-list {
+  display: grid;
+  gap: 14px;
+  margin: 24px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.diary-change-list li {
+  padding: 18px;
+  border: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.diary-change-list li.is-new {
+  border-left: 3px solid var(--accent);
+}
+
+.diary-change-kind {
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.diary-change-list h3 {
+  margin: 10px 0 4px;
+}
+
+.diary-change-date {
+  padding: 0;
+  min-height: 36px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-size: 12px;
+}
+
+.diary-change-list p {
+  line-height: 1.6;
+  margin-bottom: 0;
+}
+
+.diary-change-before,
+.diary-changes-empty p {
+  color: var(--muted);
+}
+
+@media (max-width: 560px) {
+  .grade-goal-card form {
+    grid-template-columns: 1fr;
+  }
+
+  .student-period-bar {
+    flex-wrap: wrap;
+  }
+
+  .subject-distribution-bars {
+    gap: 4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grade-options-more,
+  .grade-options-toggle svg {
+    transition: none;
+  }
+  .grade-sandbox.is-trial-highlight {
+    animation: none;
+  }
+}

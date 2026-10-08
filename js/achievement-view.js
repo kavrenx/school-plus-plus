@@ -7,6 +7,7 @@ import {
   getResultCell,
 } from "./result-periods.js";
 import { shortSubjectName } from "./subject-names.js";
+import { getSubjectAnalytics } from "./subject-analytics.js";
 
 function renderAchievementTable(results, year, behavior = {}) {
   const columns = getResultDisplayColumns(year);
@@ -16,7 +17,7 @@ function renderAchievementTable(results, year, behavior = {}) {
       ? `<strong>${e(value.final)}</strong>`
       : column.type === "year" || result.assignment.gradingScale === "pass-fail"
         ? "—"
-      : `<span class="result-forecast" aria-label="Средний балл текущих отметок">${average(value.average)}</span>`;
+        : `<span class="result-forecast" aria-label="Средний балл текущих отметок">${average(value.average)}</span>`;
   };
   const periodName = (column) =>
     column.type === "quarter"
@@ -56,7 +57,7 @@ function renderAchievementTable(results, year, behavior = {}) {
       .join("")}</tr></tbody></table></div>`;
 }
 
-function renderSubjectDetails(result, period, dateTools) {
+function renderSubjectDetails(result, period, dateTools, state = {}) {
   if (!period) return "";
   const gradeTiles = period.records
     .map(({ lesson, entry }) => {
@@ -65,7 +66,7 @@ function renderSubjectDetails(result, period, dateTools) {
       );
       if (!grades.length) return "";
       const display = grades.join("/");
-      return `<li class="subject-grade-tile grade-tone-${getGradeTone(display)}"><time datetime="${e(lesson.date)}" aria-label="${e(dateTools.formatIsoDateLong(lesson.date))}">${e(formatShortDate(lesson.date))}</time><strong>${e(display)}</strong></li>`;
+      return `<li class="subject-grade-tile grade-tone-${getGradeTone(display)}"><button type="button" data-subject-date="${e(lesson.date)}" aria-label="${e(display)}, ${e(dateTools.formatIsoDateLong(lesson.date))}. Открыть день"><time datetime="${e(lesson.date)}">${e(formatShortDate(lesson.date))}</time><strong>${e(display)}</strong></button></li>`;
     })
     .filter(Boolean)
     .join("");
@@ -73,26 +74,116 @@ function renderSubjectDetails(result, period, dateTools) {
   const passFail =
     result.assignment.gradingScale === "pass-fail" ||
     shortSubjectName(result.assignment.title) === "Искусство";
-  return `<button class="subject-detail-backdrop" type="button" data-achievement-back aria-label="Закрыть отметки по предмету"></button>
-    <aside class="subject-detail-drawer" role="dialog" aria-modal="true" aria-labelledby="subjectDetailTitle">
+  const analytics = getSubjectAnalytics(period.records);
+  const activeTab = state.tab || "calculation";
+  const periodChoices = state.periodChoices || [];
+  const gradeHistory = `<section class="subject-grade-history" aria-labelledby="subjectGradesTitle">
+    <div class="subject-grade-heading"><h3 id="subjectGradesTitle">Все отметки</h3>${passFail ? "" : '<ul aria-label="Цветовые диапазоны"><li class="grade-tone-low">1–3</li><li class="grade-tone-middle">4–6</li><li class="grade-tone-high">7–10</li></ul>'}</div>
+    ${gradeTiles ? `<ol class="subject-grade-grid">${gradeTiles}</ol>` : '<p class="achievement-empty">Отметок за этот период пока нет.</p>'}</section>`;
+  return `<button class="subject-detail-backdrop${state.animate === false ? " is-static" : ""}" type="button" data-achievement-back aria-label="Закрыть отметки по предмету"></button>
+    <aside class="subject-detail-drawer${state.animate === false ? " is-static" : ""}" role="dialog" aria-modal="true" aria-labelledby="subjectDetailTitle">
       <button class="subject-detail-close" type="button" data-achievement-back aria-label="Закрыть">×</button>
       <h2 id="subjectDetailTitle" tabindex="-1" data-subject-detail-heading>${e(shortSubjectName(result.assignment.title))} <span>•</span> ${e(period.title)}</h2>
-      ${passFail ? "" : `<section class="subject-average-card" aria-label="Средний балл"><span>Средний балл</span><strong>${average(period.average)}</strong></section>`}
-      ${passFail ? "" : `<section class="grade-goal-card" aria-labelledby="gradeGoalTitle">
-        <h3 id="gradeGoalTitle">Цель по предмету</h3>
-        <p>До конца ${period.column?.type === "half" ? "полугодия" : "четверти"} по расписанию: ${lessonsLeft} ${getLessonWord(lessonsLeft)}.</p>
+      ${periodChoices.length ? `<label class="subject-period-picker">Период<select data-subject-period>${periodChoices.map((choice) => `<option value="${e(choice.id)}"${choice.id === state.termId ? " selected" : ""}>${e(choice.title)}</option>`).join("")}</select></label>` : ""}
+      ${state.periodStatus ? `<p class="achievement-note">${e(state.periodStatus)}</p>` : ""}
+      ${
+        passFail
+          ? ""
+          : `<div class="subject-detail-tabs" role="tablist" aria-label="О предмете"><button type="button" id="subjectCalculationTab" role="tab" data-subject-tab="calculation" aria-selected="${activeTab === "calculation"}" aria-controls="subjectCalculationPanel" tabindex="${activeTab === "calculation" ? 0 : -1}">Расчёт</button><button type="button" id="subjectStatisticsTab" role="tab" data-subject-tab="statistics" aria-selected="${activeTab === "statistics"}" aria-controls="subjectStatisticsPanel" tabindex="${activeTab === "statistics" ? 0 : -1}">Статистика</button></div>
+      <section id="subjectStatisticsPanel" role="tabpanel" aria-labelledby="subjectStatisticsTab"${activeTab === "statistics" ? "" : " hidden"}>
+        <dl class="subject-summary"><div><dt>Отметок</dt><dd>${analytics.count}</dd></div><div><dt>Средний балл</dt><dd>${formatAnalyticsAverage(analytics.average)}</dd></div></dl>
+        ${state.coverageNotice ? `<p class="achievement-note">${e(state.coverageNotice)}</p>` : ""}
+        ${renderAverageChart(analytics, dateTools)}
+        ${analytics.count ? `<section class="subject-distribution"><h3>Какие отметки получены</h3><div class="subject-distribution-bars">${analytics.distribution.map((item) => `<div aria-label="Отметка ${item.grade}, количество ${item.count}"><span>${item.count || ""}</span><i style="--bar-height:${(item.count / Math.max(...analytics.distribution.map((value) => value.count), 1)) * 100}%"></i><strong>${item.grade}</strong></div>`).join("")}</div></section>` : ""}
+      </section>
+      <section id="subjectCalculationPanel" role="tabpanel" aria-labelledby="subjectCalculationTab"${activeTab === "calculation" ? "" : " hidden"}>
+      <section class="subject-average-card" aria-label="Средний балл"><span>Средний балл</span><strong>${formatAnalyticsAverage(analytics.average)}</strong></section>
+      ${gradeHistory}
+      <section class="grade-goal-card" aria-labelledby="gradeGoalTitle">
+        <h3 id="gradeGoalTitle">Цель</h3>
+        <p>До конца ${period.column?.type === "half" ? "полугодия" : "четверти"}: ${lessonsLeft} ${getLessonWord(lessonsLeft)}.</p>
         <form data-grade-goal-form>
-          <label>Какую отметку хочешь получить?<input data-grade-goal type="number" min="1" max="10" step="1" inputmode="numeric" placeholder="9" required></label>
+          <label>Желаемый балл<input data-grade-goal type="number" min="1" max="10" step="1" inputmode="numeric" value="${e(state.target ?? 9)}" required></label>
           <button type="submit">Рассчитать</button>
         </form>
-        <div class="grade-goal-result" data-grade-goal-result aria-live="polite"></div>
-        <small>Расчёт ориентируется на средний балл и предполагает не больше одной новой отметки за оставшийся урок.</small>
-      </section>`}
-      <section class="subject-grade-history" aria-labelledby="subjectGradesTitle">
-        <div class="subject-grade-heading"><h3 id="subjectGradesTitle">Все отметки</h3>${passFail ? "" : '<ul aria-label="Цветовые диапазоны"><li class="grade-tone-low">1–3</li><li class="grade-tone-middle">4–6</li><li class="grade-tone-high">7–10</li></ul>'}</div>
-        ${gradeTiles ? `<ol class="subject-grade-grid">${gradeTiles}</ol>` : '<p class="achievement-empty">Отметок за этот период пока нет.</p>'}
+        <div class="grade-goal-result" data-grade-goal-result aria-live="polite">${state.goalHtml || ""}</div>
+        <small>Один урок не гарантирует одну отметку. Для вариантов предполагаем не больше одной новой отметки за урок. Итоговую отметку выставляет учитель.</small>
       </section>
+      <section class="grade-goal-card grade-sandbox"><h3>Попробовать свои отметки</h3><p>Посмотри, как они изменят средний. Данные дневника останутся прежними.</p><div class="grade-sandbox-controls"><label>Отметка<select data-trial-grade>${Array.from({ length: 10 }, (_, index) => `<option value="${index + 1}"${index === 8 ? " selected" : ""}>${index + 1}</option>`).join("")}</select></label><button type="button" data-trial-add>Добавить</button></div><div data-trial-grades>${state.trialHtml || ""}</div><div data-trial-result aria-live="polite">${state.projectionHtml || ""}</div><button type="button" data-trial-clear>Сбросить примерку</button></section>
+      </section>`
+      }
+      ${passFail ? gradeHistory : ""}
     </aside>`;
+}
+
+function renderAverageChart(analytics, dateTools) {
+  if (!analytics.points.length)
+    return '<p class="achievement-empty">График появится после первых отметок.</p>';
+  const width = 440;
+  const left = 30;
+  const right = 425;
+  const minDate = Date.parse(analytics.points[0].date);
+  const dateRange = Date.parse(analytics.points.at(-1).date) - minDate;
+  const x = (point) =>
+    dateRange
+      ? left + ((Date.parse(point.date) - minDate) / dateRange) * (right - left)
+      : (left + right) / 2;
+  const y = (value) => 160 - ((value - 1) / 9) * 140;
+  return `<section class="subject-chart"><h3>Как менялся средний</h3><p class="achievement-note">По датам уроков. Наведи на точку или выбери её клавишей Tab.</p><svg viewBox="0 0 ${width} 195" role="img" aria-label="График среднего балла от ${average(analytics.points[0].average)} до ${average(analytics.average)}"><g class="subject-chart-grid">${[1, 4, 7, 10].map((value) => `<line x1="${left}" x2="${right}" y1="${y(value)}" y2="${y(value)}"/><text x="3" y="${y(value) + 4}">${value}</text>`).join("")}</g><polyline class="subject-chart-line" points="${analytics.points.map((point) => `${x(point)},${y(point.average)}`).join(" ")}"/>${analytics.points.map((point) => `<circle class="subject-chart-point" tabindex="0" cx="${x(point)}" cy="${y(point.average)}" r="5" data-chart-date="${e(dateTools.formatIsoDateLong(point.date))}" data-chart-grades="${point.grades.join("/")}" data-chart-average="${formatAnalyticsAverage(point.average)}" aria-label="${e(dateTools.formatIsoDateLong(point.date))}: ${point.grades.join("/")}, средний ${formatAnalyticsAverage(point.average)}"/>`).join("")}<text x="${left}" y="185">${e(formatShortDate(analytics.points[0].date))}</text><text x="${right}" y="185" text-anchor="end">${e(formatShortDate(analytics.points.at(-1).date))}</text></svg><div class="subject-chart-tooltip" role="tooltip" hidden><strong data-tooltip-date></strong><span data-tooltip-grades></span><span data-tooltip-average></span></div></section>`;
+}
+
+function renderGradeOptions(plan) {
+  if (plan.status === "reached")
+    return `<p class="goal-message is-success">Цель по среднему уже достигнута: ${formatAnalyticsAverage(plan.currentAverage)}.</p>`;
+  if (plan.status === "impossible" && plan.remainingLessons)
+    return `<p class="goal-message is-warning">Даже отметки 10 на каждом оставшемся уроке дадут средний ${formatAnalyticsAverage(plan.bestAverage)}. Для этой цели нужно не ниже ${formatAnalyticsAverage(plan.threshold)}.</p>`;
+  if (plan.status !== "possible") return renderGradeGoalResult(plan);
+  const card = (option, index) =>
+    `<li><div class="grade-option-content"><span class="grade-option-label">${e(option.label)}</span><strong>${formatGradeCombination(option.grades)}</strong><span class="grade-option-summary">${option.count} ${getGradeWord(option.count)} · средний ${formatAnalyticsAverage(option.projectedAverage)}</span></div><button type="button" data-trial-option="${index}">Примерить</button></li>`;
+  return `<ol class="grade-options">${card(plan.options[0], 0)}</ol>${
+    plan.options.length > 1
+      ? `<button class="grade-options-toggle" type="button" data-goal-more aria-expanded="false" aria-controls="gradeOptionsMore"><span>Показать больше</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button><div id="gradeOptionsMore" class="grade-options-more" aria-hidden="true" inert><div><ol class="grade-options">${plan.options
+          .slice(1)
+          .map((option, index) => card(option, index + 1))
+          .join("")}</ol></div></div>`
+      : ""
+  }`;
+}
+
+function formatAnalyticsAverage(value) {
+  return Number.isFinite(value)
+    ? value.toLocaleString("ru-RU", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 3,
+      })
+    : "—";
+}
+
+function formatGradeCombination(grades) {
+  const counts = new Map();
+  grades.forEach((grade) => counts.set(grade, (counts.get(grade) || 0) + 1));
+  return [...counts]
+    .map(([grade, count]) => `${grade}${count > 1 ? ` × ${count}` : ""}`)
+    .join(" + ");
+}
+
+function getGradeWord(count) {
+  if (count % 100 >= 11 && count % 100 <= 14) return "отметок";
+  return count % 10 === 1
+    ? "отметка"
+    : count % 10 >= 2 && count % 10 <= 4
+      ? "отметки"
+      : "отметок";
+}
+
+function renderTrialGrades(grades) {
+  return grades.length
+    ? `<div class="trial-grade-list">${grades.map((grade, index) => `<button type="button" data-trial-remove="${index}" aria-label="Убрать предполагаемую отметку ${grade}">${grade}<span aria-hidden="true"> ×</span></button>`).join("")}</div>`
+    : '<p class="achievement-note">Добавь отметки вручную или примерь готовый вариант выше.</p>';
+}
+
+function renderProjection(projection, available) {
+  return `<p class="trial-projection">Средний: <strong>${formatAnalyticsAverage(projection.projectedAverage)}</strong> · округлённый: <strong>${projection.rounded ?? "—"}</strong></p>${projection.count > available ? '<p class="achievement-note">В примерке больше отметок, чем оставшихся уроков. Это только сценарий.</p>' : ""}`;
 }
 
 function formatShortDate(value) {
@@ -138,4 +229,7 @@ export {
   renderAchievementTable,
   renderGradeGoalResult,
   renderSubjectDetails,
+  renderGradeOptions,
+  renderTrialGrades,
+  renderProjection,
 };

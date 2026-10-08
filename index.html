@@ -212,6 +212,7 @@
                             <button type="button" id="studentScheduleButton" aria-pressed="false">Расписание</button>
                             <button type="button" id="studentAchievementsButton" aria-pressed="false">Итоги</button>
                         </nav>
+                        <div id="studentChangesPanel" hidden></div>
                         <section id="studentSchedule" class="schedule-panel" hidden aria-label="Расписание"></section>
                         <section id="studentAchievements" class="achievement-panel" hidden aria-label="Успеваемость"></section>
                         <section class="week-switcher" aria-labelledby="weekRangeTitle">
@@ -236,6 +237,7 @@
                                     <select id="studentTermSelect" aria-label="Учебный период"></select>
                                     <span class="student-term-arrow" aria-hidden="true"></span>
                                 </span>
+                                <button type="button" id="studentChangesButton" aria-haspopup="dialog">Что изменилось <span id="studentChangesCount" hidden></span></button>
                             </div>
 
                             <div class="week-switcher-header">

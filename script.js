@@ -24,6 +24,8 @@ import {
   subscribeToExtensionSnapshots,
 } from "./js/extension-import.js";
 import { adaptESchoolsSnapshot } from "./js/e-schools-adapter.js";
+import { createDiaryChangeTracker } from "./js/diary-changes.js";
+import { createAnalyticsPreviewData, createPreviewChangeBaseline } from "./js/analytics-preview.js";
 import {
   ONBOARDING_KEY,
   createOnboardingController,
@@ -188,7 +190,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   if (
     mode === "local" &&
-    new URLSearchParams(window.location.search).get("preview") === "diary"
+    ["diary", "analytics"].includes(new URLSearchParams(window.location.search).get("preview"))
   ) {
     onboarding.complete();
     try {
@@ -215,6 +217,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   confirmLogoutBtn.textContent = "Продолжить";
 
   const localData = await loadAppData();
+  const analyticsPreview = mode === "local" && relayParams.get("preview") === "analytics";
+  const previewValues = new Map();
+  const changeTracker = createDiaryChangeTracker(analyticsPreview ? { getItem: (key) => previewValues.get(key), setItem: (key, value) => previewValues.set(key, value) } : createSafeStorage(getBrowserStorage(window)));
+  if (analyticsPreview) changeTracker.record(createPreviewChangeBaseline(localData));
+  if (localData.hasSyncedData) changeTracker.record(localData);
   const diaryPreview =
     mode === "local" &&
     new URLSearchParams(window.location.search).get("preview") === "diary";
@@ -230,8 +237,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   let lastExtensionRefresh = 0;
   subscribeToExtensionSnapshots(window, async (snapshot) => {
+    if (analyticsPreview) return;
     if (Date.now() - lastExtensionRefresh < 2_000) return;
     lastExtensionRefresh = Date.now();
+    const nextImport = adaptESchoolsSnapshot(snapshot);
+    if (nextImport?.diary?.weeks?.length) changeTracker.record(nextImport);
     if (mode === "cloud" && services) {
       try {
         await ensureCloudUser();
@@ -253,7 +263,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     syncedStudent?.displayName ||
     [syncedStudent?.firstName, syncedStudent?.lastName].filter(Boolean).join(" ") ||
     "Ученик";
-  const storage = createPreviewStorage(createSafeStorage(getBrowserStorage(window), {
+  const storage = createPreviewStorage(createSafeStorage(analyticsPreview ? { getItem: (key) => previewValues.get(key), setItem: (key, value) => previewValues.set(key, value), removeItem: (key) => previewValues.delete(key) } : getBrowserStorage(window), {
     onError: ({ operation, error }) =>
       console.warn(`Не удалось выполнить операцию с хранилищем: ${operation}`, error),
   }));
@@ -308,6 +318,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     onLogout: () => openModal(logoutModal),
     onThemeToggle: themeController.toggle,
     journalStore,
+    changeTracker,
+    coverageNotice: localData.coverage && !localData.coverage.hasSchedule ? "Расписание получено не полностью. Количество оставшихся уроков может быть неточным." : "",
     onSectionChange: (section) => {
       if (appRouteReady) writeRoute("app", section);
     },
@@ -474,6 +486,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   async function loadAppData() {
+    if (mode === "local" && relayParams.get("preview") === "analytics") return createAnalyticsPreviewData(SCHOOL_DIARY, SCHOOL_DATA);
     const savedDiaryPromise =
       mode === "cloud" && services
         ? settleWithin(

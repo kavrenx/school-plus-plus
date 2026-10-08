@@ -147,7 +147,7 @@ test("student can switch between diary, four schedule views and results", async 
       f
         .$("studentAchievements")
         .querySelector("[data-grade-goal-result]")
-        .textContent.includes("Достаточно получить"),
+        .querySelector("[data-trial-option]"),
     );
     f.$("studentAchievements").querySelector("[data-achievement-back]").click();
     assert.equal(

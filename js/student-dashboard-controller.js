@@ -2,16 +2,16 @@ import { DAY_ORDER, TEXT } from "./app-config.js";
 import { capitalize, createDateTools } from "./date-tools.js";
 import { getLessonWord, renderDiaryTable } from "./diary-view.js";
 import { escapeHtml } from "./ui-utils.js";
-import {
-  calculateGradeGoal,
-  getStudentSubjects,
-  getSubjectResult,
-} from "./achievement-model.js";
+import { getStudentSubjects, getSubjectResult } from "./achievement-model.js";
 import {
   renderAchievementTable,
-  renderGradeGoalResult,
   renderSubjectDetails,
+  renderGradeOptions,
+  renderTrialGrades,
+  renderProjection,
 } from "./achievement-view.js";
+import { calculateGradeOptions, projectGrades } from "./subject-analytics.js";
+import { renderDiaryChanges } from "./diary-changes.js";
 import { getCurrentResultPeriod, getResultColumns } from "./result-periods.js";
 import {
   completeAcademicWeeks,
@@ -41,6 +41,8 @@ function createStudentDashboardController({
   journalStore,
   now = () => new Date(),
   onSectionChange = () => {},
+  coverageNotice = "",
+  changeTracker = null,
 }) {
   diary.weeks = completeAcademicWeeks(diary.weeks, diary.school.academicYear);
   const year = diary.school.academicYear;
@@ -127,10 +129,17 @@ function createStudentDashboardController({
   let scheduleTab = "bells";
   let selectedSubjectId = "";
   let selectedSubjectPeriod = null;
+  let selectedSubjectTermId = "";
+  let selectedSubjectTab = "calculation";
+  let selectedGoalPlan = null;
+  const subjectCalculations = new Map();
   let subjectDetailOrigin = "results";
   const extensionMaterialsByLesson = new Map();
   const requestedMaterialLessons = new Set();
   const achievementPanel = root.getElementById("studentAchievements");
+  const changesPanel = root.getElementById("studentChangesPanel");
+  const changesButton = root.getElementById("studentChangesButton");
+  const changesCount = root.getElementById("studentChangesCount");
   const diaryButton = root.getElementById("studentDiaryButton");
   const achievementButton = root.getElementById("studentAchievementsButton");
   const schedulePanel = root.getElementById("studentSchedule");
@@ -150,6 +159,7 @@ function createStudentDashboardController({
   }
 
   function showSection(section = "diary", announce = true) {
+    closeChanges(false);
     if (!["diary", "schedule", "results"].includes(section)) section = "diary";
     const previousSection = selectedSection;
     if (section !== "results" && selectedSubjectId)
@@ -206,6 +216,9 @@ function createStudentDashboardController({
   }
 
   function renderAchievements(focus = false) {
+    const detailWasOpen = Boolean(
+      achievementPanel.querySelector(".subject-detail-drawer"),
+    );
     const studentId = currentUser?.id || currentUser?.userId;
     const results = getStudentSubjects(diary, studentId).map((assignment) =>
       getSubjectResult(diary, journalStore, assignment, studentId),
@@ -229,16 +242,80 @@ function createStudentDashboardController({
       ? getCurrentResultPeriod(
           selectedResult,
           year,
-          findInitialTermId(terms, getSchoolDateIso(now())),
+          selectedSubjectTermId ||
+            findInitialTermId(terms, getSchoolDateIso(now())),
           getSchoolDateIso(now()),
         )
       : null;
     if (selectedResult && selectedSubjectPeriod) {
+      selectedSubjectTermId ||= findInitialTermId(
+        terms,
+        getSchoolDateIso(now()),
+      );
+      const choices = terms
+        .map((term) => {
+          const choice = getCurrentResultPeriod(
+            selectedResult,
+            year,
+            term.id,
+            getSchoolDateIso(now()),
+          );
+          return {
+            id: term.id,
+            title: choice?.title,
+            columnId: choice?.column.id,
+          };
+        })
+        .filter(
+          (choice, index, all) =>
+            choice.title &&
+            all.findIndex((item) => item.columnId === choice.columnId) ===
+              index,
+        );
+      const selectedChoice = choices.find(
+        (choice) => choice.columnId === selectedSubjectPeriod.column.id,
+      );
+      const state = getSubjectCalculation();
+      const periodTerms = terms.filter((term) =>
+        selectedSubjectPeriod.column.termIds.includes(term.id),
+      );
+      const today = getSchoolDateIso(now());
+      const periodStatus =
+        periodTerms[0]?.startsOn > today
+          ? "Период ещё не начался"
+          : periodTerms.at(-1)?.endsOn < today
+            ? "Период завершён"
+            : "Период продолжается · результаты пока не окончательные";
+      selectedGoalPlan = calculateGradeOptions(
+        selectedSubjectPeriod.grades,
+        state.target,
+        selectedSubjectPeriod.remainingLessons.length,
+        state.mode,
+      );
       achievementPanel.insertAdjacentHTML(
         "beforeend",
-        renderSubjectDetails(selectedResult, selectedSubjectPeriod, {
-          formatIsoDateLong,
-        }),
+        renderSubjectDetails(
+          selectedResult,
+          selectedSubjectPeriod,
+          {
+            formatIsoDateLong,
+          },
+          {
+            ...state,
+            animate: !detailWasOpen,
+            tab: selectedSubjectTab,
+            periodChoices: choices,
+            termId: selectedChoice?.id,
+            coverageNotice,
+            periodStatus,
+            goalHtml: renderGradeOptions(selectedGoalPlan),
+            trialHtml: renderTrialGrades(state.trial),
+            projectionHtml: renderProjection(
+              projectGrades(selectedSubjectPeriod.grades, state.trial),
+              selectedSubjectPeriod.remainingLessons.length,
+            ),
+          },
+        ),
       );
       root.body?.classList.add("subject-detail-open");
     } else {
@@ -253,11 +330,50 @@ function createStudentDashboardController({
     }
   }
 
+  function getSubjectCalculation() {
+    const key = `${selectedSubjectId}:${selectedSubjectPeriod?.column?.id}`;
+    if (!subjectCalculations.has(key))
+      subjectCalculations.set(key, { target: 9, mode: "rounded", trial: [] });
+    return subjectCalculations.get(key);
+  }
+
+  function refreshSubjectCalculation() {
+    if (!selectedSubjectPeriod) return;
+    const state = getSubjectCalculation();
+    const input = achievementPanel.querySelector("[data-grade-goal]");
+    if (!input) return;
+    state.target = input.value;
+    state.mode = "rounded";
+    selectedGoalPlan = calculateGradeOptions(
+      selectedSubjectPeriod.grades,
+      state.target,
+      selectedSubjectPeriod.remainingLessons.length,
+      state.mode,
+    );
+    achievementPanel.querySelector("[data-grade-goal-result]").innerHTML =
+      renderGradeOptions(selectedGoalPlan);
+  }
+
+  function refreshTrial() {
+    const state = getSubjectCalculation();
+    achievementPanel.querySelector("[data-trial-grades]").innerHTML =
+      renderTrialGrades(state.trial);
+    achievementPanel.querySelector("[data-trial-result]").innerHTML =
+      renderProjection(
+        projectGrades(selectedSubjectPeriod.grades, state.trial),
+        selectedSubjectPeriod.remainingLessons.length,
+      );
+    achievementPanel.querySelector("[data-trial-add]").disabled =
+      state.trial.length >= 100;
+  }
+
   function closeSubjectDetails(restoreFocus = true, returnToOrigin = true) {
     const subjectId = selectedSubjectId;
     const origin = subjectDetailOrigin;
     selectedSubjectId = "";
     selectedSubjectPeriod = null;
+    selectedSubjectTermId = "";
+    selectedSubjectTab = "calculation";
     subjectDetailOrigin = "results";
     root.body?.classList.remove("subject-detail-open");
     if (selectedSection !== "results") return;
@@ -277,29 +393,222 @@ function createStudentDashboardController({
     if (subject) {
       subjectDetailOrigin = "results";
       selectedSubjectId = subject.dataset.achievementSubject;
+      selectedSubjectTermId = "";
+      selectedSubjectTab = "calculation";
       renderAchievements(true);
       return;
     }
+    const tab = event.target.closest("[data-subject-tab]");
+    if (tab) {
+      const tooltip = achievementPanel.querySelector(".subject-chart-tooltip");
+      if (tooltip) tooltip.hidden = true;
+      selectedSubjectTab = tab.dataset.subjectTab;
+      achievementPanel
+        .querySelectorAll("[data-subject-tab]")
+        .forEach((button) => {
+          const active = button.dataset.subjectTab === selectedSubjectTab;
+          button.setAttribute("aria-selected", String(active));
+          button.tabIndex = active ? 0 : -1;
+        });
+      achievementPanel.querySelector("#subjectStatisticsPanel").hidden =
+        selectedSubjectTab !== "statistics";
+      achievementPanel.querySelector("#subjectCalculationPanel").hidden =
+        selectedSubjectTab !== "calculation";
+      return;
+    }
+    const more = event.target.closest("[data-goal-more]");
+    if (more) {
+      const expanded = more.getAttribute("aria-expanded") !== "true";
+      more.setAttribute("aria-expanded", String(expanded));
+      more.querySelector("span").textContent = expanded
+        ? "Скрыть варианты"
+        : "Показать больше";
+      const list = achievementPanel.querySelector("#gradeOptionsMore");
+      list.classList.toggle("is-expanded", expanded);
+      list.setAttribute("aria-hidden", String(!expanded));
+      list.toggleAttribute("inert", !expanded);
+      return;
+    }
+    const date = event.target.closest("[data-subject-date]");
+    if (date) {
+      closeSubjectDetails(false, false);
+      goToDate(date.dataset.subjectDate);
+      elements.diaryTitle?.focus();
+      return;
+    }
+    if (selectedSubjectPeriod) {
+      const state = getSubjectCalculation();
+      const option = event.target.closest("[data-trial-option]");
+      const remove = event.target.closest("[data-trial-remove]");
+      if (option)
+        state.trial = [
+          ...(selectedGoalPlan?.options[Number(option.dataset.trialOption)]
+            ?.grades || []),
+        ];
+      else if (remove)
+        state.trial.splice(Number(remove.dataset.trialRemove), 1);
+      else if (event.target.closest("[data-trial-add]")) {
+        if (state.trial.length < 100)
+          state.trial.push(
+            Number(achievementPanel.querySelector("[data-trial-grade]").value),
+          );
+      } else if (event.target.closest("[data-trial-clear]")) state.trial = [];
+      else if (event.target.closest("[data-achievement-back]")) {
+        closeSubjectDetails();
+        return;
+      } else return;
+      refreshTrial();
+      if (option) revealTrial();
+    }
     if (event.target.closest("[data-achievement-back]")) closeSubjectDetails();
+  }
+
+  let trialHighlightTimer;
+  function revealTrial() {
+    const sandbox = achievementPanel.querySelector(".grade-sandbox");
+    const drawer = achievementPanel.querySelector(".subject-detail-drawer");
+    if (!sandbox || !drawer) return;
+    const reduced = root.defaultView?.matchMedia?.(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    drawer.scrollTo?.({
+      top: Math.max(0, sandbox.offsetTop - 24),
+      behavior: reduced ? "instant" : "smooth",
+    });
+    sandbox.querySelector("h3")?.setAttribute("tabindex", "-1");
+    sandbox.querySelector("h3")?.focus({ preventScroll: true });
+    root.defaultView?.clearTimeout(trialHighlightTimer);
+    sandbox.classList.add("is-trial-highlight");
+    trialHighlightTimer = root.defaultView?.setTimeout(
+      () => sandbox.classList.remove("is-trial-highlight"),
+      1300,
+    );
+  }
+
+  function handleChartTooltip(event) {
+    const point = event.target.closest?.(".subject-chart-point");
+    if (!point) return;
+    const chart = point.closest(".subject-chart");
+    const tooltip = chart.querySelector(".subject-chart-tooltip");
+    if (["pointerout", "focusout"].includes(event.type)) {
+      if (event.relatedTarget !== point) tooltip.hidden = true;
+      return;
+    }
+    tooltip.querySelector("[data-tooltip-date]").textContent =
+      point.dataset.chartDate;
+    tooltip.querySelector("[data-tooltip-grades]").textContent =
+      `Отметки: ${point.dataset.chartGrades}`;
+    tooltip.querySelector("[data-tooltip-average]").textContent =
+      `Средний: ${point.dataset.chartAverage}`;
+    tooltip.hidden = false;
+    const area = chart.getBoundingClientRect();
+    const bounds = point.getBoundingClientRect();
+    const tip = tooltip.getBoundingClientRect();
+    tooltip.style.left = `${Math.max(0, Math.min(area.width - tip.width, bounds.left + bounds.width / 2 - area.left - tip.width / 2))}px`;
+    const above = bounds.top - area.top - tip.height - 10;
+    tooltip.style.top = `${above >= 0 ? above : bounds.bottom - area.top + 10}px`;
   }
 
   function handleAchievementSubmit(event) {
     const form = event.target.closest("[data-grade-goal-form]");
     if (!form || !selectedSubjectPeriod) return;
     event.preventDefault();
-    const input = form.querySelector("[data-grade-goal]");
-    const output = form.parentElement.querySelector("[data-grade-goal-result]");
-    output.innerHTML = renderGradeGoalResult(
-      calculateGradeGoal(
-        selectedSubjectPeriod.grades,
-        input.value,
-        selectedSubjectPeriod.remainingLessons.length,
-      ),
-    );
+    refreshSubjectCalculation();
   }
 
   function handleAchievementKeydown(event) {
+    if (changesPanel && !changesPanel.hidden) {
+      if (event.key === "Escape") closeChanges();
+      if (event.key === "Tab") {
+        const items = [
+          ...changesPanel.querySelectorAll(".diary-changes-drawer button"),
+        ];
+        const first = items[0],
+          last = items.at(-1);
+        if (
+          event.shiftKey &&
+          (root.activeElement === first ||
+            root.activeElement?.id === "diaryChangesTitle")
+        ) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && root.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+      return;
+    }
     if (event.key === "Escape" && selectedSubjectId) closeSubjectDetails();
+    if (!selectedSubjectId) return;
+    const tab = event.target.closest?.("[data-subject-tab]");
+    if (tab && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+      event.preventDefault();
+      const name =
+        event.key === "Home"
+          ? "calculation"
+          : event.key === "End"
+            ? "statistics"
+            : tab.dataset.subjectTab === "statistics"
+              ? "calculation"
+              : "statistics";
+      const next = achievementPanel.querySelector(
+        `[data-subject-tab="${name}"]`,
+      );
+      next.click();
+      next.focus();
+    }
+    if (event.key === "Tab") {
+      const drawer = achievementPanel.querySelector(".subject-detail-drawer");
+      const focusable = [
+        ...drawer.querySelectorAll(
+          'button:not(:disabled), select, input, [tabindex="0"]',
+        ),
+      ].filter((element) => !element.closest("[hidden]"));
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (
+        event.shiftKey &&
+        (root.activeElement === first ||
+          root.activeElement?.matches("[data-subject-detail-heading]"))
+      ) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && root.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    }
+  }
+
+  function updateChangesCount() {
+    const count =
+      changeTracker?.getState().changes.filter((change) => !change.read)
+        .length || 0;
+    if (changesCount) {
+      changesCount.textContent = String(count);
+      changesCount.hidden = !count;
+    }
+  }
+
+  function closeChanges(restoreFocus = true) {
+    if (!changesPanel || changesPanel.hidden) return;
+    changesPanel.hidden = true;
+    changesPanel.innerHTML = "";
+    root.body?.classList.remove("subject-detail-open");
+    if (restoreFocus) changesButton?.focus();
+  }
+
+  function showChanges() {
+    if (!changesPanel) return;
+    if (selectedSubjectId) closeSubjectDetails(false, false);
+    const state = changeTracker?.getState() || { changes: [] };
+    changesPanel.innerHTML = renderDiaryChanges(state, formatIsoDateLong);
+    changesPanel.hidden = false;
+    root.body?.classList.add("subject-detail-open");
+    changesPanel.querySelector("#diaryChangesTitle")?.focus();
+    changeTracker?.markRead();
+    updateChangesCount();
   }
 
   function renderSchedule() {
@@ -395,6 +704,15 @@ function createStudentDashboardController({
   }
 
   function bind() {
+    changesButton?.addEventListener("click", showChanges);
+    changesPanel?.addEventListener("click", (event) => {
+      if (event.target.closest("[data-changes-close]")) closeChanges();
+      const date = event.target.closest("[data-change-date]");
+      if (date) {
+        closeChanges(false);
+        goToDate(date.dataset.changeDate);
+      }
+    });
     diaryButton?.addEventListener("click", () => showSection("diary"));
     achievementButton?.addEventListener("click", () => showSection("results"));
     scheduleButton?.addEventListener("click", () => showSection("schedule"));
@@ -423,6 +741,19 @@ function createStudentDashboardController({
     });
     achievementPanel?.addEventListener("click", handleAchievementClick);
     achievementPanel?.addEventListener("submit", handleAchievementSubmit);
+    for (const event of ["pointerover", "pointerout", "focusin", "focusout"])
+      achievementPanel?.addEventListener(event, handleChartTooltip);
+    achievementPanel?.addEventListener("input", (event) => {
+      if (event.target.matches("[data-grade-goal]"))
+        refreshSubjectCalculation();
+    });
+    achievementPanel?.addEventListener("change", (event) => {
+      if (event.target.matches("[data-subject-period]")) {
+        selectedSubjectTermId = event.target.value;
+        renderAchievements();
+        achievementPanel.querySelector("[data-subject-period]")?.focus();
+      }
+    });
     root.addEventListener("keydown", handleAchievementKeydown);
     elements.themeToggle.addEventListener("click", onThemeToggle);
     elements.logoutButton.addEventListener("click", onLogout);
@@ -447,7 +778,8 @@ function createStudentDashboardController({
             item.hidden = true;
           });
         if (popover) popover.hidden = !shouldOpen;
-        if (popover && shouldOpen) positionMaterialPopover(materialButton, popover);
+        if (popover && shouldOpen)
+          positionMaterialPopover(materialButton, popover);
         materialButton.setAttribute("aria-expanded", String(shouldOpen));
         return;
       }
@@ -458,8 +790,7 @@ function createStudentDashboardController({
         (item) =>
           (item.subjectId === button.dataset.diarySubject ||
             item.variants?.some(
-              (variant) =>
-                variant.subjectId === button.dataset.diarySubject,
+              (variant) => variant.subjectId === button.dataset.diarySubject,
             )) &&
           (!button.dataset.diaryGroup ||
             !item.groupId ||
@@ -468,6 +799,8 @@ function createStudentDashboardController({
       if (!assignment) return;
       subjectDetailOrigin = "diary";
       selectedSubjectId = assignment.id;
+      selectedSubjectTermId = "";
+      selectedSubjectTab = "calculation";
       showSection("results");
       root.defaultView?.requestAnimationFrame?.(() =>
         achievementPanel
@@ -495,7 +828,8 @@ function createStudentDashboardController({
     } catch {
       return;
     }
-    const originalLabel = button.querySelector("span")?.textContent || "Материал";
+    const originalLabel =
+      button.querySelector("span")?.textContent || "Материал";
     button.disabled = true;
     button.classList.add("is-loading");
     const result = await requestExtensionMaterial(root.defaultView, material);
@@ -518,6 +852,7 @@ function createStudentDashboardController({
     renderTermSelect();
     renderDiary();
     showSection("diary");
+    updateChangesCount();
   }
 
   function updateUser(user) {
@@ -527,6 +862,8 @@ function createStudentDashboardController({
   }
 
   function destroy() {
+    root.defaultView?.clearTimeout(trialHighlightTimer);
+    closeChanges(false);
     sectionAnimations.forEach((animation) => animation.cancel());
     sectionAnimations = [];
     selectedSubjectId = "";
@@ -567,9 +904,15 @@ function createStudentDashboardController({
     const viewportWidth = root.documentElement?.clientWidth || 1024;
     const viewportHeight = root.documentElement?.clientHeight || 768;
     const width = Math.min(320, viewportWidth - 28);
-    const left = Math.max(14, Math.min(bounds.right - width, viewportWidth - width - 14));
+    const left = Math.max(
+      14,
+      Math.min(bounds.right - width, viewportWidth - width - 14),
+    );
     const preferredTop = bounds.bottom + 7;
-    const estimatedHeight = Math.min(260, 72 + popover.querySelectorAll("a").length * 52);
+    const estimatedHeight = Math.min(
+      260,
+      72 + popover.querySelectorAll("a").length * 52,
+    );
     const top =
       preferredTop + estimatedHeight <= viewportHeight - 14
         ? preferredTop
@@ -707,7 +1050,9 @@ function createStudentDashboardController({
     lessonIds.forEach((lessonId) => requestedMaterialLessons.add(lessonId));
     const received = await requestExtensionLessonMaterials(
       root.defaultView,
-      lessons.filter((lesson) => lessonIds.includes(String(lesson?.id || "").trim())),
+      lessons.filter((lesson) =>
+        lessonIds.includes(String(lesson?.id || "").trim()),
+      ),
     );
     let changed = false;
     lessonIds.forEach((lessonId) => {
@@ -791,9 +1136,7 @@ function createStudentDashboardController({
         isInstructionDate(year, date),
     );
     const targetDate =
-      week.start <= today &&
-      today <= week.end &&
-      isInstructionDate(year, today)
+      week.start <= today && today <= week.end && isInstructionDate(year, today)
         ? today
         : firstInstructionDay;
     if (targetDate) goToDate(targetDate);
@@ -858,14 +1201,12 @@ function createStudentDashboardController({
     const studentId = currentUser?.id || currentUser?.userId;
     if (!studentId) return lessons;
     return lessons.map((lesson) => {
-      const extensionMaterials = extensionMaterialsByLesson.get(lesson.id) || [];
+      const extensionMaterials =
+        extensionMaterialsByLesson.get(lesson.id) || [];
       const lessonWithMaterials = extensionMaterials.length
         ? {
             ...lesson,
-            materials: mergeMaterialLists(
-              lesson.materials,
-              extensionMaterials,
-            ),
+            materials: mergeMaterialLists(lesson.materials, extensionMaterials),
           }
         : lesson;
       const merged = journalStore.mergeLessonForStudent(
@@ -896,14 +1237,19 @@ function createStudentDashboardController({
 
 function mergeMaterialLists(...collections) {
   const result = new Map();
-  collections.flat().filter(Boolean).forEach((material) => {
-    const url =
-      typeof material === "object" ? String(material.url || "") : String(material);
-    const title =
-      typeof material === "object" ? String(material.title || "") : "";
-    const key = `${url}|${title}`;
-    if (url && !result.has(key)) result.set(key, material);
-  });
+  collections
+    .flat()
+    .filter(Boolean)
+    .forEach((material) => {
+      const url =
+        typeof material === "object"
+          ? String(material.url || "")
+          : String(material);
+      const title =
+        typeof material === "object" ? String(material.title || "") : "";
+      const key = `${url}|${title}`;
+      if (url && !result.has(key)) result.set(key, material);
+    });
   return [...result.values()];
 }
 
