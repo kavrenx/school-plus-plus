@@ -54,4 +54,17 @@ function normalizeSubjectName(value) {
     .replace(/\s+/g, " ");
 }
 
-export { normalizeSubjectName, shortSubjectName };
+function getSubjectSearchNames(value) {
+  const short = shortSubjectName(value);
+  return [
+    ...new Set([
+      value,
+      short,
+      ...[...SUBJECT_SHORT_NAMES]
+        .filter(([, name]) => name === short)
+        .map(([name]) => name),
+    ]),
+  ];
+}
+
+export { normalizeSubjectName, shortSubjectName, getSubjectSearchNames };

@@ -184,9 +184,41 @@ test("updates have unread badge, mark read on opening and link to lesson day", a
     assert.equal(f.$("#studentChangesPanel").hidden, false);
     assert.equal(f.$("#studentChangesCount").hidden, true);
     assert.ok(f.changes.getState().changes.every((change) => change.read));
+    const toggle = f.$("[data-change-day]");
+    assert.equal(toggle.getAttribute("aria-expanded"), "true");
+    toggle.click();
+    assert.equal(f.$(".diary-change-day-body").hasAttribute("inert"), true);
+    toggle.click();
+    const search = f.$("[data-changes-search-input]");
+    search.focus();
+    assert.ok(
+      search.closest(".diary-changes-search").classList.contains("is-active"),
+    );
+    const grade = f.changes
+      .getState()
+      .changes.find((change) => change.type === "grades").after[0];
+    search.value = String(grade);
+    search.dispatchEvent(new f.window.Event("input", { bubbles: true }));
+    assert.equal(
+      f.window.document.querySelectorAll(".diary-change-card").length,
+      1,
+    );
+    assert.match(f.$("[data-changes-results]").textContent, /Найдено: 1/);
+    search.value = "Несуществующее задание";
+    search.dispatchEvent(new f.window.Event("input", { bubbles: true }));
+    assert.match(
+      f.$("[data-changes-results]").textContent,
+      /Ничего не найдено/,
+    );
+    f.$("[data-changes-search-clear]").click();
+    assert.equal(search.value, "");
+    assert.ok(
+      f.window.document.querySelectorAll(".diary-change-card").length > 1,
+    );
     const link = f.$("[data-change-date]");
+    assert.ok(link.classList.contains("diary-change-card"));
     const date = link.dataset.changeDate;
-    link.click();
+    link.querySelector(".diary-change-subject").click();
     assert.equal(f.$("#studentChangesPanel").hidden, true);
     assert.equal(f.$("#studentDatePicker").value, date);
     assert.equal(f.$("#diaryPanel").hidden, false);

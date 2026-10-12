@@ -11,7 +11,10 @@ import {
   renderProjection,
 } from "./achievement-view.js";
 import { calculateGradeOptions, projectGrades } from "./subject-analytics.js";
-import { renderDiaryChanges } from "./diary-changes.js";
+import {
+  renderDiaryChanges,
+  renderDiaryChangeGroups,
+} from "./diary-changes.js";
 import { getCurrentResultPeriod, getResultColumns } from "./result-periods.js";
 import {
   completeAcademicWeeks,
@@ -140,6 +143,8 @@ function createStudentDashboardController({
   const changesPanel = root.getElementById("studentChangesPanel");
   const changesButton = root.getElementById("studentChangesButton");
   const changesCount = root.getElementById("studentChangesCount");
+  let displayedChanges = { changes: [] };
+  const changeExpandedDays = new Map();
   const diaryButton = root.getElementById("studentDiaryButton");
   const achievementButton = root.getElementById("studentAchievementsButton");
   const schedulePanel = root.getElementById("studentSchedule");
@@ -518,11 +523,20 @@ function createStudentDashboardController({
 
   function handleAchievementKeydown(event) {
     if (changesPanel && !changesPanel.hidden) {
-      if (event.key === "Escape") closeChanges();
+      if (event.key === "Escape") {
+        const input = changesPanel.querySelector("[data-changes-search-input]");
+        if (input?.value) {
+          event.preventDefault();
+          input.value = "";
+          refreshChangeSearch();
+        } else closeChanges();
+      }
       if (event.key === "Tab") {
         const items = [
-          ...changesPanel.querySelectorAll(".diary-changes-drawer button"),
-        ];
+          ...changesPanel.querySelectorAll(
+            ".diary-changes-drawer button, .diary-changes-drawer input",
+          ),
+        ].filter((item) => !item.closest("[hidden], [inert]"));
         const first = items[0],
           last = items.at(-1);
         if (
@@ -595,6 +609,8 @@ function createStudentDashboardController({
     if (!changesPanel || changesPanel.hidden) return;
     changesPanel.hidden = true;
     changesPanel.innerHTML = "";
+    displayedChanges = { changes: [] };
+    changeExpandedDays.clear();
     root.body?.classList.remove("subject-detail-open");
     if (restoreFocus) changesButton?.focus();
   }
@@ -602,13 +618,48 @@ function createStudentDashboardController({
   function showChanges() {
     if (!changesPanel) return;
     if (selectedSubjectId) closeSubjectDetails(false, false);
-    const state = changeTracker?.getState() || { changes: [] };
-    changesPanel.innerHTML = renderDiaryChanges(state, formatIsoDateLong);
+    displayedChanges = changeTracker?.getState() || { changes: [] };
+    changeExpandedDays.clear();
+    changesPanel.innerHTML = renderDiaryChanges(
+      displayedChanges,
+      formatIsoDateLong,
+      changeGroupOptions(),
+    );
     changesPanel.hidden = false;
     root.body?.classList.add("subject-detail-open");
     changesPanel.querySelector("#diaryChangesTitle")?.focus();
     changeTracker?.markRead();
     updateChangesCount();
+  }
+
+  function changeGroupOptions() {
+    return {
+      today: getSchoolDateIso(now()),
+      timeZone: diary.school.timezone || "Europe/Minsk",
+      expandedDays: changeExpandedDays,
+      query:
+        changesPanel.querySelector("[data-changes-search-input]")?.value || "",
+    };
+  }
+
+  function updateChangeSearchAppearance() {
+    const input = changesPanel.querySelector("[data-changes-search-input]");
+    if (!input) return;
+    const field = input.closest(".diary-changes-search");
+    const active = Boolean(input.value) || field.contains(root.activeElement);
+    field.classList.toggle("is-active", active);
+    field.querySelector("[data-changes-search-clear]").hidden = !input.value;
+  }
+
+  function refreshChangeSearch() {
+    const results = changesPanel.querySelector("[data-changes-results]");
+    if (!results) return;
+    results.innerHTML = renderDiaryChangeGroups(
+      displayedChanges,
+      formatIsoDateLong,
+      changeGroupOptions(),
+    );
+    updateChangeSearchAppearance();
   }
 
   function renderSchedule() {
@@ -706,13 +757,46 @@ function createStudentDashboardController({
   function bind() {
     changesButton?.addEventListener("click", showChanges);
     changesPanel?.addEventListener("click", (event) => {
-      if (event.target.closest("[data-changes-close]")) closeChanges();
+      if (event.target.closest("[data-changes-close]")) {
+        closeChanges();
+        return;
+      }
+      const day = event.target.closest("[data-change-day]");
+      if (day) {
+        const expanded = day.getAttribute("aria-expanded") !== "true";
+        changeExpandedDays.set(day.dataset.changeDay, expanded);
+        day.setAttribute("aria-expanded", String(expanded));
+        const body = day
+          .closest(".diary-change-day")
+          .querySelector(".diary-change-day-body");
+        body.classList.toggle("is-expanded", expanded);
+        body.setAttribute("aria-hidden", String(!expanded));
+        body.toggleAttribute("inert", !expanded);
+        return;
+      }
+      const input = changesPanel.querySelector("[data-changes-search-input]");
+      if (event.target.closest("[data-changes-search-clear]")) {
+        input.value = "";
+        refreshChangeSearch();
+        input.focus();
+        return;
+      }
+      if (event.target.closest(".diary-changes-search")) {
+        input?.focus();
+        return;
+      }
       const date = event.target.closest("[data-change-date]");
       if (date) {
         closeChanges(false);
         goToDate(date.dataset.changeDate);
       }
     });
+    changesPanel?.addEventListener("input", (event) => {
+      if (event.target.matches("[data-changes-search-input]"))
+        refreshChangeSearch();
+    });
+    for (const event of ["focusin", "focusout"])
+      changesPanel?.addEventListener(event, updateChangeSearchAppearance);
     diaryButton?.addEventListener("click", () => showSection("diary"));
     achievementButton?.addEventListener("click", () => showSection("results"));
     scheduleButton?.addEventListener("click", () => showSection("schedule"));

@@ -5,6 +5,9 @@ import {
   createDiaryChangeTracker,
   createChangeSnapshot,
   renderDiaryChanges,
+  groupDiaryChanges,
+  getChangeSyncDay,
+  matchesChangeSearch,
 } from "../js/diary-changes.js";
 import { createAnalyticsPreviewData } from "../js/analytics-preview.js";
 import { SCHOOL_DIARY } from "../data/diary-data.js";
@@ -18,6 +21,114 @@ const row = (values = {}) => ({
   homework: "§8",
   materials: [],
   ...values,
+});
+
+test("change days use synchronization time in the school timezone rather than lesson date", () => {
+  const changes = [
+    {
+      ...row(),
+      type: "grades",
+      after: ["8"],
+      syncedAt: "2026-10-11T21:30:00Z",
+      detectedAt: "2026-10-13T10:00:00Z",
+    },
+    {
+      ...row(),
+      type: "homework",
+      after: "§8",
+      detectedAt: "2026-10-12T12:00:00Z",
+    },
+    {
+      ...row(),
+      type: "grades",
+      after: ["9"],
+      detectedAt: "2026-10-11T12:00:00Z",
+    },
+  ];
+  assert.equal(getChangeSyncDay(changes[0]), "2026-10-12");
+  const groups = groupDiaryChanges(changes);
+  assert.deepEqual(
+    groups.map((group) => [group.day, group.changes.length]),
+    [
+      ["2026-10-12", 2],
+      ["2026-10-11", 1],
+    ],
+  );
+  assert.equal(groups[0].changes[0].type, "homework");
+  const html = renderDiaryChanges({ changes }, (date) => date, {
+    today: "2026-10-12",
+  });
+  assert.match(html, /data-change-day="2026-10-12" aria-expanded="true"/);
+  assert.match(html, /data-change-day="2026-10-11" aria-expanded="false"/);
+});
+
+test("search matches subject aliases, grades and filenames without confusing a grade with a date", () => {
+  const grade = {
+    ...row({ subject: "Русск. лит." }),
+    type: "grades",
+    before: ["8"],
+    after: ["9", "9"],
+  };
+  assert.ok(matchesChangeSearch(grade, "русская литература"));
+  assert.ok(matchesChangeSearch(grade, "9/9"));
+  assert.ok(matchesChangeSearch(grade, "9"));
+  assert.equal(matchesChangeSearch(grade, "10"), false);
+  assert.equal(
+    matchesChangeSearch({ ...grade, before: [], after: ["1", "10"] }, "1/1"),
+    false,
+  );
+  const material = {
+    ...row(),
+    type: "materials",
+    after: ["Расчёт задачи.PDF"],
+  };
+  assert.ok(matchesChangeSearch(material, "расчет pdf"));
+  assert.ok(matchesChangeSearch(material, "файл"));
+  assert.equal(matchesChangeSearch(material, "9"), false);
+  const homework = {
+    ...row(),
+    type: "homework",
+    after: "Подготовиться к диктанту",
+  };
+  assert.ok(matchesChangeSearch(homework, "РУССКИЙ диктанту"));
+  assert.equal(matchesChangeSearch(homework, "биология"), false);
+});
+
+test("search preserves grouping, opens matching days and handles empty results", () => {
+  const changes = [
+    {
+      ...row(),
+      type: "grades",
+      after: ["9"],
+      detectedAt: "2026-10-12T10:00:00Z",
+    },
+    {
+      ...row(),
+      type: "grades",
+      after: ["9"],
+      detectedAt: "2026-10-10T10:00:00Z",
+    },
+  ];
+  const html = renderDiaryChanges({ changes }, (date) => date, {
+    query: "9",
+    today: "2026-10-12",
+  });
+  assert.match(html, /Найдено: 2/);
+  assert.match(html, /data-change-day="2026-10-10" aria-expanded="true"/);
+  assert.ok(
+    renderDiaryChanges({ changes }, (date) => date, {
+      query: "химия",
+    }).includes("Ничего не найдено"),
+  );
+  const restored = renderDiaryChanges({ changes }, (date) => date, {
+    today: "2026-10-12",
+    expandedDays: new Map([
+      ["2026-10-10", true],
+      ["2026-10-12", false],
+    ]),
+  });
+  assert.match(restored, /data-change-day="2026-10-12" aria-expanded="false"/);
+  assert.match(restored, /data-change-day="2026-10-10" aria-expanded="true"/);
 });
 
 test("changes detect paired duplicate grades, edited homework and a new material", () => {

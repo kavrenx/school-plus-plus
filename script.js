@@ -220,7 +220,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   const analyticsPreview = mode === "local" && relayParams.get("preview") === "analytics";
   const previewValues = new Map();
   const changeTracker = createDiaryChangeTracker(analyticsPreview ? { getItem: (key) => previewValues.get(key), setItem: (key, value) => previewValues.set(key, value) } : createSafeStorage(getBrowserStorage(window)));
-  if (analyticsPreview) changeTracker.record(createPreviewChangeBaseline(localData));
+  if (analyticsPreview) {
+    const previewNow = Date.now();
+    const baseline = createPreviewChangeBaseline(localData);
+    baseline.importedAt = new Date(previewNow - 2 * 86_400_000).toISOString();
+    changeTracker.record(baseline);
+    const previousDay = structuredClone(baseline);
+    previousDay.importedAt = new Date(previewNow - 86_400_000).toISOString();
+    const marked = previousDay.journalEntries.find((entry) => entry.grades.length && entry.grades[0] !== "зачёт");
+    if (marked) marked.grades = ["5"];
+    changeTracker.record(previousDay);
+    localData.importedAt = new Date(previewNow).toISOString();
+  }
   if (localData.hasSyncedData) changeTracker.record(localData);
   const diaryPreview =
     mode === "local" &&
