@@ -47,6 +47,10 @@ function createCloudAuth(client) {
         return null;
       return unwrap(result).user;
     },
+    async getCachedUser() {
+      // This is only for an already downloaded offline copy, never for server authorization.
+      return unwrap(await client.auth.getSession()).session?.user || null;
+    },
     async signOut() {
       // A failed logout must not be shown as successful by the interface.
       unwrap(await client.auth.signOut());

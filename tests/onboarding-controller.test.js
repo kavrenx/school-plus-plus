@@ -73,6 +73,33 @@ test("returning users skip onboarding", async () => {
   window.close();
 });
 
+test("a phone opens code entry directly with the requested connection heading", async () => {
+  const window = createWindow();
+  const controller = createOnboardingController({
+    root: window.document,
+    windowRef: window,
+    storeUrls: {},
+    initialStep: "mobile",
+    pairingCode: "12345678",
+    presenceCheck: () => assert.fail("phone should not look for an extension"),
+  });
+  try {
+    void controller.start();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(
+      window.document.querySelector("h1").textContent,
+      "Подключение телефона",
+    );
+    assert.equal(
+      window.document.querySelector('[name="code"]').value,
+      "12345678",
+    );
+    assert.equal(window.document.querySelector("[data-diary-confirm]"), null);
+  } finally {
+    window.close();
+  }
+});
+
 test("an installed extension with data completes the first-run flow", async () => {
   const window = createWindow();
   const controller = createOnboardingController({
@@ -87,7 +114,10 @@ test("an installed extension with data completes the first-run flow", async () =
   await new Promise((resolve) => setImmediate(resolve));
 
   window.document.querySelector("[data-diary-confirm]").click();
-  window.document.querySelector('[data-device-confirm="desktop"]').click();
+  assert.equal(
+    window.document.querySelector('[data-device-confirm="desktop"]'),
+    null,
+  );
   await new Promise((resolve) => setImmediate(resolve));
   await new Promise((resolve) => setImmediate(resolve));
   assert.match(
@@ -116,7 +146,6 @@ test("extension install screen links Chrome and marks Firefox as coming soon", a
   void controller.start();
   await new Promise((resolve) => setImmediate(resolve));
   window.document.querySelector("[data-diary-confirm]").click();
-  window.document.querySelector('[data-device-confirm="desktop"]').click();
   await new Promise((resolve) => setImmediate(resolve));
 
   const chrome = window.document.querySelector('a[href*="chromewebstore"]');

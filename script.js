@@ -30,6 +30,11 @@ import {
   ONBOARDING_KEY,
   createOnboardingController,
 } from "./js/onboarding-controller.js";
+import { createDeviceController } from "./js/device-controller.js";
+import { createDiaryRevisionWatcher } from "./js/device-repository.js";
+import { createLinkedDiaryCache } from "./js/linked-diary-cache.js";
+import { createMobileViewportController } from "./js/mobile-viewport.js";
+import { formatDiaryFreshness } from "./js/diary-freshness.js";
 import { EXTENSION_STORE_URLS } from "./js/release-config.js";
 import { createSupabaseServices } from "./js/supabase-services.js";
 import { createSupportController } from "./js/support-controller.js";
@@ -43,6 +48,10 @@ import {
 registerIcons();
 
 document.addEventListener("DOMContentLoaded", async () => {
+  const mobileViewport = createMobileViewportController(window);
+  mobileViewport.start();
+  window.addEventListener("pagehide", mobileViewport.stop);
+  window.addEventListener("pageshow", (event) => { if (event.persisted) mobileViewport.start(); });
   const mode = import.meta.env.VITE_APP_MODE || "local";
   const services = createSupabaseServices();
   let cloudUserPromise = null;
@@ -51,6 +60,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   let restoringRoute = false;
   let appRouteReady = false;
   let studentDashboardController = null;
+  let deviceController = null;
+  let diaryRevisionWatcher = null;
+  let deviceAccess = { role: "unpaired" };
+  let authUser = null;
+  const browserStorage = createSafeStorage(getBrowserStorage(window));
+  const linkedCache = createLinkedDiaryCache(browserStorage);
 
   function settleWithin(promise, duration, fallback) {
     return Promise.race([
@@ -60,10 +75,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function readRoute() {
-    const hash = window.location.hash.replace(/^#\/?/, "");
+    const hash = window.location.hash.replace(/^#\/?/, "").split("?")[0];
     if (hash.startsWith("connect/"))
       return { area: "connect", page: hash.slice("connect/".length) || "diary" };
-    if (["diary", "schedule", "results"].includes(hash))
+    if (["diary", "schedule", "results", "profile"].includes(hash))
       return { area: "app", page: hash };
     return { area: "", page: "" };
   }
@@ -100,6 +115,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (mode === "cloud") void reportActivity("page_view");
 
   const relayParams = new URLSearchParams(window.location.search);
+  const isLocalPreview = mode === "local" && ["diary", "analytics"].includes(relayParams.get("preview"));
+  const diaryNetworkEnabled = Boolean(services) && !isLocalPreview;
+  const pairingCode = new URLSearchParams(window.location.hash.split("?")[1] || "").get("pair") || "";
   const relayAction = relayParams.get("extension-action");
   const relayImport = relayParams.get("extension-sync") === "background";
   if (mode === "cloud" && (relayImport || relayAction === "delete")) {
@@ -160,10 +178,25 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   supportController.bind();
 
+  if (diaryNetworkEnabled) {
+    try {
+      authUser = await services.auth.getCachedUser();
+      const cached = linkedCache.read(authUser?.id);
+      if (cached) deviceAccess = cached.access;
+      else {
+        authUser = await settleWithin(ensureCloudUser(), 4_000, null);
+        if (authUser) deviceAccess = await settleWithin(services.devices.access(), 4_000, deviceAccess);
+      }
+    } catch { /* A local extension diary remains usable if the server is unavailable. */ }
+  }
+
   const onboarding = createOnboardingController({
     root: document,
     windowRef: window,
     storeUrls: EXTENSION_STORE_URLS,
+    initialStep: pairingCode || readRoute().page === "mobile" ? "mobile" : "",
+    pairingCode,
+    onMobileOpen: () => void deviceController?.resumeClient(),
     requestSubmitter: async (request) => {
       await ensureCloudUser();
       return services.support.createDiaryRequest(request);
@@ -171,6 +204,32 @@ document.addEventListener("DOMContentLoaded", async () => {
     eventReporter: reportActivity,
     onStepChange: (step) => writeRoute("connect", step, !window.location.hash),
   });
+  deviceController = createDeviceController({
+    root: document, windowRef: window,
+    origin: (import.meta.env.DEV && import.meta.env.VITE_PAIRING_ORIGIN) || window.location.href,
+    repositoryProvider: async () => { authUser = await ensureCloudUser(); return services.devices; },
+    prepareOwner: async () => {
+      authUser = await ensureCloudUser();
+      const access = await services.devices.access();
+      if (access.role === "linked") return;
+      const snapshot = await requestExtensionSnapshot(window, 2_500) || localData.rawSnapshot;
+      if (snapshot) await services.diary.save(snapshot);
+      const events = changeTracker.getState().changes;
+      if (events.length && !(await services.devices.history()).length) await services.devices.saveEvents(events.map(({ read: _read, ...event }) => event));
+      deviceAccess = await services.devices.access();
+    },
+    onPaired: async () => {
+      authUser = await ensureCloudUser();
+      deviceAccess = await services.devices.access();
+      const snapshot = await services.devices.readLinked();
+      if (!adaptESchoolsSnapshot(snapshot?.payload)?.diary?.weeks?.length) throw new Error("Дневник пока не готов. Обнови данные на компьютере и попробуй снова.");
+      linkedCache.save(authUser.id, deviceAccess, snapshot);
+      onboarding.complete();
+      window.location.reload();
+    },
+    onDisconnected: disconnectLinkedDevice,
+  });
+  deviceController.bind();
   window.addEventListener("popstate", () => {
     const route = readRoute();
     let normalizeAppRoute = false;
@@ -198,7 +257,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     } catch {
       /* Preview mode must not affect the next real onboarding check. */
     }
-  } else await onboarding.start();
+  } else if (deviceAccess.role === "linked") onboarding.complete();
+  else await onboarding.start();
   const dashboardScreen = document.getElementById("dashboardScreen");
   const presentationScreen = document.getElementById("presentationScreen");
   const teacherScreen = document.getElementById("teacherScreen");
@@ -216,7 +276,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     "Сохранённые данные останутся в School++ и в расширении.";
   confirmLogoutBtn.textContent = "Продолжить";
 
-  const localData = await loadAppData();
+  let localData = await loadAppData();
   const analyticsPreview = mode === "local" && relayParams.get("preview") === "analytics";
   const previewValues = new Map();
   const changeTracker = createDiaryChangeTracker(analyticsPreview ? { getItem: (key) => previewValues.get(key), setItem: (key, value) => previewValues.set(key, value) } : createSafeStorage(getBrowserStorage(window)));
@@ -233,6 +293,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     localData.importedAt = new Date(previewNow).toISOString();
   }
   if (localData.hasSyncedData) changeTracker.record(localData);
+  if (Array.isArray(localData.sharedChanges) && localData.sharedChanges.length) changeTracker.importShared(localData.sharedChanges);
   const diaryPreview =
     mode === "local" &&
     new URLSearchParams(window.location.search).get("preview") === "diary";
@@ -248,12 +309,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   let lastExtensionRefresh = 0;
   subscribeToExtensionSnapshots(window, async (snapshot) => {
-    if (analyticsPreview) return;
+    if (analyticsPreview || deviceAccess.role === "linked") return;
     if (Date.now() - lastExtensionRefresh < 2_000) return;
     lastExtensionRefresh = Date.now();
     const nextImport = adaptESchoolsSnapshot(snapshot);
     if (nextImport?.diary?.weeks?.length) changeTracker.record(nextImport);
-    if (mode === "cloud" && services) {
+    if (diaryNetworkEnabled) {
       try {
         await ensureCloudUser();
         await services.diary.save(snapshot);
@@ -329,6 +390,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     onLogout: () => openModal(logoutModal),
     onThemeToggle: themeController.toggle,
     journalStore,
+    readOnlyDevice: deviceAccess.role === "linked",
     changeTracker,
     coverageNotice: localData.coverage && !localData.coverage.hasSchedule ? "Расписание получено не полностью. Количество оставшихся уроков может быть неточным." : "",
     onSectionChange: (section) => {
@@ -346,6 +408,54 @@ document.addEventListener("DOMContentLoaded", async () => {
   let teacherMode = null;
 
   init();
+  const devicesButton = document.getElementById("studentDevicesButton");
+  if (devicesButton) devicesButton.hidden = !diaryNetworkEnabled || deviceAccess.role === "linked";
+  setDiaryFreshness();
+  if (diaryNetworkEnabled) {
+    deviceController.start();
+    diaryRevisionWatcher = createDiaryRevisionWatcher({
+      repository: services.devices, windowRef: window, initialAccess: deviceAccess,
+      initialRevision: localData.cloudUpdatedAt,
+      onUpdate: async (access) => {
+        const saved = access.role === "linked" ? await services.devices.readLinked() : await services.diary.load();
+        const imported = adaptESchoolsSnapshot(saved?.payload);
+        if (!imported?.diary?.weeks?.length) return;
+        if (access.role === "linked") linkedCache.save(authUser?.id, access, saved);
+        if (!localData.importedAt || !imported.importedAt || imported.importedAt >= localData.importedAt) {
+          localData = { ...imported, rawSnapshot: saved.payload, hasSyncedData: true, cloudUpdatedAt: saved.updated_at };
+          changeTracker.record(localData);
+          if (Array.isArray(saved.changes) && (access.role === "linked" || saved.changes.length)) changeTracker.importShared(saved.changes);
+          importJournalEntries(journalStore, imported.journalEntries);
+          studentDashboardController.updateDiary(normalizeDiaryData(imported.diary, DAY_ORDER, imported.school));
+          setDiaryFreshness();
+        }
+      },
+      onRevoked: disconnectLinkedDevice,
+      onHealthy: () => setDiaryFreshness(),
+      onError: () => setDiaryFreshness(true),
+    });
+    diaryRevisionWatcher.start();
+    window.addEventListener("pagehide", () => diaryRevisionWatcher.stop());
+    window.addEventListener("pageshow", (event) => { if (event.persisted) { diaryRevisionWatcher.start(); void diaryRevisionWatcher.check(); } });
+  }
+
+  function setDiaryFreshness(unavailable = false) {
+    const node = document.getElementById("studentSyncFreshness");
+    if (!node) return;
+    node.textContent = formatDiaryFreshness(localData.importedAt);
+    node.title = unavailable ? "Не удаётся обновить данные. Показываем последнюю сохранённую версию." : "";
+    node.classList.toggle("is-unavailable", unavailable);
+  }
+
+  async function disconnectLinkedDevice() {
+    diaryRevisionWatcher?.stop(); deviceController?.stop();
+    linkedCache.clear();
+    browserStorage.removeItem(ONBOARDING_KEY);
+    browserStorage.removeItem("schoolpp_empty_schoolPlusPlus_journalEntries");
+    browserStorage.removeItem("schoolpp_diary_changes_v1");
+    window.history.replaceState(null, "", "#connect/mobile");
+    window.location.reload();
+  }
 
   function init() {
     if ("scrollRestoration" in window.history) {
@@ -498,8 +608,15 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   async function loadAppData() {
     if (mode === "local" && relayParams.get("preview") === "analytics") return createAnalyticsPreviewData(SCHOOL_DIARY, SCHOOL_DATA);
+    if (deviceAccess.role === "linked") {
+      const cached = linkedCache.read(authUser?.id);
+      const saved = cached?.snapshot || await services.devices.readLinked();
+      const imported = adaptESchoolsSnapshot(saved?.payload);
+      if (imported?.diary?.weeks?.length) return { ...imported, rawSnapshot: saved.payload, sharedChanges: saved.changes || [], hasSyncedData: true, cloudUpdatedAt: saved.updated_at };
+      throw new Error("Не удалось загрузить подключённый дневник.");
+    }
     const savedDiaryPromise =
-      mode === "cloud" && services
+      diaryNetworkEnabled
         ? settleWithin(
             (async () => {
               await ensureCloudUser();
@@ -515,7 +632,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
       const snapshot = await requestExtensionSnapshot(window, 2_500);
       if (snapshot) {
-        if (mode === "cloud" && services) {
+        if (diaryNetworkEnabled) {
           void (async () => {
             try {
               const cloudUser = await settleWithin(ensureCloudUser(), 5_000, null);
@@ -530,17 +647,17 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         const imported = adaptESchoolsSnapshot(snapshot);
         if (imported?.diary?.weeks?.length)
-          return { ...imported, hasSyncedData: true };
+          return { ...imported, rawSnapshot: snapshot, hasSyncedData: true };
       }
     } catch (error) {
       console.warn("Не удалось получить данные расширения.", error);
     }
-    if (mode === "cloud" && services) {
+    if (diaryNetworkEnabled) {
       const saved = await savedDiaryPromise;
       try {
         const imported = adaptESchoolsSnapshot(saved?.payload);
         if (imported?.diary?.weeks?.length)
-          return { ...imported, hasSyncedData: true };
+          return { ...imported, rawSnapshot: saved.payload, sharedChanges: saved.changes || [], hasSyncedData: true, cloudUpdatedAt: saved.updated_at };
       } catch (error) {
         console.warn("Не удалось разобрать сохранённый дневник.", error);
       }

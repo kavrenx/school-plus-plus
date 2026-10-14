@@ -124,6 +124,12 @@
   fill: var(--paper);
   stroke: var(--accent);
   stroke-width: 2px;
+  cursor: pointer;
+}
+
+.subject-chart-point .subject-chart-hit {
+  fill: transparent;
+  stroke: none;
 }
 
 .subject-chart-point:hover,

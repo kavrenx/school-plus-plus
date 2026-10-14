@@ -9,6 +9,11 @@ function createThemeController({
   function apply(theme) {
     const normalized = theme === "dark" ? "dark" : "light";
     root.classList.toggle("dark", normalized === "dark");
+    const document = root.ownerDocument;
+    if (document) {
+      document.documentElement.style.colorScheme = normalized;
+      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", normalized === "dark" ? "#151b18" : "#e8f0eb");
+    }
     syncThemeControl({ icon, label, isDark: normalized === "dark", translate });
     return normalized;
   }
@@ -37,7 +42,7 @@ function createThemeController({
 }
 
 function syncThemeControl({ icon, label, isDark, translate }) {
-  if (icon) icon.textContent = isDark ? "☼" : "◐";
+  if (icon) icon.innerHTML = `<school-icon name="${isDark ? "sun-outline" : "contrast-outline"}" aria-hidden="true"></school-icon>`;
   if (label) label.textContent = isDark ? translate("light") : translate("dark");
 }
 

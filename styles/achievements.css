@@ -10,6 +10,7 @@
 
 .student-section-nav button,
 .achievement-panel button,
+.subject-panel button,
 .achievement-table button {
   min-height: 44px;
   padding: 8px 12px;
@@ -37,7 +38,8 @@
   background: var(--paper);
 }
 
-.achievement-panel h2 {
+.achievement-panel h2,
+.subject-panel h2 {
   margin: 12px 0;
   font-size: 28px;
 }
@@ -118,7 +120,8 @@
 }
 
 .achievement-table button:hover,
-.achievement-panel button:hover {
+.achievement-panel button:hover,
+.subject-panel button:hover {
   background: var(--accent-soft);
 }
 

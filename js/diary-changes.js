@@ -165,6 +165,12 @@ function createDiaryChangeTracker(
       save();
     },
     getState: () => structuredClone(state),
+    importShared(events) {
+      if (!Array.isArray(events)) return;
+      const readIds = new Set(state.changes.filter((change) => change.read).map((change) => change.id));
+      state.changes = events.slice(0,150).map((event) => ({ ...event, read: readIds.has(event.id) }));
+      save();
+    },
     markRead() {
       state.changes.forEach((change) => (change.read = true));
       save();
@@ -281,7 +287,7 @@ function renderDiaryChangeGroups(
 }
 
 function renderDiaryChanges(state, formatDate, options = {}) {
-  return `<button class="subject-detail-backdrop" type="button" data-changes-close aria-label="Закрыть изменения"></button><aside class="subject-detail-drawer diary-changes-drawer" role="dialog" aria-modal="true" aria-labelledby="diaryChangesTitle"><button class="subject-detail-close" type="button" data-changes-close aria-label="Закрыть">×</button><h2 id="diaryChangesTitle" tabindex="-1">Что изменилось</h2><div class="diary-changes-search"><span class="diary-search-decoration" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="1.7"/></svg><span>Поиск</span></span><input type="search" data-changes-search-input placeholder="Поиск" aria-label="Поиск изменений" autocomplete="off" maxlength="200"><button type="button" class="diary-changes-search-clear" data-changes-search-clear aria-label="Очистить поиск" hidden>×</button></div><div data-changes-results>${renderDiaryChangeGroups(state, formatDate, options)}</div></aside>`;
+  return `<button class="subject-detail-backdrop" type="button" data-changes-close aria-label="Закрыть изменения"></button><aside class="subject-detail-drawer diary-changes-drawer" role="dialog" aria-modal="true" aria-labelledby="diaryChangesTitle"><header class="subject-detail-header"><button class="subject-detail-close" type="button" data-changes-close aria-label="Закрыть">×</button><h2 id="diaryChangesTitle" tabindex="-1">Что изменилось</h2></header><div class="diary-changes-search"><span class="diary-search-decoration" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="1.7"/></svg><span>Поиск</span></span><input type="search" data-changes-search-input placeholder="Поиск" aria-label="Поиск изменений" autocomplete="off" maxlength="200"><button type="button" class="diary-changes-search-clear" data-changes-search-clear aria-label="Очистить поиск" hidden>×</button></div><div data-changes-results>${renderDiaryChangeGroups(state, formatDate, options)}</div></aside>`;
 }
 
 export {

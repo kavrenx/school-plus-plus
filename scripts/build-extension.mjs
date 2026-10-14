@@ -1,12 +1,11 @@
 import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { resolve, sep } from "node:path";
 
 const projectRoot = resolve(import.meta.dirname, "..");
 const source = resolve(projectRoot, "extension");
 const output = resolve(projectRoot, ".extension-dist");
 const releaseBuild = process.argv.includes("--release");
 
-await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
 await Promise.all([
   build("chromium", "manifest.json", !releaseBuild),
@@ -15,6 +14,13 @@ await Promise.all([
 
 async function build(name, manifestName, includeLocalSite = false) {
   const target = resolve(output, name);
+  if (
+    !["chromium", "firefox"].includes(name) ||
+    !target.startsWith(`${output}${sep}`)
+  )
+    throw new Error("Extension output must stay in .extension-dist");
+  // Rebuild only browser folders; keep the previously published ZIPs.
+  await rm(target, { recursive: true, force: true });
   await cp(source, target, { recursive: true });
   const manifest = JSON.parse(
     await readFile(resolve(source, manifestName), "utf8"),

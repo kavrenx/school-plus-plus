@@ -133,11 +133,11 @@ test("loads and persists the selected color theme", () => {
   assert.equal(controller.load(), "dark");
   assert.equal(root.classList.contains("dark"), true);
   assert.equal(label.textContent, "Светлая");
-  assert.equal(icon.textContent, "☼");
+  assert.match(icon.innerHTML, /name="sun-outline"/);
 
   assert.equal(controller.toggle(), "light");
   assert.equal(root.classList.contains("dark"), false);
   assert.equal(values.get("theme"), "light");
   assert.equal(label.textContent, "Тёмная");
-  assert.equal(icon.textContent, "◐");
+  assert.match(icon.innerHTML, /name="contrast-outline"/);
 });

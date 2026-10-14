@@ -6,7 +6,7 @@
 
 .dashboard-screen,
 .teacher-screen {
-  will-change: opacity, transform;
+  will-change: opacity;
 }
 
 .screen-enter {
@@ -113,6 +113,15 @@ school-icon svg {
   height: 20px;
   place-items: center;
   line-height: 0;
+}
+
+.theme-icon school-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.topbar-actions > button {
+  justify-content: center;
 }
 
 .theme-toggle:hover,

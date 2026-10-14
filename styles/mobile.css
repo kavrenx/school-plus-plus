@@ -1,0 +1,1033 @@
+/* Phone layout comes last so desktop and tablet rules cannot override it. */
+.student-section-nav school-icon {
+  display: none;
+}
+
+#studentProfileButton,
+.student-profile-logout,
+.schedule-tab-mobile,
+#studentChangesButton > school-icon {
+  display: none;
+}
+
+.schedule-year {
+  white-space: nowrap;
+}
+
+.schedule-holiday-dates {
+  white-space: normal;
+  overflow-wrap: normal;
+  line-height: 1.6;
+}
+
+.schedule-holiday-note {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.schedule-holiday-note summary {
+  cursor: pointer;
+  color: var(--accent-dark);
+  padding-block: 6px;
+}
+
+.schedule-table-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-dark) var(--paper-2);
+}
+
+@media (max-width: 760px),
+  (max-height: 560px) and (orientation: landscape) and (max-width: 950px) {
+  .dashboard-screen.screen-enter {
+    animation: mobile-screen-in 220ms ease both;
+  }
+
+  .dashboard-screen {
+    /* A transform hint would pin fixed sheets and navigation to this long page. */
+    will-change: opacity;
+    padding: max(12px, env(safe-area-inset-top))
+      max(12px, env(safe-area-inset-right))
+      calc(88px + env(safe-area-inset-bottom))
+      max(12px, env(safe-area-inset-left));
+  }
+
+  .topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    min-height: 56px;
+  }
+
+  .topbar .brand-mark {
+    font-size: 28px;
+    line-height: normal;
+  }
+
+  .topbar-actions {
+    display: flex;
+    gap: 4px;
+  }
+
+  .topbar-actions > button {
+    display: grid;
+    place-items: center;
+    flex: 0 0 44px;
+    width: 44px;
+    min-width: 44px;
+    padding: 0;
+    height: 44px;
+    gap: 0;
+  }
+
+  .topbar-actions school-icon,
+  .topbar-actions .theme-icon {
+    width: 22px;
+    height: 22px;
+    font-size: 22px;
+  }
+
+  .topbar-actions #logoutBtn {
+    display: none;
+  }
+
+  .topbar-actions .theme-text,
+  .topbar-actions .logout-text,
+  .topbar-actions .support-btn > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .brief-copy {
+    min-height: 0;
+    padding: 10px 2px 0;
+  }
+
+  .daily-brief {
+    padding-bottom: 14px;
+  }
+
+  .daily-brief #heroDescription {
+    display: none;
+  }
+
+  .daily-brief h2 {
+    font-size: clamp(30px, 8vw, 40px);
+    line-height: 1.08;
+    margin-bottom: 0;
+  }
+
+  .student-sync-freshness {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    margin-top: 6px;
+  }
+
+  .journal-shell {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .student-sidebar {
+    display: none;
+    position: static;
+  }
+
+  .is-profile-section .student-sidebar {
+    display: block;
+    order: -1;
+    padding: 16px;
+    border: 1px solid var(--line-dark);
+    background: var(--paper);
+    scroll-margin-top: 12px;
+  }
+
+  .is-profile-section .journal-main {
+    border: 0;
+    padding: 0;
+    min-height: 0;
+  }
+
+  .dashboard-layout:has(.is-profile-section) .daily-brief {
+    display: none;
+  }
+
+  .is-profile-section .student-card {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    gap: 22px;
+  }
+
+  .is-profile-section .student-photo-area {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    justify-items: center;
+  }
+
+  .is-profile-section .student-photo {
+    display: block;
+    width: min(100%, 280px);
+    height: clamp(220px, 40svh, 350px);
+    min-height: 0;
+    aspect-ratio: auto;
+  }
+
+  .is-profile-section .photo-placeholder {
+    gap: 12px;
+  }
+
+  .is-profile-section .photo-placeholder svg {
+    width: 36px;
+    height: 36px;
+  }
+
+  .is-profile-section .photo-placeholder span {
+    display: block;
+  }
+
+  .is-profile-section .remove-photo-btn {
+    width: auto;
+    min-height: 44px;
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+
+  .is-profile-section .student-info {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    padding: 0;
+  }
+
+  .is-profile-section .student-header-strip {
+    gap: 10px;
+  }
+
+  .is-profile-section .student-name-row {
+    flex-wrap: nowrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .is-profile-section .student-badge {
+    font-size: 21px;
+    overflow-wrap: anywhere;
+    line-height: 1.3;
+  }
+
+  .is-profile-section .online-status {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .is-profile-section .student-class-label {
+    font-size: 16px;
+  }
+
+  .student-profile-disclosure > summary {
+    display: none;
+  }
+
+  .student-profile-logout {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    width: 100%;
+    margin-top: 6px;
+    border: 1px solid var(--danger);
+    color: var(--on-danger);
+    background: var(--danger);
+  }
+
+  #studentProfileButton {
+    display: grid;
+  }
+
+  .student-profile-disclosure > summary {
+    min-height: 48px;
+  }
+
+  .journal-main,
+  body.dark .journal-main {
+    background: var(--paper);
+    scroll-margin-top: 78px;
+  }
+
+  .student-section-nav {
+    --nav-inset: 6px;
+    position: fixed;
+    z-index: 30;
+    inset: auto 0 0;
+    isolation: isolate;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding: 6px max(6px, env(safe-area-inset-right))
+      calc(4px + env(safe-area-inset-bottom))
+      max(6px, env(safe-area-inset-left));
+    border: 0;
+    border-top: 1px solid var(--line-dark);
+    background: var(--paper);
+    box-shadow: 0 -5px 22px rgb(20 28 24 / 8%);
+  }
+
+  .student-section-nav::before {
+    display: none;
+  }
+
+  .student-section-nav button {
+    display: grid;
+    place-items: center;
+    gap: 3px;
+    min-height: 50px;
+    padding: 4px;
+    border: 0;
+    font-size: 12px;
+  }
+
+  .student-section-nav button[aria-pressed="true"] {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+
+  .student-section-nav school-icon {
+    display: grid;
+    width: 22px;
+    height: 22px;
+  }
+
+  .mobile-keyboard-open .student-section-nav {
+    display: none;
+  }
+
+  .student-period-bar {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr) 44px;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .student-period-bar .student-term-control {
+    width: min(100%, 180px);
+    min-width: 0;
+    justify-self: end;
+  }
+
+  .dashboard-screen .student-term-control select {
+    min-height: 38px;
+    padding: 6px 28px 6px 10px;
+    font-size: 14px;
+  }
+
+  .student-calendar-control,
+  #studentCalendarPopover {
+    display: none;
+  }
+
+  #studentYearLabel {
+    min-width: 0;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  #studentChangesButton {
+    position: relative;
+    grid-column: auto;
+    justify-content: center;
+    width: 100%;
+    min-height: 44px;
+    padding: 0;
+  }
+
+  #studentChangesButton > school-icon {
+    display: grid;
+    width: 22px;
+    height: 22px;
+  }
+
+  #studentChangesButton .changes-button-label {
+    display: none;
+  }
+
+  #studentChangesCount {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 20px;
+    height: 20px;
+    padding: 2px 3px;
+    border: 1px solid var(--paper);
+    border-radius: 0;
+    line-height: 14px;
+    text-align: center;
+  }
+
+  .week-switcher {
+    padding: 12px;
+  }
+
+  .week-switcher-header {
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    gap: 8px;
+  }
+
+  .week-title {
+    grid-column: auto;
+    order: 0;
+  }
+
+  .week-title h3 {
+    font-size: 18px;
+  }
+
+  .week-btn {
+    width: 44px;
+    min-height: 44px;
+    padding: 0;
+  }
+
+  .week-btn-label {
+    display: none;
+  }
+
+  .current-week-link {
+    min-height: 44px;
+    margin-top: 10px;
+  }
+
+  .day-tabs {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    overflow: visible;
+  }
+
+  .day-tab {
+    min-width: 0;
+    min-height: 58px;
+    padding: 9px 2px;
+  }
+
+  .day-tab span {
+    font-size: 14px;
+  }
+
+  .day-tab small {
+    font-size: 11px;
+  }
+
+  .student-calendar-popover {
+    position: fixed;
+    z-index: 45;
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+    top: auto;
+    bottom: calc(80px + env(safe-area-inset-bottom));
+    width: auto;
+    max-width: 410px;
+    max-height: calc(var(--mobile-visible-height, 100dvh) - 100px);
+    overflow-y: auto;
+    margin-inline: auto;
+    padding: 14px;
+  }
+
+  .student-calendar-popover header {
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+  }
+
+  .student-calendar-popover header button {
+    width: 44px;
+    height: 44px;
+  }
+
+  .student-calendar-grid button {
+    min-height: 36px;
+    font-size: 14px;
+  }
+
+  .diary-panel {
+    padding: 14px 12px;
+  }
+
+  .diary-table tr {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0 12px;
+    padding: 14px;
+  }
+
+  .diary-table td {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    padding-block: 6px;
+  }
+
+  .diary-table td:nth-child(4) {
+    text-align: left;
+    justify-self: stretch;
+  }
+
+  .attendance-mark {
+    justify-content: flex-start;
+    line-height: 1.5;
+  }
+
+  .homework-cell {
+    grid-template-columns: minmax(0, 1fr) 44px;
+    line-height: 1.65;
+  }
+
+  .lesson-material-space,
+  .lesson-material-control,
+  .lesson-material-control > button {
+    width: 44px;
+    height: 44px;
+  }
+
+  .lesson-material-space {
+    display: none;
+  }
+
+  .homework-cell:not(:has(.lesson-material-control)) {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .diary-table td:nth-child(2) {
+    padding-top: 9px;
+    padding-bottom: 6px;
+  }
+
+  .lesson-cell strong {
+    line-height: 1.5;
+  }
+
+  .lesson-subject-link {
+    min-height: 32px;
+    padding-block: 4px;
+  }
+
+  .lesson-material-popover a,
+  .lesson-material-popover [data-es-material] {
+    min-height: 48px;
+  }
+
+  .lesson-material-popover [data-es-material] > span {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .achievement-panel {
+    padding: 16px 12px;
+  }
+
+  .achievement-panel > h2 {
+    margin-top: 0;
+    font-size: 26px;
+  }
+
+  .achievement-scroll:has(.result-table) {
+    overflow: visible;
+    border: 0;
+  }
+
+  .result-table {
+    display: block;
+    min-width: 0;
+  }
+
+  .result-table colgroup,
+  .result-table thead {
+    display: none;
+  }
+
+  .result-table tbody {
+    display: grid;
+    gap: 12px;
+  }
+
+  .result-table tr {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    overflow: hidden;
+    border: 1px solid var(--line-dark);
+    background: var(--paper);
+  }
+
+  .result-table th:first-child {
+    position: static;
+    grid-column: 1 / -1;
+    min-width: 0;
+    max-width: none;
+    height: auto;
+    padding: 0;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    background: var(--paper-2);
+  }
+
+  .result-table th:first-child button {
+    min-height: 48px;
+    padding: 12px;
+    font-size: 15px;
+    border-radius: 0;
+  }
+
+  .result-table td {
+    min-width: 0;
+    height: auto;
+    padding: 10px 3px;
+    border-bottom: 0;
+  }
+
+  .result-table td:last-child {
+    border-right: 0;
+  }
+
+  .result-table td::before {
+    content: attr(data-period-label);
+    display: block;
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 1.45;
+    text-align: center;
+  }
+
+  .result-table td[data-result-period="empty"] {
+    display: none;
+  }
+
+  .result-table td[data-result-period="half"] {
+    grid-column: span 2;
+  }
+
+  .result-period-value {
+    padding: 8px 0 0;
+    font-size: 17px;
+  }
+
+  .result-summary th:first-child {
+    padding: 12px;
+    font-size: 14px;
+  }
+
+  .subject-detail-drawer {
+    top: var(--mobile-visible-top, 0px);
+    bottom: auto;
+    width: 100%;
+    height: var(--mobile-visible-height, 100dvh);
+    padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
+    overscroll-behavior-y: contain;
+    scroll-padding-top: 120px;
+    scroll-padding-bottom: 24px;
+    -webkit-overflow-scrolling: touch;
+    border: 0;
+    box-shadow: none;
+    animation: none;
+    overflow-anchor: none;
+    scroll-behavior: auto;
+  }
+
+  .mobile-keyboard-open .subject-detail-drawer {
+    padding-bottom: calc(24px + var(--mobile-visible-height, 100dvh) * 0.65);
+    scroll-padding-bottom: 24px;
+  }
+
+  .subject-detail-backdrop {
+    height: 100lvh;
+    background: var(--paper) !important;
+    animation: none;
+  }
+
+  body.subject-detail-open {
+    background: var(--paper);
+  }
+
+  body.subject-detail-open::before {
+    opacity: 0;
+  }
+
+  body.subject-detail-open .student-section-nav,
+  body.support-open .student-section-nav {
+    visibility: hidden;
+  }
+
+  .subject-detail-drawer {
+    padding-inline: max(16px, env(safe-area-inset-left))
+      max(16px, env(safe-area-inset-right));
+  }
+
+  .subject-detail-header {
+    position: sticky;
+    z-index: 3;
+    top: -16px;
+    margin: -16px -16px 16px;
+    padding: calc(16px + env(safe-area-inset-top)) 66px 16px 16px;
+    border-bottom: 1px solid var(--line-dark);
+    background: var(--paper);
+  }
+
+  .subject-detail-header h2 {
+    margin: 0;
+    font-size: 24px;
+    line-height: 1.3;
+  }
+
+  .subject-detail-close {
+    top: calc(12px + env(safe-area-inset-top));
+    right: 12px;
+    border-radius: var(--radius);
+  }
+
+  .subject-grade-heading {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .subject-average-card,
+  .grade-goal-card,
+  .subject-grade-history {
+    padding: 14px;
+    border-radius: var(--radius);
+  }
+
+  .grade-options li {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 10px;
+  }
+
+  .grade-options li button {
+    width: auto;
+    padding-inline: 10px;
+    font-size: 12px;
+  }
+
+  .grade-options strong {
+    font-size: 18px;
+  }
+
+  .grade-sandbox-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .grade-sandbox-controls button {
+    width: auto;
+  }
+
+  .device-modal-card {
+    max-height: calc(var(--mobile-visible-height, 100dvh) - 16px);
+    overscroll-behavior-y: contain;
+  }
+
+  .device-modal {
+    inset: var(--mobile-visible-top, 0px) 0 auto;
+    height: var(--mobile-visible-height, 100dvh);
+    place-items: end center;
+    padding: 16px 0 0;
+  }
+
+  .diary-request-panel {
+    top: calc(
+      var(--mobile-visible-top, 0px) + var(--mobile-visible-height, 100dvh) / 2
+    );
+    max-height: calc(var(--mobile-visible-height, 100dvh) - 24px);
+  }
+
+  .device-modal-card header {
+    position: sticky;
+    z-index: 1;
+    top: -22px;
+    padding-block: 12px;
+    background: var(--paper);
+  }
+
+  .onboarding-screen {
+    padding: max(16px, env(safe-area-inset-top))
+      max(16px, env(safe-area-inset-right))
+      max(16px, env(safe-area-inset-bottom))
+      max(16px, env(safe-area-inset-left));
+  }
+
+  .onboarding-header .brand-mark {
+    font-size: 28px;
+  }
+
+  .onboarding-card {
+    min-height: 0;
+    margin: clamp(30px, 6dvh, 60px) auto 24px;
+    padding: 20px 0;
+  }
+
+  .onboarding-card h1 {
+    font-size: clamp(30px, 8.5vw, 40px);
+    line-height: 1.1;
+  }
+
+  .device-join-form {
+    width: 100%;
+    max-width: 400px;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    text-align: left;
+  }
+
+  .device-join-form input {
+    min-height: 56px;
+    text-align: center;
+    font-size: 26px;
+  }
+
+  .device-join-form button {
+    width: 100%;
+    min-height: 50px;
+  }
+
+  .onboarding-card .onboarding-secondary {
+    min-height: 44px;
+  }
+
+  body:not(.support-console-page) .support-panel {
+    inset: var(--mobile-visible-top, 0px) 0 auto;
+    width: 100%;
+    height: var(--mobile-visible-height, 100dvh);
+    border: 0;
+  }
+
+  .support-header {
+    grid-template-columns: 44px minmax(0, 1fr) auto 44px;
+    gap: 6px;
+    min-height: calc(64px + env(safe-area-inset-top));
+    padding-top: calc(10px + env(safe-area-inset-top));
+    padding-inline: 10px;
+  }
+
+  .support-header .support-avatar {
+    display: none;
+  }
+
+  .support-header .support-icon-button,
+  .support-header [data-support-menu] {
+    width: 44px;
+    height: 44px;
+  }
+
+  .support-new-button {
+    min-height: 44px;
+  }
+
+  .support-form {
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  .mobile-keyboard-open .support-form {
+    padding-bottom: 10px;
+  }
+
+  .support-menu {
+    top: calc(64px + env(safe-area-inset-top));
+  }
+
+  .support-form .support-remove-attachment,
+  .support-attachment-dialog > button {
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  .support-attachment-dialog {
+    top: calc(64px + env(safe-area-inset-top));
+    align-content: start;
+    overflow-y: auto;
+    padding: 56px 16px 20px;
+  }
+
+  .support-attachment-media {
+    width: 100%;
+    max-height: min(45dvh, 420px);
+  }
+
+  .support-attachment-media img,
+  .support-attachment-media video {
+    max-height: min(45dvh, 420px);
+  }
+
+  .support-form .support-attach-menu button {
+    min-height: 44px;
+  }
+
+  .dashboard-screen input,
+  .dashboard-screen select,
+  .subject-detail-drawer input,
+  .subject-detail-drawer select,
+  .device-modal-card input,
+  .diary-changes-search input,
+  .diary-request-panel input,
+  .support-panel textarea {
+    font-size: 16px;
+  }
+
+  .diary-change-card,
+  .diary-change-day-toggle {
+    padding: 14px;
+  }
+
+  .schedule-tabs {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+    padding: 8px;
+  }
+
+  .schedule-tabs button {
+    min-width: 0;
+    min-height: 44px;
+    padding: 6px 2px;
+    text-align: center;
+    font-size: 12px;
+  }
+
+  .schedule-tab-desktop {
+    display: none;
+  }
+
+  .schedule-tab-mobile {
+    display: inline;
+  }
+
+  .schedule-content h2 {
+    margin-top: 0;
+    font-size: 24px;
+    line-height: 1.3;
+  }
+
+  .schedule-table-scroll:has(
+    .schedule-subjects-table,
+    .schedule-holidays-table
+  ) {
+    overflow: visible;
+    border: 0;
+  }
+
+  .schedule-subjects-table,
+  .schedule-holidays-table {
+    display: block;
+    min-width: 0;
+  }
+
+  .schedule-subjects-table colgroup,
+  .schedule-holidays-table colgroup,
+  .schedule-subjects-table thead,
+  .schedule-holidays-table thead {
+    display: none;
+  }
+
+  .schedule-subjects-table tbody,
+  .schedule-holidays-table tbody {
+    display: grid;
+    gap: 10px;
+  }
+
+  .schedule-subjects-table tr,
+  .schedule-holidays-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid var(--line-dark);
+  }
+
+  .schedule-holidays-table tr {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .schedule-subjects-table td,
+  .schedule-holidays-table td {
+    display: block;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.6;
+  }
+
+  .schedule-subjects-table td:first-child,
+  .schedule-holidays-table td:first-child {
+    grid-column: 1 / -1;
+    font-size: 16px;
+  }
+
+  .schedule-subjects-table td:last-child {
+    grid-column: 1 / -1;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .schedule-subjects-table td:nth-child(2) {
+    grid-column: 1 / -1;
+  }
+
+  .schedule-subjects-table td:nth-child(2)::before {
+    content: "Преподаватели";
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  .schedule-subjects-table td:last-child::before {
+    content: "Уровень: ";
+  }
+
+  .schedule-subjects-table td:last-child p {
+    display: inline;
+  }
+
+  .schedule-subjects-table td p {
+    margin-top: 2px;
+  }
+
+  .schedule-holidays-table td:last-child {
+    white-space: nowrap;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .schedule-holiday-note summary {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    text-decoration: underline;
+  }
+
+  .diary-changes-search,
+  .diary-changes-search.is-active {
+    height: 48px;
+    margin-bottom: 20px;
+  }
+}
+
+@media (max-height: 560px) and (orientation: landscape) and (max-width: 950px) {
+  .student-section-nav button {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+  }
+
+  .dashboard-screen {
+    padding-bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+}
+
+@keyframes mobile-screen-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

@@ -62,12 +62,12 @@ function renderBells(schedule) {
     : table(["Урок", "Начало", "Конец"], []);
 }
 function renderHolidays(schedule, year, dateTools) {
-  const compactYear = shortAcademicYear(year.title).replace("/", "-");
-  return `<h2>Расписание каникул ${e(compactYear)}</h2>${table(
+  const compactYear = shortAcademicYear(year.title).replace("/", "–");
+  return `<h2>Расписание каникул <span class="schedule-year">${e(compactYear)}</span></h2>${table(
     ["Каникулы", "С — по", "Продолжительность"],
     (schedule.holidays || []).map((holiday) => {
       const duration = holidayDuration(holiday.startsOn, holiday.endsOn);
-      return `<tr><td><strong>${e(holiday.title)}</strong>${holiday.applicability ? `<p>${e(holiday.applicability)}</p>` : ""}</td><td class="schedule-holiday-dates">${duration === null ? "—" : `${e(compactDate(dateTools.formatIsoDateLong(holiday.startsOn)))} — ${e(compactDate(dateTools.formatIsoDateLong(holiday.endsOn)))}`}</td><td>${duration === null ? "—" : `${duration} ${duration % 10 === 1 && duration % 100 !== 11 ? "день" : [2, 3, 4].includes(duration % 10) && ![12, 13, 14].includes(duration % 100) ? "дня" : "дней"}`}</td></tr>`;
+      return `<tr><td><strong>${e(holiday.title)}</strong>${holiday.applicability ? `<details class="schedule-holiday-note"><summary>Для кого</summary><p>${e(holiday.applicability)}</p></details>` : ""}</td><td class="schedule-holiday-dates">${duration === null ? "—" : `${e(compactDate(dateTools.formatIsoDateLong(holiday.startsOn)))} — ${e(compactDate(dateTools.formatIsoDateLong(holiday.endsOn)))}`}</td><td>${duration === null ? "—" : `${duration} ${duration % 10 === 1 && duration % 100 !== 11 ? "день" : [2, 3, 4].includes(duration % 10) && ![12, 13, 14].includes(duration % 100) ? "дня" : "дней"}`}</td></tr>`;
     }),
     {
       className: "schedule-holidays-table",
@@ -120,7 +120,7 @@ function renderSubjects(model, user) {
     ["Предмет", "Преподаватели", "Уровень"],
     subjects.map(
       (subject) =>
-        `<tr><td><strong>${e(shortSubjectName(subject.title))}</strong></td><td>${(subject.teachers || []).map((teacher) => `<p>${e(cleanGroupLabel(teacher.group))}${cleanGroupLabel(teacher.group) ? " · " : ""}${e(teacher.name || "—")}</p>`).join("") || "—"}</td><td>${(subject.teachers || []).map((teacher) => `<p>${e(teacher.level || subject.level || "—")}</p>`).join("") || e(subject.level || "—")}</td></tr>`,
+        `<tr><td><strong>${e(subject.title || "—")}</strong></td><td>${(subject.teachers || []).map((teacher) => `<p>${e(cleanGroupLabel(teacher.group))}${cleanGroupLabel(teacher.group) ? " · " : ""}${e(teacher.name || "—")}</p>`).join("") || "—"}</td><td>${(subject.teachers || []).map((teacher) => `<p>${e(teacher.level || subject.level || "—")}</p>`).join("") || e(subject.level || "—")}</td></tr>`,
     ),
     {
       className: "schedule-subjects-table",
@@ -134,7 +134,8 @@ function renderStudentSchedule(model, user, active, dateTools) {
     active === "holidays"
       ? ""
       : `<h2>${e(TABS.find(([id]) => id === active)?.[1] || "Расписание")}</h2>`;
-  return `<nav class="schedule-tabs" aria-label="Виды расписания">${TABS.map(([id, label]) => `<button type="button" data-schedule-tab="${id}" aria-pressed="${id === active}">${label}</button>`).join("")}</nav><section class="schedule-content">${heading}${active === "bells" ? renderBells(schedule) : active === "holidays" ? renderHolidays(schedule, model.school.academicYear, dateTools) : active === "lessons" ? renderLessons(schedule, user) : renderSubjects(model, user)}</section>`;
+  const shortLabels = { bells: "Звонки", holidays: "Каникулы", lessons: "Уроки", subjects: "Предметы" };
+  return `<nav class="schedule-tabs" aria-label="Виды расписания">${TABS.map(([id, label]) => `<button type="button" data-schedule-tab="${id}" aria-pressed="${id === active}"><span class="schedule-tab-desktop">${label}</span><span class="schedule-tab-mobile">${shortLabels[id]}</span></button>`).join("")}</nav><section class="schedule-content">${heading}${active === "bells" ? renderBells(schedule) : active === "holidays" ? renderHolidays(schedule, model.school.academicYear, dateTools) : active === "lessons" ? renderLessons(schedule, user) : renderSubjects(model, user)}</section>`;
 }
 
 function compactDate(value) {

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { Window } from "happy-dom";
+import { supportMediaQueryLists } from "./helpers/media-queries.js";
 import { SCHOOL_DATA } from "../data/school-data.js";
 import { SCHOOL_DIARY } from "../data/diary-data.js";
 import { DAY_ORDER, TEXT } from "../js/app-config.js";
@@ -25,7 +26,48 @@ test("student shell does not contain the retired local sign-in flow", () => {
   assert.doesNotMatch(html, /Забыли пароль\?|Введите логин и пароль/);
 });
 
-function fixture(withLessons = false) {
+test("phone profile is a fourth section and returning to the diary preserves its date", async () => {
+  const f = fixture(true, 390);
+  try {
+    f.$("nextWeekBtn").click();
+    const date = f.$("studentDatePicker").value;
+    f.$("studentProfileButton").click();
+    assert.equal(
+      f.$("studentProfileButton").getAttribute("aria-pressed"),
+      "true",
+    );
+    assert.equal(
+      f.$("studentDiaryButton").getAttribute("aria-pressed"),
+      "false",
+    );
+    assert.equal(f.$("diaryPanel").hidden, true);
+    assert.equal(f.$("studentProfileDisclosure").open, true);
+    assert.equal(
+      f.window.document
+        .querySelector(".journal-shell")
+        .classList.contains("is-profile-section"),
+      true,
+    );
+    f.$("studentDiaryButton").click();
+    assert.equal(f.$("studentDatePicker").value, date);
+    assert.equal(f.$("diaryPanel").hidden, false);
+    assert.equal(
+      f.$("studentProfileButton").getAttribute("aria-pressed"),
+      "false",
+    );
+    f.$("studentProfileButton").click();
+    f.window.happyDOM.setWindowSize({ width: 1200, height: 844 });
+    assert.equal(
+      f.$("studentDiaryButton").getAttribute("aria-pressed"),
+      "true",
+    );
+    assert.equal(f.$("studentProfileDisclosure").open, true);
+  } finally {
+    await f.window.happyDOM.close();
+  }
+});
+
+function fixture(withLessons = false, width = 1024) {
   const window = new Window({
     url: "http://localhost:5173",
     settings: {
@@ -34,6 +76,8 @@ function fixture(withLessons = false) {
       disableJavaScriptFileLoading: true,
     },
   });
+  window.happyDOM.setWindowSize({ width, height: 844 });
+  supportMediaQueryLists(window);
   window.document.write(html);
   const data = createLocalPreviewData(SCHOOL_DIARY, SCHOOL_DATA);
   data.school.lessonTemplates.push({
@@ -128,16 +172,15 @@ test("student can switch between diary, four schedule views and results", async 
     assert.ok(subjectButton);
     subjectButton.click();
     assert.ok(
-      f.$("studentAchievements").querySelector(".subject-detail-drawer"),
+      f.$("studentSubjectPanel").querySelector(".subject-detail-drawer"),
     );
-    assert.ok(
-      f
-        .$("studentAchievements")
-        .querySelector("[data-subject-detail-heading]")
-        .textContent.includes("• I четверть"),
+    assert.equal(
+      f.$("studentSubjectPanel").querySelector("[data-subject-period]")
+        .selectedOptions[0].textContent,
+      "I четверть",
     );
     const goalInput = f
-      .$("studentAchievements")
+      .$("studentSubjectPanel")
       .querySelector("[data-grade-goal]");
     goalInput.value = "9";
     goalInput.form.dispatchEvent(
@@ -145,13 +188,13 @@ test("student can switch between diary, four schedule views and results", async 
     );
     assert.ok(
       f
-        .$("studentAchievements")
+        .$("studentSubjectPanel")
         .querySelector("[data-grade-goal-result]")
         .querySelector("[data-trial-option]"),
     );
-    f.$("studentAchievements").querySelector("[data-achievement-back]").click();
+    f.$("studentSubjectPanel").querySelector("[data-achievement-back]").click();
     assert.equal(
-      f.$("studentAchievements").querySelector(".subject-detail-drawer"),
+      f.$("studentSubjectPanel").querySelector(".subject-detail-drawer"),
       null,
     );
     assert.equal(

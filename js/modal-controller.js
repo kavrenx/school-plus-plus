@@ -113,7 +113,7 @@ function getFocusableElements(modal) {
   return Array.from(modal.querySelectorAll(FOCUSABLE_SELECTOR)).filter(
     (element) =>
       !element.hidden &&
-      !element.closest?.(".hidden") &&
+      !element.closest?.(".hidden, [hidden], [inert]") &&
       element.getAttribute?.("aria-hidden") !== "true",
   );
 }

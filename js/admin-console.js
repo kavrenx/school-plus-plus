@@ -27,7 +27,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const refresh = document.getElementById("adminRefresh");
   const error = document.getElementById("adminError");
   const maintenanceToggle = document.getElementById("maintenanceToggle");
-  const services = createSupabaseServices(import.meta.env, {
+  const services = createSupabaseServices(undefined, {
     storageKey: "schoolpp_admin_session",
   });
   let refreshTimer = 0;

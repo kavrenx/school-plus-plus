@@ -1,5 +1,11 @@
 // A small, local set of decorative interface icons. No network requests.
 const ICON_PATHS = Object.freeze({
+  "changes-outline": "M4 5h16v15H4V5Zm4-3v5m8-5v5M8 11h8m-8 4h5",
+  "person-outline": "M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21v-2a8 8 0 0 1 16 0v2",
+  "sun-outline": "M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5",
+  "contrast-outline": "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM12 3v18",
+  "book-outline": "M12 5C9 3 5 3 3 4v15c3-1 6-1 9 1m0-15c3-2 7-2 9-1v15c-3-1-6-1-9 1V5Z",
+  "stats-outline": "M4 20h16M6 16V9h3v7M11 16V4h3v12M16 16v-5h3v5",
   "calendar-outline": "M5 4h14v17H5V4Zm3-2v4m8-4v4M5 9h14m-11 4h2m4 0h2m-8 4h2m4 0h2",
   "log-out-outline": "M10 4H4v16h6M9 12h12m-5-5 5 5-5 5",
   "create-outline": "M12 5H4v15h15v-8M10 14l1-4L19 2l3 3-8 8-4 1Z",
@@ -30,7 +36,8 @@ function registerIcons() {
       this.setAttribute("aria-hidden", "true");
       const path = ICON_PATHS[this.getAttribute("name")];
       if (!path) return;
-      this.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="${path}"/></svg>`;
+      const halfFill = this.getAttribute("name") === "contrast-outline" ? '<path d="M12 3a9 9 0 0 1 0 18Z" fill="currentColor" stroke="none"/>' : "";
+      this.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false">${halfFill}<path d="${path}"/></svg>`;
     }
   });
 }

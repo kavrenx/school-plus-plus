@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="description" content="School++ — электронный дневник для ученика: расписание, домашние задания и оценки в одном месте.">
     <meta name="application-name" content="School++">
     <meta name="color-scheme" content="light dark">
@@ -202,15 +202,17 @@
                         <p class="card-label" id="heroEyebrow">Сегодня</p>
                         <h2 id="heroTitle">Привет!</h2>
                         <p class="card-description" id="heroDescription"></p>
+                        <p class="student-sync-freshness" id="studentSyncFreshness" aria-live="polite"></p>
                     </div>
                 </section>
 
                 <section class="journal-shell">
                     <div class="journal-main">
                         <nav class="student-section-nav" aria-label="Разделы дневника">
-                            <button type="button" id="studentDiaryButton" aria-pressed="true">Дневник</button>
-                            <button type="button" id="studentScheduleButton" aria-pressed="false">Расписание</button>
-                            <button type="button" id="studentAchievementsButton" aria-pressed="false">Итоги</button>
+                            <button type="button" id="studentDiaryButton" aria-pressed="true"><school-icon name="book-outline" aria-hidden="true"></school-icon><span>Дневник</span></button>
+                            <button type="button" id="studentScheduleButton" aria-pressed="false"><school-icon name="calendar-outline" aria-hidden="true"></school-icon><span>Расписание</span></button>
+                            <button type="button" id="studentAchievementsButton" aria-pressed="false"><school-icon name="stats-outline" aria-hidden="true"></school-icon><span>Итоги</span></button>
+                            <button type="button" id="studentProfileButton" aria-pressed="false"><school-icon name="person-outline" aria-hidden="true"></school-icon><span>Профиль</span></button>
                         </nav>
                         <div id="studentChangesPanel" hidden></div>
                         <section id="studentSchedule" class="schedule-panel" hidden aria-label="Расписание"></section>
@@ -237,7 +239,7 @@
                                     <select id="studentTermSelect" aria-label="Учебный период"></select>
                                     <span class="student-term-arrow" aria-hidden="true"></span>
                                 </span>
-                                <button type="button" id="studentChangesButton" aria-haspopup="dialog">Что изменилось <span id="studentChangesCount" hidden></span></button>
+                                <button type="button" id="studentChangesButton" aria-label="Что изменилось" title="Что изменилось" aria-haspopup="dialog"><school-icon name="changes-outline" aria-hidden="true"></school-icon><span class="changes-button-label">Что изменилось</span> <span id="studentChangesCount" hidden></span></button>
                             </div>
 
                             <div class="week-switcher-header">
@@ -304,6 +306,8 @@
                                 </div>
 
                                 <p class="teacher-line">Классный руководитель: <span id="teacherName">—</span></p>
+                                <button class="student-devices-button" id="studentDevicesButton" type="button" hidden>Мои устройства</button>
+                                <button class="student-profile-logout" id="studentProfileLogout" type="button"><school-icon name="log-out-outline" aria-hidden="true"></school-icon>Выйти</button>
 
                                 <details class="account-disclosure" id="accountDisclosure" open hidden>
                                     <summary>
@@ -330,6 +334,7 @@
                     </aside>
                 </section>
             </main>
+            <div class="subject-panel" id="studentSubjectPanel"></div>
         </section>
     </div>
 

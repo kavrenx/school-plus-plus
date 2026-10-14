@@ -44,7 +44,7 @@ function renderLessonRow(lesson, translate) {
       ? '<span class="attendance-mark is-absent">Отсутствие</span>'
       : lesson.attendance === "present"
         ? '<span class="attendance-mark is-present">Присутствовал</span>'
-      : '<span class="attendance-mark is-unmarked">Не отмечено</span>';
+      : '<span class="attendance-mark is-unmarked">—</span>';
   const { details, materials } = renderJournalDetails(
     lesson.journalEntry,
     lesson.lessonWork,

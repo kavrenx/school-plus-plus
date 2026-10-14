@@ -1,0 +1,186 @@
+.student-devices-button {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 14px;
+  border: 1px solid var(--line-dark);
+  background: var(--paper-2);
+  color: var(--accent-dark);
+  font-weight: 700;
+}
+
+.student-sync-freshness {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.device-modal-card {
+  width: min(100%, 540px);
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+}
+
+.device-modal-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.device-modal-card header h2 {
+  margin: 0;
+}
+
+.device-modal-card header button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--line-dark);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 24px;
+}
+
+.device-modal-card p,
+.device-join-status p {
+  color: var(--muted);
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
+.device-expiry {
+  min-height: 1.5em;
+  font-variant-numeric: tabular-nums;
+}
+
+.device-modal-card button {
+  min-height: 44px;
+  padding: 8px 14px;
+}
+
+.device-modal-card h3 {
+  margin: 24px 0 14px;
+}
+
+.device-join-form,
+.device-modal-card form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.device-join-form label,
+.device-modal-card label {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.device-join-form input,
+.device-modal-card input {
+  width: 100%;
+  min-height: 44px;
+}
+
+.device-join-form input {
+  font-size: 20px;
+  letter-spacing: 0.12em;
+}
+
+.device-join-form {
+  margin: 24px 0 16px;
+}
+
+.device-join-status {
+  margin: 18px 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.device-pair-code {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.device-qr {
+  width: min(240px, 100%);
+  background: #fffdf8;
+}
+
+.device-qr svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.device-pair-code > strong,
+.device-verification {
+  display: block;
+  margin: 12px 0;
+  font-family: var(--font-mono);
+  color: var(--accent-dark);
+  font-size: 30px;
+  letter-spacing: 0.12em;
+}
+
+.device-pair-code a {
+  color: var(--accent-dark);
+  overflow-wrap: anywhere;
+}
+
+.device-list {
+  display: grid;
+  gap: 14px;
+  padding: 0;
+  list-style: none;
+}
+
+.device-list li {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line-dark);
+}
+
+.device-list small {
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.device-modal-card [data-device-content] > button {
+  margin: 16px 0;
+}
+
+.device-revoke {
+  border: 1px solid var(--line-dark);
+  background: var(--paper);
+  color: var(--danger);
+}
+
+.device-confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.device-panel-error {
+  margin-top: 16px;
+  color: var(--danger) !important;
+}
+
+@media (max-width: 560px) {
+  .device-join-form,
+  .device-modal-card form {
+    grid-template-columns: 1fr;
+  }
+  .device-join-form button,
+  .device-modal-card form button {
+    width: 100%;
+  }
+}

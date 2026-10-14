@@ -3,6 +3,7 @@ import {
   requestExtensionSnapshot,
   subscribeToExtensionSnapshots,
 } from "./extension-import.js";
+import { renderDeviceJoin } from "./device-controller.js";
 
 const ONBOARDING_KEY = "schoolpp_onboarding_complete_v1";
 const CHECK_PENDING_KEY = "schoolpp_extension_check_pending";
@@ -51,6 +52,9 @@ function createOnboardingController({
   snapshotRequest = requestExtensionSnapshot,
   subscribe = subscribeToExtensionSnapshots,
   onStepChange = () => {},
+  initialStep = "",
+  pairingCode = "",
+  onMobileOpen = () => {},
 }) {
   const screen = root.getElementById("onboardingScreen");
   const content = root.getElementById("onboardingContent");
@@ -112,6 +116,7 @@ function createOnboardingController({
   }
 
   async function showInitialStep() {
+    if (initialStep === "mobile" || detectDevice(windowRef.navigator) === "mobile") { showMobileNotice(); return; }
     if (session.getItem(CHECK_PENDING_KEY) === "true") {
       session.removeItem(CHECK_PENDING_KEY);
       if (await presenceCheck(windowRef)) {
@@ -148,21 +153,6 @@ function createOnboardingController({
       </div>`;
   }
 
-  function showDeviceConfirmation(device) {
-    announceStep(`device-${device}`);
-    const desktop = device === "desktop";
-    content.innerHTML = `
-      <div class="onboarding-visual" aria-hidden="true">${deviceIllustration(device)}</div>
-      <p class="onboarding-eyebrow">Первый запуск</p>
-      <h1>Ваше устройство — ${desktop ? "компьютер" : "телефон или планшет"}?</h1>
-      <p>Подберём способ подключения School++.</p>
-      <div class="onboarding-actions">
-        <button class="primary-btn" type="button" data-device-confirm="${device}">Да</button>
-        <button class="onboarding-secondary" type="button" data-device-change>Нет, выбрать другое</button>
-        <button class="onboarding-about" type="button" data-presentation-trigger>Что такое School++?</button>
-      </div>`;
-  }
-
   function showDeviceChoice() {
     announceStep("device-choice");
     content.innerHTML = `
@@ -187,12 +177,8 @@ function createOnboardingController({
 
   function showMobileNotice() {
     announceStep("mobile");
-    content.innerHTML = `
-      <div class="onboarding-visual" aria-hidden="true">${deviceIllustration("mobile")}</div>
-      <p class="onboarding-eyebrow">Мобильная версия</p>
-      <h1>Сейчас School++ подключается на компьютере</h1>
-      <p>Поддержку телефона и планшета добавим отдельно. Для подключения данных пока понадобится компьютер.</p>
-      <div class="onboarding-actions onboarding-actions-single"><button class="onboarding-secondary" type="button" data-device-change>Выбрать другое устройство</button></div>`;
+    content.innerHTML = renderDeviceJoin(pairingCode);
+    onMobileOpen();
   }
 
   function showExtensionStores(message = "") {
@@ -266,8 +252,10 @@ function createOnboardingController({
   screen.addEventListener("click", (event) => {
     const target = event.target.closest("button");
     if (!target) return;
-    if (target.matches("[data-diary-confirm]"))
-      showDeviceConfirmation(detectDevice(windowRef.navigator));
+    if (target.matches("[data-diary-confirm]")) {
+      if (detectDevice(windowRef.navigator) === "mobile") showMobileNotice();
+      else void showDesktopFlow();
+    }
     if (target.matches("[data-diary-unsupported]")) showUnsupportedDiary();
     if (target.matches("[data-diary-back]")) showDiaryConfirmation();
     if (target.matches("[data-open-diary-request]")) requestUi.open();
@@ -309,8 +297,8 @@ function createOnboardingController({
   function navigateToStep(step) {
     if (step === "unsupported") showUnsupportedDiary();
     else if (step === "device-choice") showDeviceChoice();
-    else if (step === "device-mobile") showDeviceConfirmation("mobile");
-    else if (step === "device-desktop") showDeviceConfirmation("desktop");
+    else if (step === "device-mobile") showMobileNotice();
+    else if (step === "device-desktop") void showDesktopFlow();
     else if (step === "mobile") showMobileNotice();
     else if (step === "extension") void showDesktopFlow();
     else if (step === "guide") void showGuide();

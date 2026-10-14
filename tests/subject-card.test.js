@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { Window } from "happy-dom";
+import { supportMediaQueryLists } from "./helpers/media-queries.js";
 import { SCHOOL_DATA } from "../data/school-data.js";
 import { SCHOOL_DIARY } from "../data/diary-data.js";
 import { DAY_ORDER, TEXT } from "../js/app-config.js";
@@ -14,7 +15,7 @@ import { createJournalStore } from "../js/journal-store.js";
 import { createStudentDashboardController } from "../js/student-dashboard-controller.js";
 import { createDiaryChangeTracker } from "../js/diary-changes.js";
 
-function fixture() {
+function fixture(width = 1280) {
   const window = new Window({
     url: "http://localhost:5174",
     settings: {
@@ -23,6 +24,8 @@ function fixture() {
       disableJavaScriptFileLoading: true,
     },
   });
+  window.happyDOM.setWindowSize({ width, height: 844 });
+  supportMediaQueryLists(window);
   window.document.write(
     readFileSync(new URL("../index.html", import.meta.url), "utf8"),
   );
@@ -55,10 +58,125 @@ function fixture() {
     controller,
     journal,
     changes,
+    data,
     values,
     $: (selector) => window.document.querySelector(selector),
   };
 }
+
+test("a new cloud snapshot keeps the selected diary date and open subject calculation", async () => {
+  const f = fixture();
+  try {
+    f.$("#studentDatePicker").value = "2026-09-16";
+    f.$("#studentDatePicker").dispatchEvent(
+      new f.window.Event("change", { bubbles: true }),
+    );
+    f.controller.updateDiary(
+      normalizeDiaryData(
+        structuredClone(f.data.diary),
+        DAY_ORDER,
+        structuredClone(f.data.school),
+      ),
+    );
+    assert.equal(f.$("#studentDatePicker").value, "2026-09-16");
+    assert.equal(f.$("#diaryPanel").hidden, false);
+    f.$("#studentAchievementsButton").click();
+    f.$('[data-achievement-subject="assignment_mathematics_7b"]').click();
+    f.$("[data-grade-goal]").value = "8";
+    f.$("[data-grade-goal]").dispatchEvent(
+      new f.window.Event("input", { bubbles: true }),
+    );
+    f.$("[data-trial-grade]").value = "10";
+    f.$("[data-trial-add]").click();
+    f.controller.updateDiary(
+      normalizeDiaryData(
+        structuredClone(f.data.diary),
+        DAY_ORDER,
+        structuredClone(f.data.school),
+      ),
+    );
+    assert.equal(f.$("#studentAchievements").hidden, false);
+    assert.equal(f.$("[data-grade-goal]").value, "8");
+    assert.equal(f.$("[data-trial-remove]").textContent.trim(), "10 ×");
+    assert.equal(f.$("#studentDatePicker").value, "2026-09-16");
+  } finally {
+    f.controller.destroy();
+    await f.window.happyDOM.close();
+  }
+});
+
+for (const width of [390, 1280])
+  test(`subject tools open over the diary without switching its section at ${width}px`, async () => {
+    const f = fixture(width);
+    try {
+      f.$("#studentDatePicker").value = "2026-09-16";
+      f.$("#studentDatePicker").dispatchEvent(new f.window.Event("change"));
+      const opener = [
+        ...f.window.document.querySelectorAll("[data-diary-subject]"),
+      ].find((button) => button.textContent.includes("Матем"));
+      assert.ok(opener);
+      const diaryHtml = f.$("#diaryTableWrap").innerHTML;
+      opener.click();
+      assert.ok(f.$("#studentSubjectPanel .subject-detail-drawer"));
+      assert.equal(f.$("#studentAchievements").hidden, true);
+      assert.equal(f.$("#diaryPanel").hidden, false);
+      assert.equal(
+        f.$("#studentDiaryButton").getAttribute("aria-pressed"),
+        "true",
+      );
+      assert.equal(f.$("#diaryTableWrap").innerHTML, diaryHtml);
+      f.$("[data-grade-goal]").value = "8";
+      f.$("[data-grade-goal]").dispatchEvent(
+        new f.window.Event("input", { bubbles: true }),
+      );
+      f.$("[data-trial-grade]").value = "10";
+      f.$("[data-trial-add]").click();
+      assert.equal(f.$("[data-trial-remove]").textContent.trim(), "10 ×");
+      f.$('[data-subject-tab="statistics"]').click();
+      assert.equal(f.$("#subjectStatisticsPanel").hidden, false);
+      f.$("[data-subject-period]").value = "term_2026_2";
+      f.$("[data-subject-period]").dispatchEvent(
+        new f.window.Event("change", { bubbles: true }),
+      );
+      assert.equal(f.$("#studentAchievements").hidden, true);
+      f.$("[data-achievement-back]").click();
+      assert.equal(f.$(".subject-detail-drawer"), null);
+      assert.equal(f.window.document.activeElement, opener);
+      assert.equal(f.$("#studentDatePicker").value, "2026-09-16");
+      assert.equal(f.$("#diaryTableWrap").innerHTML, diaryHtml);
+      opener.click();
+      f.$("[data-subject-period]").value = "term_2026_1";
+      f.$("[data-subject-period]").dispatchEvent(
+        new f.window.Event("change", { bubbles: true }),
+      );
+      assert.equal(f.$("[data-grade-goal]").value, "8");
+      assert.ok(f.$("[data-trial-remove]"));
+      // A fresh snapshot refreshes the common panel without revealing results.
+      f.controller.updateDiary(
+        normalizeDiaryData(
+          structuredClone(f.data.diary),
+          DAY_ORDER,
+          structuredClone(f.data.school),
+        ),
+      );
+      assert.equal(f.$("#studentAchievements").hidden, true);
+      assert.equal(f.$("#diaryPanel").hidden, false);
+      assert.equal(f.$("[data-grade-goal]").value, "8");
+      f.window.document.dispatchEvent(
+        new f.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      );
+      assert.equal(f.$(".subject-detail-drawer"), null);
+      // Opening through Results uses the same host and the same saved scenario.
+      f.$("#studentAchievementsButton").click();
+      f.$('[data-achievement-subject="assignment_mathematics_7b"]').click();
+      assert.ok(f.$("#studentSubjectPanel .subject-detail-drawer"));
+      assert.equal(f.$("[data-grade-goal]").value, "8");
+      assert.ok(f.$("[data-trial-remove]"));
+    } finally {
+      f.controller.destroy();
+      await f.window.happyDOM.close();
+    }
+  });
 
 test("subject card supports tabs, reversible trial, period selection and diary navigation", async () => {
   const f = fixture();
@@ -114,7 +232,7 @@ test("subject card supports tabs, reversible trial, period selection and diary n
     period.value = "term_2026_2";
     period.dispatchEvent(new f.window.Event("change", { bubbles: true }));
     assert.match(
-      f.$("[data-subject-detail-heading]").textContent,
+      f.$("[data-subject-period]").selectedOptions[0].textContent,
       /II четверть/,
     );
     assert.equal(f.$("[data-trial-remove]"), null);
@@ -160,7 +278,7 @@ test("half-year subject offers two periods and pass-fail subjects have no numeri
       .click();
     assert.equal(f.$("[data-subject-period]").options.length, 2);
     assert.match(
-      f.$("[data-subject-detail-heading]").textContent,
+      f.$("[data-subject-period]").selectedOptions[0].textContent,
       /I полугодие/,
     );
     f.$("[data-achievement-back]").click();
@@ -171,6 +289,36 @@ test("half-year subject offers two periods and pass-fail subjects have no numeri
     assert.equal(f.$(".subject-chart"), null);
     assert.ok(f.$(".subject-grade-grid"));
   } finally {
+    await f.window.happyDOM.close();
+  }
+});
+
+test("a chart point opens on tap or keyboard and stays visible after a touch ends", async () => {
+  const f = fixture();
+  try {
+    f.$("#studentAchievementsButton").click();
+    f.$('[data-achievement-subject="assignment_mathematics_7b"]').click();
+    f.$('[data-subject-tab="statistics"]').click();
+    const point = f.$(".subject-chart-point");
+    point
+      .querySelector("circle")
+      .dispatchEvent(new f.window.MouseEvent("click", { bubbles: true }));
+    assert.equal(f.$(".subject-chart-tooltip").hidden, false);
+    point.dispatchEvent(
+      new f.window.PointerEvent("pointerout", {
+        bubbles: true,
+        pointerType: "touch",
+      }),
+    );
+    assert.equal(f.$(".subject-chart-tooltip").hidden, false);
+    f.$(".subject-summary").click();
+    assert.equal(f.$(".subject-chart-tooltip").hidden, true);
+    point.dispatchEvent(
+      new f.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+    );
+    assert.equal(f.$(".subject-chart-tooltip").hidden, false);
+  } finally {
+    f.controller.destroy();
     await f.window.happyDOM.close();
   }
 });

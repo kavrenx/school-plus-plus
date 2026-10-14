@@ -46,6 +46,7 @@ function createStudentDashboardController({
   onSectionChange = () => {},
   coverageNotice = "",
   changeTracker = null,
+  readOnlyDevice = false,
 }) {
   diary.weeks = completeAcademicWeeks(diary.weeks, diary.school.academicYear);
   const year = diary.school.academicYear;
@@ -136,10 +137,11 @@ function createStudentDashboardController({
   let selectedSubjectTab = "calculation";
   let selectedGoalPlan = null;
   const subjectCalculations = new Map();
-  let subjectDetailOrigin = "results";
+  let subjectDetailOpener = null;
   const extensionMaterialsByLesson = new Map();
   const requestedMaterialLessons = new Set();
   const achievementPanel = root.getElementById("studentAchievements");
+  const subjectPanel = root.getElementById("studentSubjectPanel");
   const changesPanel = root.getElementById("studentChangesPanel");
   const changesButton = root.getElementById("studentChangesButton");
   const changesCount = root.getElementById("studentChangesCount");
@@ -149,6 +151,7 @@ function createStudentDashboardController({
   const achievementButton = root.getElementById("studentAchievementsButton");
   const schedulePanel = root.getElementById("studentSchedule");
   const scheduleButton = root.getElementById("studentScheduleButton");
+  const profileButton = root.getElementById("studentProfileButton");
   const currentWeekButton = root.getElementById("studentCurrentWeek");
   const datePicker = root.getElementById("studentDatePicker");
   const calendarButton = root.getElementById("studentCalendarButton");
@@ -165,13 +168,18 @@ function createStudentDashboardController({
 
   function showSection(section = "diary", announce = true) {
     closeChanges(false);
-    if (!["diary", "schedule", "results"].includes(section)) section = "diary";
+    if (!["diary", "schedule", "results", "profile"].includes(section)) section = "diary";
+    if (section === "profile" && !compactProfileLayout?.matches) section = "diary";
     const previousSection = selectedSection;
-    if (section !== "results" && selectedSubjectId)
-      closeSubjectDetails(false, false);
+    if (previousSection !== section) toggleCalendar(false);
+    if (previousSection !== section && selectedSubjectId)
+      closeSubjectDetails(false);
     selectedSection = section;
     const achievements = section === "results";
     const schedule = section === "schedule";
+    const profile = section === "profile";
+    root.querySelector(".journal-shell")?.classList.toggle("is-profile-section", profile);
+    if (elements.profileDisclosure) elements.profileDisclosure.open = profile || !compactProfileLayout?.matches;
     if (!achievementPanel) return;
     achievementPanel.hidden = !achievements;
     if (schedulePanel) schedulePanel.hidden = !schedule;
@@ -180,16 +188,20 @@ function createStudentDashboardController({
     diaryButton.setAttribute("aria-pressed", String(section === "diary"));
     achievementButton.setAttribute("aria-pressed", String(achievements));
     scheduleButton?.setAttribute("aria-pressed", String(schedule));
+    profileButton?.setAttribute("aria-pressed", String(profile));
     diaryButton?.parentElement.style.setProperty(
       "--active-section",
-      String(["diary", "schedule", "results"].indexOf(section)),
+      String(["diary", "schedule", "results", "profile"].indexOf(section)),
     );
     if (section !== "diary") {
       elements.journalMain?.classList.remove("is-empty-day", "is-quiet-empty");
       if (achievements) renderAchievements();
-      else renderSchedule();
+      else if (schedule) renderSchedule();
     } else renderDiary();
     if (previousSection !== section) animateSection(section);
+    if (announce && previousSection !== section && compactProfileLayout?.matches) {
+      (profile ? root.querySelector(".student-sidebar") : elements.journalMain)?.scrollIntoView?.({ behavior: root.defaultView?.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+    }
     if (announce) onSectionChange(section);
   }
 
@@ -204,13 +216,13 @@ function createStudentDashboardController({
     const panels =
       section === "diary"
         ? [root.querySelector(".week-switcher"), elements.diaryPanel]
-        : [section === "schedule" ? schedulePanel : achievementPanel];
+        : [section === "profile" ? root.querySelector(".student-sidebar") : section === "schedule" ? schedulePanel : achievementPanel];
+    const frames = selectedSubjectId || compactProfileLayout?.matches
+      ? [{ opacity: 0 }, { opacity: 1 }]
+      : [{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "translateY(0)" }];
     panels.forEach((panel) => {
       const animation = panel?.animate?.(
-        [
-          { opacity: 0, transform: "translateY(8px)" },
-          { opacity: 1, transform: "translateY(0)" },
-        ],
+        frames,
         { duration: 230, easing: "cubic-bezier(.2,.7,.2,1)" },
       );
       if (animation) {
@@ -220,14 +232,16 @@ function createStudentDashboardController({
     });
   }
 
-  function renderAchievements(focus = false) {
-    const detailWasOpen = Boolean(
-      achievementPanel.querySelector(".subject-detail-drawer"),
-    );
+  function getSubjectResults() {
     const studentId = currentUser?.id || currentUser?.userId;
-    const results = getStudentSubjects(diary, studentId).map((assignment) =>
+    return getStudentSubjects(diary, studentId).map((assignment) =>
       getSubjectResult(diary, journalStore, assignment, studentId),
     );
+  }
+
+  function renderAchievements() {
+    const studentId = currentUser?.id || currentUser?.userId;
+    const results = getSubjectResults();
     const behavior = Object.fromEntries(
       getResultColumns(year).map((column) => [
         column.id,
@@ -240,6 +254,13 @@ function createStudentDashboardController({
       year,
       behavior,
     );
+    if (selectedSubjectId) renderSubjectPanel(false, results);
+  }
+
+  function renderSubjectPanel(focus = false, results = getSubjectResults()) {
+    const previousDrawer = subjectPanel.querySelector(".subject-detail-drawer");
+    const detailWasOpen = Boolean(previousDrawer);
+    const scrollTop = previousDrawer?.scrollTop || 0;
     const selectedResult = results.find(
       (result) => result.assignment.id === selectedSubjectId,
     );
@@ -290,49 +311,49 @@ function createStudentDashboardController({
           ? "Период ещё не начался"
           : periodTerms.at(-1)?.endsOn < today
             ? "Период завершён"
-            : "Период продолжается · результаты пока не окончательные";
+            : "Период ещё не завершён";
       selectedGoalPlan = calculateGradeOptions(
         selectedSubjectPeriod.grades,
         state.target,
         selectedSubjectPeriod.remainingLessons.length,
         state.mode,
       );
-      achievementPanel.insertAdjacentHTML(
-        "beforeend",
-        renderSubjectDetails(
-          selectedResult,
-          selectedSubjectPeriod,
-          {
-            formatIsoDateLong,
-          },
-          {
-            ...state,
-            animate: !detailWasOpen,
-            tab: selectedSubjectTab,
-            periodChoices: choices,
-            termId: selectedChoice?.id,
-            coverageNotice,
-            periodStatus,
-            goalHtml: renderGradeOptions(selectedGoalPlan),
-            trialHtml: renderTrialGrades(state.trial),
-            projectionHtml: renderProjection(
-              projectGrades(selectedSubjectPeriod.grades, state.trial),
-              selectedSubjectPeriod.remainingLessons.length,
-            ),
-          },
-        ),
+      subjectPanel.innerHTML = renderSubjectDetails(
+        selectedResult,
+        selectedSubjectPeriod,
+        {
+          formatIsoDateLong,
+        },
+        {
+          ...state,
+          animate: !detailWasOpen,
+          tab: selectedSubjectTab,
+          periodChoices: choices,
+          termId: selectedChoice?.id,
+          coverageNotice,
+          periodStatus,
+          goalHtml: renderGradeOptions(selectedGoalPlan),
+          trialHtml: renderTrialGrades(state.trial),
+          projectionHtml: renderProjection(
+            projectGrades(selectedSubjectPeriod.grades, state.trial),
+            selectedSubjectPeriod.remainingLessons.length,
+          ),
+        },
       );
+      if (detailWasOpen) subjectPanel.querySelector(".subject-detail-drawer").scrollTop = scrollTop;
       root.body?.classList.add("subject-detail-open");
-    } else {
-      selectedSubjectId = "";
-      root.body?.classList.remove("subject-detail-open");
-    }
-    if (focus) {
-      const target = selectedSubjectId
-        ? achievementPanel.querySelector("[data-subject-detail-heading]")
-        : achievementPanel.querySelector("[data-achievement-heading]");
-      target?.focus();
-    }
+      if (focus) subjectPanel.querySelector("[data-subject-detail-heading]")?.focus({ preventScroll: true });
+    } else closeSubjectDetails(false);
+  }
+
+  function openSubjectDetails(subjectId, opener) {
+    closeChanges(false);
+    toggleCalendar(false);
+    subjectDetailOpener = opener;
+    selectedSubjectId = subjectId;
+    selectedSubjectTermId = "";
+    selectedSubjectTab = "calculation";
+    renderSubjectPanel(true);
   }
 
   function getSubjectCalculation() {
@@ -345,7 +366,7 @@ function createStudentDashboardController({
   function refreshSubjectCalculation() {
     if (!selectedSubjectPeriod) return;
     const state = getSubjectCalculation();
-    const input = achievementPanel.querySelector("[data-grade-goal]");
+    const input = subjectPanel.querySelector("[data-grade-goal]");
     if (!input) return;
     state.target = input.value;
     state.mode = "rounded";
@@ -355,69 +376,65 @@ function createStudentDashboardController({
       selectedSubjectPeriod.remainingLessons.length,
       state.mode,
     );
-    achievementPanel.querySelector("[data-grade-goal-result]").innerHTML =
+    subjectPanel.querySelector("[data-grade-goal-result]").innerHTML =
       renderGradeOptions(selectedGoalPlan);
   }
 
   function refreshTrial() {
     const state = getSubjectCalculation();
-    achievementPanel.querySelector("[data-trial-grades]").innerHTML =
+    subjectPanel.querySelector("[data-trial-grades]").innerHTML =
       renderTrialGrades(state.trial);
-    achievementPanel.querySelector("[data-trial-result]").innerHTML =
+    subjectPanel.querySelector("[data-trial-result]").innerHTML =
       renderProjection(
         projectGrades(selectedSubjectPeriod.grades, state.trial),
         selectedSubjectPeriod.remainingLessons.length,
       );
-    achievementPanel.querySelector("[data-trial-add]").disabled =
+    subjectPanel.querySelector("[data-trial-add]").disabled =
       state.trial.length >= 100;
   }
 
-  function closeSubjectDetails(restoreFocus = true, returnToOrigin = true) {
+  function closeSubjectDetails(restoreFocus = true) {
+    const opener = subjectDetailOpener;
     const subjectId = selectedSubjectId;
-    const origin = subjectDetailOrigin;
     selectedSubjectId = "";
     selectedSubjectPeriod = null;
     selectedSubjectTermId = "";
     selectedSubjectTab = "calculation";
-    subjectDetailOrigin = "results";
-    root.body?.classList.remove("subject-detail-open");
-    if (selectedSection !== "results") return;
-    renderAchievements();
-    if (returnToOrigin && origin === "diary") {
-      showSection("diary");
-      return;
+    subjectDetailOpener = null;
+    subjectPanel.innerHTML = "";
+    if (changesPanel?.hidden !== false) root.body?.classList.remove("subject-detail-open");
+    if (restoreFocus) {
+      const fallback = opener?.dataset.diarySubject
+        ? [...elements.diaryTableWrap.querySelectorAll("[data-diary-subject]")].find((button) => button.dataset.diarySubject === opener.dataset.diarySubject)
+        : [...achievementPanel.querySelectorAll("[data-achievement-subject]")].find((button) => button.dataset.achievementSubject === subjectId);
+      (opener?.isConnected ? opener : fallback)?.focus({ preventScroll: true });
     }
-    if (restoreFocus)
-      achievementPanel
-        .querySelector(`[data-achievement-subject="${subjectId}"]`)
-        ?.focus();
   }
 
   function handleAchievementClick(event) {
+    if (event.target.closest(".subject-chart-point")) { handleChartTooltip(event); return; }
+    const tooltip = subjectPanel.querySelector(".subject-chart-tooltip");
+    if (tooltip) tooltip.hidden = true;
     const subject = event.target.closest("[data-achievement-subject]");
     if (subject) {
-      subjectDetailOrigin = "results";
-      selectedSubjectId = subject.dataset.achievementSubject;
-      selectedSubjectTermId = "";
-      selectedSubjectTab = "calculation";
-      renderAchievements(true);
+      openSubjectDetails(subject.dataset.achievementSubject, subject);
       return;
     }
     const tab = event.target.closest("[data-subject-tab]");
     if (tab) {
-      const tooltip = achievementPanel.querySelector(".subject-chart-tooltip");
+      const tooltip = subjectPanel.querySelector(".subject-chart-tooltip");
       if (tooltip) tooltip.hidden = true;
       selectedSubjectTab = tab.dataset.subjectTab;
-      achievementPanel
+      subjectPanel
         .querySelectorAll("[data-subject-tab]")
         .forEach((button) => {
           const active = button.dataset.subjectTab === selectedSubjectTab;
           button.setAttribute("aria-selected", String(active));
           button.tabIndex = active ? 0 : -1;
         });
-      achievementPanel.querySelector("#subjectStatisticsPanel").hidden =
+      subjectPanel.querySelector("#subjectStatisticsPanel").hidden =
         selectedSubjectTab !== "statistics";
-      achievementPanel.querySelector("#subjectCalculationPanel").hidden =
+      subjectPanel.querySelector("#subjectCalculationPanel").hidden =
         selectedSubjectTab !== "calculation";
       return;
     }
@@ -428,7 +445,7 @@ function createStudentDashboardController({
       more.querySelector("span").textContent = expanded
         ? "Скрыть варианты"
         : "Показать больше";
-      const list = achievementPanel.querySelector("#gradeOptionsMore");
+      const list = subjectPanel.querySelector("#gradeOptionsMore");
       list.classList.toggle("is-expanded", expanded);
       list.setAttribute("aria-hidden", String(!expanded));
       list.toggleAttribute("inert", !expanded);
@@ -436,7 +453,7 @@ function createStudentDashboardController({
     }
     const date = event.target.closest("[data-subject-date]");
     if (date) {
-      closeSubjectDetails(false, false);
+      closeSubjectDetails(false);
       goToDate(date.dataset.subjectDate);
       elements.diaryTitle?.focus();
       return;
@@ -455,7 +472,7 @@ function createStudentDashboardController({
       else if (event.target.closest("[data-trial-add]")) {
         if (state.trial.length < 100)
           state.trial.push(
-            Number(achievementPanel.querySelector("[data-trial-grade]").value),
+            Number(subjectPanel.querySelector("[data-trial-grade]").value),
           );
       } else if (event.target.closest("[data-trial-clear]")) state.trial = [];
       else if (event.target.closest("[data-achievement-back]")) {
@@ -470,8 +487,8 @@ function createStudentDashboardController({
 
   let trialHighlightTimer;
   function revealTrial() {
-    const sandbox = achievementPanel.querySelector(".grade-sandbox");
-    const drawer = achievementPanel.querySelector(".subject-detail-drawer");
+    const sandbox = subjectPanel.querySelector(".grade-sandbox");
+    const drawer = subjectPanel.querySelector(".subject-detail-drawer");
     if (!sandbox || !drawer) return;
     const reduced = root.defaultView?.matchMedia?.(
       "(prefers-reduced-motion: reduce)",
@@ -496,7 +513,7 @@ function createStudentDashboardController({
     const chart = point.closest(".subject-chart");
     const tooltip = chart.querySelector(".subject-chart-tooltip");
     if (["pointerout", "focusout"].includes(event.type)) {
-      if (event.relatedTarget !== point) tooltip.hidden = true;
+      if (event.pointerType !== "touch" && !point.contains(event.relatedTarget)) tooltip.hidden = true;
       return;
     }
     tooltip.querySelector("[data-tooltip-date]").textContent =
@@ -522,6 +539,7 @@ function createStudentDashboardController({
   }
 
   function handleAchievementKeydown(event) {
+    if (event.target.closest?.(".subject-chart-point") && ["Enter", " "].includes(event.key)) { event.preventDefault(); handleChartTooltip(event); return; }
     if (changesPanel && !changesPanel.hidden) {
       if (event.key === "Escape") {
         const input = changesPanel.querySelector("[data-changes-search-input]");
@@ -566,14 +584,14 @@ function createStudentDashboardController({
             : tab.dataset.subjectTab === "statistics"
               ? "calculation"
               : "statistics";
-      const next = achievementPanel.querySelector(
+      const next = subjectPanel.querySelector(
         `[data-subject-tab="${name}"]`,
       );
       next.click();
       next.focus();
     }
     if (event.key === "Tab") {
-      const drawer = achievementPanel.querySelector(".subject-detail-drawer");
+      const drawer = subjectPanel.querySelector(".subject-detail-drawer");
       const focusable = [
         ...drawer.querySelectorAll(
           'button:not(:disabled), select, input, [tabindex="0"]',
@@ -600,7 +618,8 @@ function createStudentDashboardController({
       changeTracker?.getState().changes.filter((change) => !change.read)
         .length || 0;
     if (changesCount) {
-      changesCount.textContent = String(count);
+      changesCount.textContent = count > 9 ? "9+" : String(count);
+      changesCount.setAttribute("aria-label", `Новых изменений: ${count}`);
       changesCount.hidden = !count;
     }
   }
@@ -617,7 +636,7 @@ function createStudentDashboardController({
 
   function showChanges() {
     if (!changesPanel) return;
-    if (selectedSubjectId) closeSubjectDetails(false, false);
+    if (selectedSubjectId) closeSubjectDetails(false);
     displayedChanges = changeTracker?.getState() || { changes: [] };
     changeExpandedDays.clear();
     changesPanel.innerHTML = renderDiaryChanges(
@@ -800,6 +819,8 @@ function createStudentDashboardController({
     diaryButton?.addEventListener("click", () => showSection("diary"));
     achievementButton?.addEventListener("click", () => showSection("results"));
     scheduleButton?.addEventListener("click", () => showSection("schedule"));
+    profileButton?.addEventListener("click", () => showSection("profile"));
+    root.getElementById("studentProfileLogout")?.addEventListener("click", onLogout);
     datePicker?.addEventListener("change", () => goToDate(datePicker.value));
     calendarButton?.addEventListener("click", () => toggleCalendar());
     calendarPrevious?.addEventListener("click", () => moveCalendarMonth(-1));
@@ -824,18 +845,19 @@ function createStudentDashboardController({
         ?.focus();
     });
     achievementPanel?.addEventListener("click", handleAchievementClick);
-    achievementPanel?.addEventListener("submit", handleAchievementSubmit);
+    subjectPanel?.addEventListener("click", handleAchievementClick);
+    subjectPanel?.addEventListener("submit", handleAchievementSubmit);
     for (const event of ["pointerover", "pointerout", "focusin", "focusout"])
-      achievementPanel?.addEventListener(event, handleChartTooltip);
-    achievementPanel?.addEventListener("input", (event) => {
+      subjectPanel?.addEventListener(event, handleChartTooltip);
+    subjectPanel?.addEventListener("input", (event) => {
       if (event.target.matches("[data-grade-goal]"))
         refreshSubjectCalculation();
     });
-    achievementPanel?.addEventListener("change", (event) => {
+    subjectPanel?.addEventListener("change", (event) => {
       if (event.target.matches("[data-subject-period]")) {
         selectedSubjectTermId = event.target.value;
-        renderAchievements();
-        achievementPanel.querySelector("[data-subject-period]")?.focus();
+        renderSubjectPanel();
+        subjectPanel.querySelector("[data-subject-period]")?.focus({ preventScroll: true });
       }
     });
     root.addEventListener("keydown", handleAchievementKeydown);
@@ -881,16 +903,7 @@ function createStudentDashboardController({
             item.groupId === button.dataset.diaryGroup),
       );
       if (!assignment) return;
-      subjectDetailOrigin = "diary";
-      selectedSubjectId = assignment.id;
-      selectedSubjectTermId = "";
-      selectedSubjectTab = "calculation";
-      showSection("results");
-      root.defaultView?.requestAnimationFrame?.(() =>
-        achievementPanel
-          .querySelector("[data-subject-detail-heading]")
-          ?.focus(),
-      );
+      openSubjectDetails(assignment.id, button);
     });
     elements.dayTabs.addEventListener("click", (event) => {
       const button = event.target.closest(".day-tab");
@@ -906,6 +919,13 @@ function createStudentDashboardController({
 
   async function downloadESchoolsMaterial(button) {
     if (button.disabled) return;
+    if (readOnlyDevice) {
+      const label = button.querySelector("span");
+      const original = label?.textContent;
+      if (label) label.textContent = "Этот файл пока можно скачать на компьютере с расширением.";
+      root.defaultView?.setTimeout(() => { if (label?.isConnected) label.textContent = original; }, 5000);
+      return;
+    }
     let material;
     try {
       material = JSON.parse(decodeURIComponent(button.dataset.esMaterial));
@@ -952,6 +972,8 @@ function createStudentDashboardController({
     sectionAnimations = [];
     selectedSubjectId = "";
     selectedSubjectPeriod = null;
+    subjectDetailOpener = null;
+    subjectPanel.innerHTML = "";
     root.body?.classList.remove("subject-detail-open");
     root.removeEventListener("keydown", handleAchievementKeydown);
     root.removeEventListener("click", handleDocumentClick);
@@ -1026,8 +1048,9 @@ function createStudentDashboardController({
   }
 
   function syncProfileDisclosure(event = compactProfileLayout) {
+    if (!event?.matches && selectedSection === "profile") showSection("diary");
     if (elements.profileDisclosure) {
-      elements.profileDisclosure.open = !event?.matches;
+      elements.profileDisclosure.open = selectedSection === "profile" || !event?.matches;
     }
   }
 
@@ -1316,7 +1339,33 @@ function createStudentDashboardController({
     });
   }
 
-  return { bind, destroy, show, showSection, updateUser };
+  function updateDiary(next) {
+    const previousDate = diary.weeks[selectedWeekIndex] ? getIsoDateForDay(diary.weeks[selectedWeekIndex].start, selectedDayKey) : initialDate;
+    terms.splice(0, terms.length, ...next.school.academicYear.terms);
+    Object.assign(year, next.school.academicYear, { terms });
+    next.school.academicYear = year;
+    next.weeks = completeAcademicWeeks(next.weeks, year);
+    Object.assign(diary, next);
+    if (!terms.some((term) => term.id === selectedTermId)) selectedTermId = findInitialTermId(terms, previousDate);
+    termWeekIndexes = getWeekIndexesForTerm(diary.weeks, terms.find((term) => term.id === selectedTermId));
+    const index = findWeekForDate(diary.weeks, previousDate, year);
+    selectedWeekIndex = index >= 0 ? index : findInitialWeekIndexForTerm(diary.weeks, termWeekIndexes, getSchoolDateIso(now()));
+    const user = diary.school.users.find((item) => item.role === "student");
+    if (user) updateUser(user);
+    renderTermSelect();
+    if (selectedSection === "results") renderAchievements();
+    else if (selectedSection === "schedule") renderSchedule();
+    else if (selectedSection === "diary") renderDiary();
+    if (selectedSubjectId && selectedSection !== "results") renderSubjectPanel();
+    if (changesPanel && !changesPanel.hidden) {
+      displayedChanges = changeTracker?.getState() || { changes: [] };
+      refreshChangeSearch();
+      changeTracker?.markRead();
+    }
+    updateChangesCount();
+  }
+
+  return { bind, destroy, show, showSection, updateUser, updateDiary };
 }
 
 function mergeMaterialLists(...collections) {

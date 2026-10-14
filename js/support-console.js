@@ -38,7 +38,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("supportForm"),
     document.getElementById("supportCloseConversation"),
   ];
-  const services = createSupabaseServices(import.meta.env, {
+  const services = createSupabaseServices(undefined, {
     storageKey: "schoolpp_support_session",
   });
 

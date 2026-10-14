@@ -25,8 +25,8 @@ function renderAchievementTable(results, year, behavior = {}) {
       : column.type === "half"
         ? `${column.label} полугодие`
         : "Год";
-  const cell = (label, value) =>
-    `<td><div class="result-period-value" aria-label="${e(label)}">${value}</div></td>`;
+  const cell = (label, value, type = "quarter") =>
+    `<td data-period-label="${e(label)}" data-result-period="${e(type)}"><div class="result-period-value" aria-label="${e(label)}">${value}</div></td>`;
   return `<h2 tabindex="-1" data-achievement-heading>Успеваемость ${e(year.title)}</h2>
     <p class="result-legend"><span class="result-legend-forecast">10,0</span> — прогнозируемая отметка; <strong>10</strong> — выставленная учителем.</p>
     <div class="achievement-scroll" tabindex="0" role="region" aria-label="Отметки за четверти, полугодия и год. Таблицу можно прокручивать горизонтально.">
@@ -40,6 +40,7 @@ function renderAchievementTable(results, year, behavior = {}) {
               return cell(
                 period ? periodName(period) : periodName(column),
                 period ? mark(result, period) : "—",
+                period?.type || "empty",
               );
             })
             .join("")}</tr>`,
@@ -82,8 +83,8 @@ function renderSubjectDetails(result, period, dateTools, state = {}) {
     ${gradeTiles ? `<ol class="subject-grade-grid">${gradeTiles}</ol>` : '<p class="achievement-empty">Отметок за этот период пока нет.</p>'}</section>`;
   return `<button class="subject-detail-backdrop${state.animate === false ? " is-static" : ""}" type="button" data-achievement-back aria-label="Закрыть отметки по предмету"></button>
     <aside class="subject-detail-drawer${state.animate === false ? " is-static" : ""}" role="dialog" aria-modal="true" aria-labelledby="subjectDetailTitle">
-      <button class="subject-detail-close" type="button" data-achievement-back aria-label="Закрыть">×</button>
-      <h2 id="subjectDetailTitle" tabindex="-1" data-subject-detail-heading>${e(shortSubjectName(result.assignment.title))} <span>•</span> ${e(period.title)}</h2>
+      <header class="subject-detail-header"><button class="subject-detail-close" type="button" data-achievement-back aria-label="Закрыть">×</button>
+      <h2 id="subjectDetailTitle" tabindex="-1" data-subject-detail-heading>${e(shortSubjectName(result.assignment.title))}${periodChoices.length ? "" : ` <span>•</span> ${e(period.title)}`}</h2></header>
       ${periodChoices.length ? `<label class="subject-period-picker">Период<select data-subject-period>${periodChoices.map((choice) => `<option value="${e(choice.id)}"${choice.id === state.termId ? " selected" : ""}>${e(choice.title)}</option>`).join("")}</select></label>` : ""}
       ${state.periodStatus ? `<p class="achievement-note">${e(state.periodStatus)}</p>` : ""}
       ${
@@ -129,7 +130,8 @@ function renderAverageChart(analytics, dateTools) {
       ? left + ((Date.parse(point.date) - minDate) / dateRange) * (right - left)
       : (left + right) / 2;
   const y = (value) => 160 - ((value - 1) / 9) * 140;
-  return `<section class="subject-chart"><h3>Как менялся средний</h3><p class="achievement-note">По датам уроков. Наведи на точку или выбери её клавишей Tab.</p><svg viewBox="0 0 ${width} 195" role="img" aria-label="График среднего балла от ${average(analytics.points[0].average)} до ${average(analytics.average)}"><g class="subject-chart-grid">${[1, 4, 7, 10].map((value) => `<line x1="${left}" x2="${right}" y1="${y(value)}" y2="${y(value)}"/><text x="3" y="${y(value) + 4}">${value}</text>`).join("")}</g><polyline class="subject-chart-line" points="${analytics.points.map((point) => `${x(point)},${y(point.average)}`).join(" ")}"/>${analytics.points.map((point) => `<circle class="subject-chart-point" tabindex="0" cx="${x(point)}" cy="${y(point.average)}" r="5" data-chart-date="${e(dateTools.formatIsoDateLong(point.date))}" data-chart-grades="${point.grades.join("/")}" data-chart-average="${formatAnalyticsAverage(point.average)}" aria-label="${e(dateTools.formatIsoDateLong(point.date))}: ${point.grades.join("/")}, средний ${formatAnalyticsAverage(point.average)}"/>`).join("")}<text x="${left}" y="185">${e(formatShortDate(analytics.points[0].date))}</text><text x="${right}" y="185" text-anchor="end">${e(formatShortDate(analytics.points.at(-1).date))}</text></svg><div class="subject-chart-tooltip" role="tooltip" hidden><strong data-tooltip-date></strong><span data-tooltip-grades></span><span data-tooltip-average></span></div></section>`;
+  const points = analytics.points.map((point) => `<g class="subject-chart-point" role="button" tabindex="0" data-chart-date="${e(dateTools.formatIsoDateLong(point.date))}" data-chart-grades="${point.grades.join("/")}" data-chart-average="${formatAnalyticsAverage(point.average)}" aria-label="${e(dateTools.formatIsoDateLong(point.date))}: ${point.grades.join("/")}, средний ${formatAnalyticsAverage(point.average)}"><circle class="subject-chart-hit" cx="${x(point)}" cy="${y(point.average)}" r="15"/><circle cx="${x(point)}" cy="${y(point.average)}" r="5"/></g>`).join("");
+  return `<section class="subject-chart"><h3>Как менялся средний</h3><p class="achievement-note">Средний балл по датам уроков. Выбери точку, чтобы увидеть отметки.</p><svg viewBox="0 0 ${width} 195" role="group" aria-label="График среднего балла от ${average(analytics.points[0].average)} до ${average(analytics.average)}"><g class="subject-chart-grid">${[1, 4, 7, 10].map((value) => `<line x1="${left}" x2="${right}" y1="${y(value)}" y2="${y(value)}"/><text x="3" y="${y(value) + 4}">${value}</text>`).join("")}</g><polyline class="subject-chart-line" points="${analytics.points.map((point) => `${x(point)},${y(point.average)}`).join(" ")}"/>${points}<text x="${left}" y="185">${e(formatShortDate(analytics.points[0].date))}</text><text x="${right}" y="185" text-anchor="end">${e(formatShortDate(analytics.points.at(-1).date))}</text></svg><div class="subject-chart-tooltip" role="tooltip" hidden><strong data-tooltip-date></strong><span data-tooltip-grades></span><span data-tooltip-average></span></div></section>`;
 }
 
 function renderGradeOptions(plan) {
