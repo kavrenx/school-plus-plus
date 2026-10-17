@@ -35,6 +35,11 @@ import { createDiaryRevisionWatcher } from "./js/device-repository.js";
 import { createLinkedDiaryCache } from "./js/linked-diary-cache.js";
 import { createMobileViewportController } from "./js/mobile-viewport.js";
 import { formatDiaryFreshness } from "./js/diary-freshness.js";
+import { readIOSPreview } from "./js/ios-shortcut-preview.js";
+import { createUserscriptClient, readUserscriptCache, readUserscriptDiary, shouldRefreshUserscript, USERSCRIPT_CACHE } from "./js/userscript-client.js";
+import { createUserscriptImporter } from "./js/userscript-import.js";
+import { createUserscriptAutoSync } from "./js/userscript-auto-sync.js";
+import { transitionToUserscriptSync } from "./js/userscript-progress.js";
 import { EXTENSION_STORE_URLS } from "./js/release-config.js";
 import { createSupabaseServices } from "./js/supabase-services.js";
 import { createSupportController } from "./js/support-controller.js";
@@ -115,7 +120,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (mode === "cloud") void reportActivity("page_view");
 
   const relayParams = new URLSearchParams(window.location.search);
-  const isLocalPreview = mode === "local" && ["diary", "analytics"].includes(relayParams.get("preview"));
+  let userscriptOwner;
+  try { userscriptOwner = await services?.auth.getCachedUser(); } catch { /* Cached data remain scoped to a known session. */ }
+  const userscriptDiary = readUserscriptDiary(browserStorage, userscriptOwner?.id);
+  const userscriptCache = import.meta.env.DEV && !userscriptDiary ? readUserscriptCache(browserStorage) : null;
+  const iosPreviewRequested = import.meta.env.DEV && relayParams.get("ios-import") === "preview";
+  const iosPreview = iosPreviewRequested ? readIOSPreview(window.sessionStorage) || userscriptCache : null;
+  if (iosPreviewRequested && !iosPreview?.snapshot) {
+    window.location.replace(new URL("ios-setup.html#iosFullTest", window.location.href));
+    return;
+  }
+  const isLocalPreview = Boolean(iosPreview) || mode === "local" && ["diary", "analytics"].includes(relayParams.get("preview"));
   const diaryNetworkEnabled = Boolean(services) && !isLocalPreview;
   const pairingCode = new URLSearchParams(window.location.hash.split("?")[1] || "").get("pair") || "";
   const relayAction = relayParams.get("extension-action");
@@ -127,6 +142,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       await ensureCloudUser();
       if (relayAction === "delete") {
         await services.diary.remove();
+        browserStorage.removeItem(USERSCRIPT_CACHE);
       } else {
         const snapshot = await requestExtensionSnapshot(window, 4_000);
         if (!snapshot) throw new Error("Расширение не передало данные.");
@@ -194,7 +210,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     root: document,
     windowRef: window,
     storeUrls: EXTENSION_STORE_URLS,
-    initialStep: pairingCode || readRoute().page === "mobile" ? "mobile" : "",
+    initialStep: pairingCode ? "mobile" : readRoute().area === "connect" ? readRoute().page : "",
+    shortcutSetupUrl: import.meta.env.DEV ? new URL("ios-setup.html", window.location.href).href : "",
+    userscriptSetupUrl: new URL("userscripts-setup.html", window.location.href).href,
     pairingCode,
     onMobileOpen: () => void deviceController?.resumeClient(),
     requestSubmitter: async (request) => {
@@ -247,7 +265,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     if (normalizeAppRoute) writeRoute("app", "diary", true);
   });
-  if (
+  if (iosPreview) {
+    document.getElementById("onboardingScreen").classList.add("hidden");
+    document.getElementById("onboardingScreen").setAttribute("aria-hidden", "true");
+  } else if (
     mode === "local" &&
     ["diary", "analytics"].includes(new URLSearchParams(window.location.search).get("preview"))
   ) {
@@ -257,7 +278,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     } catch {
       /* Preview mode must not affect the next real onboarding check. */
     }
-  } else if (deviceAccess.role === "linked") onboarding.complete();
+  } else if (deviceAccess.role === "linked" && !["methods", "device-choice"].includes(readRoute().page)) onboarding.complete();
   else await onboarding.start();
   const dashboardScreen = document.getElementById("dashboardScreen");
   const presentationScreen = document.getElementById("presentationScreen");
@@ -279,7 +300,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   let localData = await loadAppData();
   const analyticsPreview = mode === "local" && relayParams.get("preview") === "analytics";
   const previewValues = new Map();
-  const changeTracker = createDiaryChangeTracker(analyticsPreview ? { getItem: (key) => previewValues.get(key), setItem: (key, value) => previewValues.set(key, value) } : createSafeStorage(getBrowserStorage(window)));
+  if (iosPreview) previewValues.set(STORAGE_KEYS.theme, browserStorage.getItem(STORAGE_KEYS.theme));
+  const changeTracker = createDiaryChangeTracker(analyticsPreview || iosPreview ? { getItem: (key) => previewValues.get(key), setItem: (key, value) => previewValues.set(key, value) } : createSafeStorage(getBrowserStorage(window)));
   if (analyticsPreview) {
     const previewNow = Date.now();
     const baseline = createPreviewChangeBaseline(localData);
@@ -309,7 +331,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   let lastExtensionRefresh = 0;
   subscribeToExtensionSnapshots(window, async (snapshot) => {
-    if (analyticsPreview || deviceAccess.role === "linked") return;
+    if (analyticsPreview || iosPreview || deviceAccess.role === "linked") return;
     if (Date.now() - lastExtensionRefresh < 2_000) return;
     lastExtensionRefresh = Date.now();
     const nextImport = adaptESchoolsSnapshot(snapshot);
@@ -335,7 +357,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     syncedStudent?.displayName ||
     [syncedStudent?.firstName, syncedStudent?.lastName].filter(Boolean).join(" ") ||
     "Ученик";
-  const storage = createPreviewStorage(createSafeStorage(analyticsPreview ? { getItem: (key) => previewValues.get(key), setItem: (key, value) => previewValues.set(key, value), removeItem: (key) => previewValues.delete(key) } : getBrowserStorage(window), {
+  const storage = createPreviewStorage(createSafeStorage(analyticsPreview || iosPreview ? { getItem: (key) => previewValues.get(key), setItem: (key, value) => previewValues.set(key, value), removeItem: (key) => previewValues.delete(key) } : getBrowserStorage(window), {
     onError: ({ operation, error }) =>
       console.warn(`Не удалось выполнить операцию с хранилищем: ${operation}`, error),
   }));
@@ -391,6 +413,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     onThemeToggle: themeController.toggle,
     journalStore,
     readOnlyDevice: deviceAccess.role === "linked",
+    extensionMaterialsAvailable: !userscriptDiary,
     changeTracker,
     coverageNotice: localData.coverage && !localData.coverage.hasSchedule ? "Расписание получено не полностью. Количество оставшихся уроков может быть неточным." : "",
     onSectionChange: (section) => {
@@ -458,6 +481,52 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function init() {
+    if (userscriptDiary && deviceAccess.role !== "linked" && !iosPreview) {
+      const update = document.getElementById("studentSyncButton");
+      const syncStatus = document.getElementById("studentSyncStatus");
+      const synchronize = () => void transitionToUserscriptSync(window, new URL("userscripts-sync.html", window.location.href).href);
+      if (update) { update.hidden = false; update.addEventListener("click", synchronize); }
+      if (userscriptDiary.cloudPending) {
+        if (syncStatus) { syncStatus.hidden = false; syncStatus.textContent = "Дневник сохранён на телефоне. Ожидаем подтверждение сервера…"; }
+        void createUserscriptImporter({ services, storage: browserStorage }).retryUpload().then((saved) => {
+          if (syncStatus) { syncStatus.hidden = saved; syncStatus.textContent = saved ? "" : "Дневник доступен на телефоне. Сохранение на сервере можно повторить кнопкой синхронизации."; }
+        }).catch(() => { if (syncStatus) syncStatus.textContent = "Дневник доступен на телефоне. Для сохранения на сервере проверь соединение."; });
+      }
+      createUserscriptAutoSync({
+        windowRef: window, ownerId: userscriptOwner.id,
+        getCache: () => readUserscriptDiary(browserStorage, userscriptOwner.id), onSync: synchronize,
+      }).start();
+    }
+    if (iosPreview) {
+      const notice = document.createElement("p");
+      notice.className = "ios-preview-notice";
+      notice.textContent = "Тест данных с iPhone · данные на сервере не изменяются. ";
+      const back = document.createElement("a");
+      back.href = new URL("ios-setup.html#iosFullTest", window.location.href).href;
+      if (iosPreview.snapshot.import?.transport === "userscript-test") {
+        back.href = new URL("userscripts-setup.html", window.location.href).href;
+        const update = document.createElement("button");
+        update.type = "button";
+        update.className = "onboarding-secondary";
+        update.textContent = "Обновить данные с iPhone";
+        update.addEventListener("click", () => { window.location.href = new URL("userscripts-setup.html?sync=1", window.location.href).href; });
+        notice.append(update, document.createTextNode(" "));
+        let checkingUserscript = false;
+        const maybeRefresh = () => {
+          if (checkingUserscript || !shouldRefreshUserscript(userscriptCache, browserStorage) || document.visibilityState !== "visible") return;
+          checkingUserscript = true;
+          void createUserscriptClient(window).ping().then(() => {
+            if (document.visibilityState === "visible") window.location.href = new URL("userscripts-setup.html?sync=1", window.location.href).href;
+          }).catch(() => { update.textContent = "Включи Userscripts для обновления"; }).finally(() => { checkingUserscript = false; });
+        };
+        document.addEventListener("visibilitychange", maybeRefresh);
+        window.addEventListener("focus", maybeRefresh);
+        maybeRefresh();
+      }
+      back.textContent = "Вернуться к проверке";
+      notice.append(back);
+      dashboardScreen.prepend(notice);
+    }
     if ("scrollRestoration" in window.history) {
       window.history.scrollRestoration = "manual";
     }
@@ -598,6 +667,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function returnToOnboarding() {
+    if (iosPreview) {
+      window.location.href = new URL("ios-setup.html#iosFullTest", window.location.href).href;
+      return;
+    }
     try {
       window.localStorage.removeItem(ONBOARDING_KEY);
     } catch {
@@ -607,6 +680,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   async function loadAppData() {
+    if (iosPreview) return { ...iosPreview.data, rawSnapshot: iosPreview.snapshot, hasSyncedData: true };
     if (mode === "local" && relayParams.get("preview") === "analytics") return createAnalyticsPreviewData(SCHOOL_DIARY, SCHOOL_DATA);
     if (deviceAccess.role === "linked") {
       const cached = linkedCache.read(authUser?.id);
@@ -615,6 +689,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (imported?.diary?.weeks?.length) return { ...imported, rawSnapshot: saved.payload, sharedChanges: saved.changes || [], hasSyncedData: true, cloudUpdatedAt: saved.updated_at };
       throw new Error("Не удалось загрузить подключённый дневник.");
     }
+    if (userscriptDiary) return { ...userscriptDiary.data, rawSnapshot: userscriptDiary.snapshot, hasSyncedData: true };
     const savedDiaryPromise =
       diaryNetworkEnabled
         ? settleWithin(
