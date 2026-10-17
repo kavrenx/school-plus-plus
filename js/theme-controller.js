@@ -10,10 +10,7 @@ function createThemeController({
     const normalized = theme === "dark" ? "dark" : "light";
     root.classList.toggle("dark", normalized === "dark");
     const document = root.ownerDocument;
-    if (document) {
-      document.documentElement.style.colorScheme = normalized;
-      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", normalized === "dark" ? "#151b18" : "#e8f0eb");
-    }
+    if (document) applyBrowserTheme(document, normalized);
     syncThemeControl({ icon, label, isDark: normalized === "dark", translate });
     return normalized;
   }
@@ -42,8 +39,34 @@ function createThemeController({
 }
 
 function syncThemeControl({ icon, label, isDark, translate }) {
-  if (icon) icon.innerHTML = `<school-icon name="${isDark ? "sun-outline" : "contrast-outline"}" aria-hidden="true"></school-icon>`;
-  if (label) label.textContent = isDark ? translate("light") : translate("dark");
+  if (icon)
+    icon.innerHTML = `<school-icon name="${isDark ? "sun-outline" : "contrast-outline"}" aria-hidden="true"></school-icon>`;
+  if (label)
+    label.textContent = isDark ? translate("light") : translate("dark");
 }
 
-export { createThemeController, syncThemeControl };
+function applyBrowserTheme(document, theme) {
+  const dark = theme === "dark";
+  const color = dark ? "#151b18" : "#e8f0eb";
+  const html = document.documentElement;
+  html.classList.toggle("dark", dark);
+  document.body.classList.toggle("dark", dark);
+  html.style.colorScheme = dark ? "dark" : "light";
+  html.style.backgroundColor = color;
+  document.body.style.backgroundColor = color;
+  const previous = document.querySelector('meta[name="theme-color"]');
+  const meta = document.createElement("meta");
+  meta.name = "theme-color";
+  meta.content = color;
+  if (previous) previous.replaceWith(meta);
+  else document.head.append(meta);
+  // Safari can sample the fixed viewport edge instead of theme-color.
+  if (!document.getElementById("browserThemeEdge")) {
+    const edge = document.createElement("div");
+    edge.id = "browserThemeEdge";
+    edge.setAttribute("aria-hidden", "true");
+    document.body.prepend(edge);
+  }
+}
+
+export { createThemeController, syncThemeControl, applyBrowserTheme };

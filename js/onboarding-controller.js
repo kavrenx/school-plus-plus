@@ -4,6 +4,8 @@ import {
   subscribeToExtensionSnapshots,
 } from "./extension-import.js";
 import { renderDeviceJoin } from "./device-controller.js";
+import { renderUserscriptsGuide, USERSCRIPTS_ICON } from "./userscripts-guide.js";
+import { transitionToUserscriptSync } from "./userscript-progress.js";
 
 const ONBOARDING_KEY = "schoolpp_onboarding_complete_v1";
 const CHECK_PENDING_KEY = "schoolpp_extension_check_pending";
@@ -33,6 +35,11 @@ function detectBrowser(navigatorRef = {}) {
   return "chromium";
 }
 
+function isAppleMobile(navigatorRef = {}) {
+  return /iPhone|iPad|iPod/i.test(navigatorRef.userAgent || "") ||
+    (/Macintosh/i.test(navigatorRef.userAgent || "") && Number(navigatorRef.maxTouchPoints) > 1);
+}
+
 function getRecommendedStore(browser) {
   if (browser === "firefox") return "firefox";
   return "chromium";
@@ -54,6 +61,8 @@ function createOnboardingController({
   onStepChange = () => {},
   initialStep = "",
   pairingCode = "",
+  shortcutSetupUrl = "",
+  userscriptSetupUrl = "",
   onMobileOpen = () => {},
 }) {
   const screen = root.getElementById("onboardingScreen");
@@ -100,7 +109,7 @@ function createOnboardingController({
   }
 
   function start() {
-    if (isComplete()) {
+    if (isComplete() && !["methods", "device-choice"].includes(initialStep)) {
       screen.classList.add("hidden");
       screen.setAttribute("aria-hidden", "true");
       return Promise.resolve();
@@ -116,7 +125,9 @@ function createOnboardingController({
   }
 
   async function showInitialStep() {
-    if (initialStep === "mobile" || detectDevice(windowRef.navigator) === "mobile") { showMobileNotice(); return; }
+    if (["methods", "device-choice"].includes(initialStep)) { showDeviceChoice(); return; }
+    if (pairingCode || initialStep === "mobile-code") { showMobileNotice(); return; }
+    if (initialStep === "mobile" || detectDevice(windowRef.navigator) === "mobile") { showMobileEntry(); return; }
     if (session.getItem(CHECK_PENDING_KEY) === "true") {
       session.removeItem(CHECK_PENDING_KEY);
       if (await presenceCheck(windowRef)) {
@@ -154,14 +165,37 @@ function createOnboardingController({
   }
 
   function showDeviceChoice() {
-    announceStep("device-choice");
+    announceStep("methods");
     content.innerHTML = `
-      <p class="onboarding-eyebrow">Выберите устройство</p>
-      <h1>Где вы открываете School++?</h1>
-      <div class="device-choice-grid">
-        <button type="button" data-device-confirm="desktop">${deviceIllustration("desktop")}<strong>Компьютер</strong><span>Windows, macOS или Linux</span></button>
-        <button type="button" data-device-confirm="mobile">${deviceIllustration("mobile")}<strong>Телефон или планшет</strong><span>Android или iOS</span></button>
+      <h1>Выберите способ подключения</h1>
+      <div class="device-choice-grid connection-method-grid">
+        ${userscriptSetupUrl ? `<button type="button" data-userscript-choice><img class="connection-method-icon" src="${USERSCRIPTS_ICON}" width="64" height="64" alt=""><strong>Userscripts (рекомендуем)</strong></button>` : ""}
+        <button type="button" data-mobile-code><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="15" rx="2"/><path d="M8 22h8m-4-4v4"/></svg><strong>Через компьютер</strong><span>По QR или коду с компьютера</span></button>
+        <button type="button" data-device-confirm="desktop"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5h5a1 1 0 0 1 1 1v3h-1a2.5 2.5 0 1 0 0 5h1v7a1 1 0 0 1-1 1h-6v-1a2.5 2.5 0 1 0-5 0v1H3a1 1 0 0 1-1-1v-7h1a2.5 2.5 0 1 0 0-5H2V6a1 1 0 0 1 1-1h6V4a3 3 0 0 1 6 0Z"/></svg><strong>Расширение</strong><span>Chrome, Firefox и др. (рекомендуем для ПК)</span></button>
       </div>`;
+  }
+
+  function canTestShortcut() {
+    return Boolean(shortcutSetupUrl || userscriptSetupUrl) && isAppleMobile(windowRef.navigator);
+  }
+
+  function showMobileEntry() {
+    if (!canTestShortcut() || pairingCode) { showMobileNotice(); return; }
+    announceStep("mobile");
+    if (userscriptSetupUrl) {
+      content.innerHTML = `<h1>Подключение через Userscripts</h1><button class="onboarding-about userscripts-other-method" type="button" data-device-change>Другой способ подключения</button>${renderUserscriptsGuide({ syncUrl: userscriptSetupUrl })}`;
+      const syncLink = content.querySelector("[data-userscript-setup]");
+      syncLink.href = new URL("userscripts-sync.html", new URL(userscriptSetupUrl, windowRef.location.href)).href;
+      return;
+    }
+    content.innerHTML = `
+      <p class="onboarding-eyebrow">Команды для Safari · проверка</p>
+      <h1>Подключение телефона/планшета</h1>
+      <p>Готовим подключение прямо с iPhone и iPad. Сначала проверим доступ к госдневнику через Safari.</p>
+      <ol class="ios-shortcut-guide"><li>Создай тестовую Команду по инструкции.</li><li>Открой госдневник в Safari и запусти её через «Поделиться».</li><li>Пришли результат проверки — после этого подключим полный импорт.</li></ol>
+      <p class="ios-shortcut-status">Это тест: данные пока не переносятся в School++. Для готового дневника используй подключение по коду.</p>
+      <div class="onboarding-actions onboarding-actions-single"><a class="primary-btn" data-shortcut-setup>Настроить тестовую Команду</a><button class="onboarding-secondary" type="button" data-mobile-code>Другой способ подключения</button></div>`;
+    content.querySelector("[data-shortcut-setup]").href = shortcutSetupUrl;
   }
 
   async function showDesktopFlow() {
@@ -176,7 +210,7 @@ function createOnboardingController({
   }
 
   function showMobileNotice() {
-    announceStep("mobile");
+    announceStep(canTestShortcut() ? "mobile-code" : "mobile");
     content.innerHTML = renderDeviceJoin(pairingCode);
     onMobileOpen();
   }
@@ -250,10 +284,16 @@ function createOnboardingController({
   }
 
   screen.addEventListener("click", (event) => {
+    const syncLink = event.target.closest("[data-userscript-setup]");
+    if (syncLink && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+      event.preventDefault();
+      void transitionToUserscriptSync(windowRef, syncLink.href);
+      return;
+    }
     const target = event.target.closest("button");
     if (!target) return;
     if (target.matches("[data-diary-confirm]")) {
-      if (detectDevice(windowRef.navigator) === "mobile") showMobileNotice();
+      if (detectDevice(windowRef.navigator) === "mobile") showMobileEntry();
       else void showDesktopFlow();
     }
     if (target.matches("[data-diary-unsupported]")) showUnsupportedDiary();
@@ -261,6 +301,9 @@ function createOnboardingController({
     if (target.matches("[data-open-diary-request]")) requestUi.open();
     if (target.matches("[data-close-diary-request]")) requestUi.close();
     if (target.matches("[data-device-change]")) showDeviceChoice();
+    if (target.matches("[data-userscript-choice]")) windowRef.location.href = userscriptSetupUrl;
+    if (target.matches("[data-mobile-code]")) showMobileNotice();
+    if (target.matches("[data-shortcut-preview]")) showMobileEntry();
     if (target.dataset.deviceConfirm === "desktop") void showDesktopFlow();
     if (target.dataset.deviceConfirm === "mobile") showMobileNotice();
     if (target.matches("[data-extension-installed]")) void checkInstalled();
@@ -296,10 +339,11 @@ function createOnboardingController({
 
   function navigateToStep(step) {
     if (step === "unsupported") showUnsupportedDiary();
-    else if (step === "device-choice") showDeviceChoice();
+    else if (["methods", "device-choice"].includes(step)) showDeviceChoice();
     else if (step === "device-mobile") showMobileNotice();
     else if (step === "device-desktop") void showDesktopFlow();
-    else if (step === "mobile") showMobileNotice();
+    else if (step === "mobile") showMobileEntry();
+    else if (step === "mobile-code") showMobileNotice();
     else if (step === "extension") void showDesktopFlow();
     else if (step === "guide") void showGuide();
     else if (step === "done") showSynchronized();
@@ -323,12 +367,6 @@ function storeCard(store, url, recommended) {
   return url
     ? `<a class="extension-store-card${recommended ? " is-recommended" : ""}" href="${url}" target="_blank" rel="noreferrer">${body}</a>`
     : `<div class="extension-store-card is-unavailable${recommended ? " is-recommended" : ""}" aria-disabled="true">${body}</div>`;
-}
-
-function deviceIllustration(device) {
-  return device === "desktop"
-    ? '<svg viewBox="0 0 180 120"><rect x="24" y="14" width="132" height="78" rx="7"></rect><path d="M72 106h36M82 92v14m16-14v14"></path><path class="accent" d="M53 40h74M53 55h48M53 70h60"></path></svg>'
-    : '<svg viewBox="0 0 180 120"><rect x="35" y="17" width="92" height="82" rx="9"></rect><path d="M73 25h16M76 89h10"></path><rect class="device-phone" x="92" y="8" width="54" height="104" rx="10"></rect><path d="M110 18h18M112 101h14"></path><path class="accent" d="M103 43h32M103 57h23M103 71h28"></path></svg>';
 }
 
 function createDiaryRequestPanel(root) {
@@ -437,5 +475,6 @@ export {
   createOnboardingController,
   detectBrowser,
   detectDevice,
+  isAppleMobile,
   getRecommendedStore,
 };

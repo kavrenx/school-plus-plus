@@ -6,7 +6,7 @@ import { createModalController } from "./modal-controller.js";
 const PENDING_KEY = "schoolpp_device_pending_v1";
 
 function renderDeviceJoin(code = "") {
-  return `<h1>Подключение телефона</h1><p>На компьютере открой «Мои устройства», создай код и введи его здесь.</p><form class="device-join-form" data-device-join><label>Код подключения<input name="code" value="${e(code)}" inputmode="numeric" autocomplete="off" maxlength="11" placeholder="1234 5678" required></label><button class="primary-btn" type="submit">Подключиться</button></form><div class="device-join-status" data-device-join-status role="status"></div><button type="button" class="onboarding-secondary" data-device-change>Другой способ подключения</button>`;
+  return `<h1>Подключение по коду</h1><p>На компьютере открой «Мои устройства», создай код и введи его здесь.</p><form class="device-join-form" data-device-join><label>Код подключения<input name="code" value="${e(code)}" inputmode="numeric" autocomplete="off" maxlength="11" placeholder="1234 5678" required></label><button class="primary-btn" type="submit">Подключиться</button></form><div class="device-join-status" data-device-join-status role="status"></div><button type="button" class="onboarding-secondary" data-device-change>Другой способ подключения</button>`;
 }
 
 function pairingUrl(origin, code) {

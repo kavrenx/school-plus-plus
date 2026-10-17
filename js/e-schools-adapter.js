@@ -1171,14 +1171,24 @@ function getStudentIdentity(pages = {}) {
 }
 
 function formatClassTitle(explicitTitle, classItem = {}) {
+  function normalize(value) {
+    const text = clean(value).replace(/\s+класс(?:а)?$/iu, "");
+    const match = text.match(/^(\d{1,2})\s*(.*)$/u);
+    if (!match) return text;
+    const letters = match[2].replace(/[«»"'\s]/g, "").toUpperCase();
+    if (!letters) return match[1];
+    if (/^[\p{L}]{1,2}$/u.test(letters) && (letters.length === 1 || letters[0] === letters[1]))
+      return `${match[1]} «${letters[0]}»`;
+    return text;
+  }
   const explicit = clean(explicitTitle);
-  if (explicit) return explicit;
+  if (explicit) return normalize(explicit);
   const label = clean(classItem.label);
-  if (/\d/.test(label)) return label;
+  if (/\d/.test(label)) return normalize(label);
   const number = clean(classItem.class_number || classItem.level);
   const letter = label.replace(/[«»"']/g, "");
-  if (number && letter) return `${number} «${letter}»`;
-  return number || label;
+  if (number && letter) return normalize(`${number.match(/^\d{1,2}/)?.[0] || number} «${letter}»`);
+  return normalize(number || label);
 }
 
 function findClassTeacher(records, pages = {}, classItem = {}) {

@@ -1,0 +1,499 @@
+.ios-setup-page {
+  padding: max(16px, env(safe-area-inset-top))
+    max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
+}
+.ios-setup-page .brand-mark {
+  font-size: 28px;
+}
+.ios-setup-back {
+  font-size: 12px;
+  text-align: right;
+  margin-left: 16px;
+  color: var(--accent-dark);
+  font-weight: 700;
+  text-underline-offset: 3px;
+}
+.ios-setup-card a:not(.primary-btn):not(.onboarding-secondary) {
+  color: var(--accent-dark);
+}
+.ios-setup-card a.primary-btn,
+.onboarding-actions a.primary-btn {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+}
+.ios-setup-card {
+  width: min(100%, 720px);
+  margin: 32px auto;
+  padding: 24px;
+  border: 1px solid var(--line-dark);
+  background: var(--paper);
+}
+.ios-setup-card h1 {
+  font-family: var(--font-display);
+  font-size: clamp(28px, 6vw, 42px);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.ios-setup-card p {
+  margin-top: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.ios-setup-note {
+  padding: 14px;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  font-size: 13px;
+}
+.userscript-connection {
+  padding: 16px;
+  margin-block: 20px;
+  border: 2px solid var(--line-dark);
+  background: var(--paper-2);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.userscript-connection strong {
+  display: block;
+  font-size: 17px;
+  line-height: 1.4;
+}
+.ios-setup-card .userscript-connection p {
+  margin-top: 8px;
+  font-size: 14px;
+  color: inherit;
+}
+.userscript-connection[data-state="error"] {
+  border-color: #b33b32;
+  background: #fff1ef;
+  color: #8c2520;
+}
+.userscript-connection[data-state="success"] {
+  border-color: #34776a;
+  background: #e8f0eb;
+  color: #183e35;
+}
+.dark .userscript-connection[data-state="error"] {
+  border-color: #d67a6c;
+  background: #3b2525;
+  color: #ffd0c7;
+}
+.dark .userscript-connection[data-state="success"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.ios-setup-card .userscript-action-status[data-state="error"] {
+  color: var(--danger);
+}
+.ios-setup-steps {
+  display: grid;
+  gap: 24px;
+  padding-left: 22px;
+  margin-block: 24px;
+}
+.ios-setup-steps strong {
+  line-height: 1.5;
+}
+.ios-setup-steps p {
+  margin-top: 6px;
+}
+.ios-setup-steps button {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 14px;
+}
+.ios-setup-steps summary {
+  min-height: 44px;
+  padding-block: 12px;
+  cursor: pointer;
+  color: var(--accent-dark);
+  font-size: 13px;
+}
+.ios-copy-source summary {
+  min-height: 44px;
+  padding-block: 12px;
+  color: var(--accent-dark);
+  font-size: 13px;
+  cursor: pointer;
+}
+.ios-setup-card .copy-status {
+  min-height: 1.5em;
+  margin-top: 8px;
+  font-size: 13px;
+}
+.ios-setup-card .copy-status[data-state="success"] {
+  color: var(--accent-dark);
+}
+.ios-setup-card .copy-status[data-state="error"] {
+  color: var(--danger);
+}
+#iosCopyStatus {
+  font-size: 13px;
+}
+#iosProbeSource,
+#iosCollectionSource,
+#userscriptSummary,
+#iosCollectionInput,
+#iosCollectionSummary {
+  display: block;
+  width: 100%;
+  min-height: 220px;
+  padding: 12px;
+  resize: vertical;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  color: var(--ink);
+  background: var(--paper-2);
+  border: 1px solid var(--line-dark);
+}
+.ios-full-test {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line-dark);
+  scroll-margin-top: 20px;
+}
+.ios-full-test h2 {
+  font-size: 24px;
+}
+.ios-full-test > button {
+  margin-top: 16px;
+  width: 100%;
+  padding: 12px;
+}
+.ios-full-test form {
+  display: grid;
+  gap: 12px;
+  margin-block: 20px;
+}
+.ios-file-label {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+}
+.ios-file-label input {
+  max-width: 100%;
+  min-width: 0;
+}
+#iosCollectionSummary {
+  min-height: 150px;
+  margin-top: 16px;
+}
+.ios-result-actions {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+.ios-result-actions button {
+  padding: 12px;
+}
+.ios-preview-notice {
+  padding: 12px;
+  margin-bottom: 16px;
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.ios-preview-notice button {
+  padding: 6px 10px;
+  margin: 6px 8px 6px 0;
+  min-height: 40px;
+}
+.ios-setup-steps .primary-btn {
+  display: block;
+  text-align: center;
+  padding: 12px;
+  margin-top: 12px;
+}
+.ios-full-test > details {
+  margin-top: 16px;
+}
+.ios-full-test > details summary {
+  min-height: 44px;
+  padding-block: 12px;
+  cursor: pointer;
+}
+.ios-full-test > details button {
+  margin-top: 12px;
+  padding: 10px 14px;
+}
+.ios-shortcut-guide {
+  width: min(100%, 520px);
+  text-align: left;
+  margin: 20px 0;
+  padding-left: 22px;
+  line-height: 1.6;
+}
+.ios-shortcut-guide li + li {
+  margin-top: 12px;
+}
+.ios-shortcut-status {
+  max-width: 520px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.userscripts-setup-card,
+.onboarding-card:has(.userscripts-guide) {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.onboarding-card:has(.userscripts-guide) {
+  align-items: stretch;
+  min-height: 0;
+  margin-block: 32px;
+  text-align: left;
+}
+.userscripts-setup-card h1,
+.onboarding-card:has(.userscripts-guide) h1 {
+  margin: 0 0 16px;
+  font-size: clamp(28px, 5.5vw, 40px);
+  line-height: 1.1;
+  overflow-wrap: normal;
+}
+.userscripts-guide p {
+  color: var(--muted);
+  line-height: 1.6;
+}
+.userscripts-guide-steps {
+  display: grid;
+  gap: 26px;
+  padding: 0;
+  margin: 28px 0;
+  list-style: none;
+  counter-reset: userscripts-step;
+}
+.userscripts-guide-steps > li {
+  position: relative;
+  min-width: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  counter-increment: userscripts-step;
+}
+.userscripts-guide-steps > li > p:first-child {
+  min-height: 30px;
+  margin: 0;
+  padding-left: 40px;
+  color: var(--ink);
+}
+.userscripts-guide-steps > li::before {
+  position: absolute;
+  top: 16px;
+  left: 0;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-size: 13px;
+  font-weight: 800;
+  content: counter(userscripts-step);
+}
+.userscripts-guide-image {
+  display: block;
+  width: min(100%, 360px);
+  height: auto;
+  margin: 16px auto 0;
+  border: 1px solid var(--line-dark);
+  border-radius: 10px;
+}
+.userscripts-store-card {
+  display: flex;
+  gap: 14px;
+  margin-top: 16px;
+  text-decoration: none;
+}
+.userscripts-store-card img {
+  flex: 0 0 56px;
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+}
+.userscripts-store-card .userscripts-store-arrow {
+  margin-left: auto;
+  color: var(--accent-dark);
+  font-size: 24px;
+}
+.userscripts-install,
+.userscripts-ready > .primary-btn {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 16px;
+  margin-top: 16px;
+  text-align: center;
+  text-decoration: none;
+}
+.userscripts-guide .userscripts-install + p {
+  margin-top: 14px;
+}
+.userscripts-install-notice {
+  margin-top: 16px;
+  color: var(--ink) !important;
+}
+.userscript-progress-open {
+  overflow: hidden;
+}
+.userscript-progress-open > :not(.userscript-progress, script, noscript) {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+.userscript-progress {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483646;
+  display: grid;
+  place-items: center;
+  padding: max(24px, env(safe-area-inset-top))
+    max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom))
+    max(24px, env(safe-area-inset-left));
+  color: var(--ink);
+  text-align: center;
+  animation: userscript-progress-in 250ms ease both;
+}
+.userscript-progress-content {
+  width: min(100%, 420px);
+}
+.userscript-progress-symbol {
+  width: 80px;
+  height: 80px;
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.userscript-progress-ring {
+  transform-origin: center;
+  stroke-dasharray: 120 63;
+  animation: userscript-progress-spin 950ms linear infinite;
+  transition: opacity 250ms ease;
+}
+.userscript-progress-check,
+.userscript-progress-cross {
+  stroke-dasharray: 90;
+  stroke-dashoffset: 90;
+  opacity: 0;
+  transition:
+    stroke-dashoffset 350ms ease,
+    opacity 200ms ease;
+}
+.userscript-progress-cross {
+  stroke: var(--danger);
+}
+.userscript-progress[data-state="success"] .userscript-progress-ring,
+.userscript-progress[data-state="error"] .userscript-progress-ring {
+  opacity: 0;
+  animation-play-state: paused;
+}
+.userscript-progress[data-state="success"] .userscript-progress-check,
+.userscript-progress[data-state="error"] .userscript-progress-cross {
+  opacity: 1;
+  stroke-dashoffset: 0;
+}
+.userscript-progress-status {
+  margin-top: 18px;
+  font-size: 22px;
+  font-weight: 750;
+  line-height: 1.4;
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+.userscript-progress-status.is-changing {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+.userscript-progress[data-state="success"] .userscript-progress-status {
+  color: var(--accent-dark);
+}
+.userscript-progress[data-state="error"] .userscript-progress-status {
+  color: var(--danger);
+}
+.userscript-progress-detail {
+  margin-top: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.userscript-progress-detail:empty,
+.userscript-progress-actions:empty {
+  display: none;
+}
+.userscript-progress-actions {
+  display: grid;
+  gap: 12px;
+  margin-top: 24px;
+}
+.userscript-progress-actions button {
+  min-height: 48px;
+  padding: 12px 16px;
+}
+@keyframes userscript-progress-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes userscript-progress-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .userscript-progress,
+  .userscript-progress * {
+    transition: none;
+    animation-duration: 2s;
+  }
+}
+.userscripts-ready {
+  padding-top: 24px;
+  border-top: 1px solid var(--line-dark);
+  scroll-margin-block: 24px;
+}
+.userscripts-ready h2 {
+  font-size: 22px;
+  line-height: 1.35;
+}
+.userscripts-ready .userscripts-once {
+  margin-top: 14px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.userscripts-other-method {
+  align-self: flex-start;
+  margin-bottom: 16px;
+  padding-left: 0;
+}
+.userscripts-help {
+  margin-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.userscripts-help summary {
+  min-height: 44px;
+  padding-block: 12px;
+  color: var(--accent-dark);
+  cursor: pointer;
+}
+.userscripts-help button {
+  margin-top: 12px;
+  padding: 10px 14px;
+}
+.userscripts-actions:has(.userscript-action-status:empty):not(
+    :has(button:not([hidden]))
+  ) {
+  display: none;
+}
+@media (max-width: 560px) {
+  .ios-setup-card:not(.userscripts-setup-card) {
+    padding: 18px;
+  }
+}

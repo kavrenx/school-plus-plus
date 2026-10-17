@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Window } from "happy-dom";
+import { EXTENSION_STORE_URLS } from "../js/release-config.js";
 
 import {
   ONBOARDING_KEY,
   createOnboardingController,
   detectBrowser,
   detectDevice,
+  isAppleMobile,
   getRecommendedStore,
 } from "../js/onboarding-controller.js";
 
@@ -20,6 +22,16 @@ function createWindow() {
 }
 
 test("onboarding detects the device and recommends its browser store", () => {
+  assert.equal(isAppleMobile({ userAgent: "iPhone" }), true);
+  assert.equal(
+    isAppleMobile({ userAgent: "Macintosh", maxTouchPoints: 5 }),
+    true,
+  );
+  assert.equal(
+    isAppleMobile({ userAgent: "Macintosh", maxTouchPoints: 0 }),
+    false,
+  );
+  assert.equal(isAppleMobile({ userAgent: "Android Mobile" }), false);
   assert.equal(
     detectDevice({ userAgent: "Mozilla/5.0 (Linux; Android 14) Mobile" }),
     "mobile",
@@ -31,6 +43,120 @@ test("onboarding detects the device and recommends its browser store", () => {
   );
   assert.equal(getRecommendedStore("edge"), "chromium");
   assert.equal(getRecommendedStore("brave"), "chromium");
+});
+
+test("local Apple preview offers the test guide and a direct code alternative", async () => {
+  const window = createWindow();
+  Object.defineProperty(window.navigator, "userAgent", { value: "iPhone" });
+  const steps = [];
+  const controller = createOnboardingController({
+    root: window.document,
+    windowRef: window,
+    storeUrls: {},
+    shortcutSetupUrl: "/ios-setup.html",
+    onStepChange: (step) => steps.push(step),
+  });
+  try {
+    void controller.start();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(
+      window.document
+        .querySelector("[data-shortcut-setup]")
+        .getAttribute("href"),
+      "/ios-setup.html",
+    );
+    assert.equal(window.document.querySelector("[data-device-join]"), null);
+    window.document.querySelector("[data-mobile-code]").click();
+    assert.ok(window.document.querySelector("[data-device-join]"));
+    assert.equal(steps.at(-1), "mobile-code");
+    window.document.querySelector("[data-device-change]").click();
+    assert.equal(
+      window.document.querySelector("[data-device-confirm=mobile]"),
+      null,
+    );
+    assert.match(
+      window.document.querySelector("h1").textContent,
+      /Выберите способ подключения/,
+    );
+    controller.navigateToStep("mobile-code");
+    assert.ok(window.document.querySelector("[data-device-join]"));
+  } finally {
+    window.close();
+  }
+});
+
+test("Apple production entry and QR pairing keep the working code form", async () => {
+  for (const preview of [false, true]) {
+    const window = createWindow();
+    Object.defineProperty(window.navigator, "userAgent", { value: "iPad" });
+    const controller = createOnboardingController({
+      root: window.document,
+      windowRef: window,
+      storeUrls: {},
+      shortcutSetupUrl: preview ? "/ios-setup.html" : "",
+      pairingCode: preview ? "12345678" : "",
+    });
+    try {
+      void controller.start();
+      await new Promise((resolve) => setImmediate(resolve));
+      assert.ok(window.document.querySelector("[data-device-join]"));
+      assert.equal(
+        window.document.querySelector("[data-shortcut-setup]"),
+        null,
+      );
+    } finally {
+      window.close();
+    }
+  }
+});
+
+test("Userscripts entry opens connection method cards before code entry", async () => {
+  const window = createWindow();
+  Object.defineProperty(window.navigator, "userAgent", { value: "iPhone" });
+  const controller = createOnboardingController({
+    root: window.document,
+    windowRef: window,
+    storeUrls: {},
+    userscriptSetupUrl: "/userscripts-setup.html",
+  });
+  try {
+    void controller.start();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(
+      window.document.querySelector("[data-userscript-setup]").href,
+      "https://schoolpp.com/userscripts-sync.html",
+    );
+    const installer = window.document.getElementById("installUserscript");
+    assert.equal(installer.target, "_blank");
+    assert.equal(new URL(installer.href).pathname, "/schoolpp.user.js");
+    assert.equal(
+      window.document.querySelectorAll(".userscripts-guide-image").length,
+      10,
+    );
+    assert.equal(window.document.querySelector("[data-shortcut-setup]"), null);
+    assert.doesNotMatch(
+      window.document.getElementById("onboardingContent").textContent,
+      /тест|локальн/i,
+    );
+    window.document.querySelector("[data-device-change]").click();
+    assert.ok(window.document.querySelector(".connection-method-grid"));
+    assert.equal(
+      window.document.querySelectorAll(".connection-method-grid button").length,
+      3,
+    );
+    assert.match(
+      window.document.getElementById("onboardingContent").textContent,
+      /Userscripts \(рекомендуем\)/,
+    );
+    assert.equal(
+      window.document.querySelector("[data-device-confirm=mobile]"),
+      null,
+    );
+    window.document.querySelector("[data-mobile-code]").click();
+    assert.ok(window.document.querySelector("[data-device-join]"));
+  } finally {
+    window.close();
+  }
 });
 
 test("onboarding exposes stable steps for browser history", async () => {
@@ -49,7 +175,7 @@ test("onboarding exposes stable steps for browser history", async () => {
   controller.navigateToStep("mobile");
   controller.navigateToStep("diary");
 
-  assert.deepEqual(steps, ["diary", "device-choice", "mobile", "diary"]);
+  assert.deepEqual(steps, ["diary", "methods", "mobile", "diary"]);
   window.close();
 });
 
@@ -73,6 +199,61 @@ test("returning users skip onboarding", async () => {
   window.close();
 });
 
+test("an explicit methods route restores method cards for an already connected browser", async () => {
+  const window = createWindow();
+  window.localStorage.setItem(ONBOARDING_KEY, "true");
+  const controller = createOnboardingController({
+    root: window.document,
+    windowRef: window,
+    storeUrls: {},
+    initialStep: "methods",
+    userscriptSetupUrl: "/userscripts-setup.html",
+  });
+  try {
+    void controller.start();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.ok(window.document.querySelector(".connection-method-grid"));
+    assert.equal(
+      window.document
+        .getElementById("onboardingScreen")
+        .classList.contains("hidden"),
+      false,
+    );
+    window.document.querySelector("[data-mobile-code]").click();
+    assert.ok(window.document.querySelector("[data-device-join]"));
+  } finally {
+    window.close();
+  }
+});
+
+test("QR links on an Apple device keep code entry even when the public Safari method is available", async () => {
+  const window = createWindow();
+  Object.defineProperty(window.navigator, "userAgent", { value: "iPhone" });
+  const controller = createOnboardingController({
+    root: window.document,
+    windowRef: window,
+    storeUrls: {},
+    pairingCode: "12345678",
+    userscriptSetupUrl: "/userscripts-setup.html",
+  });
+  try {
+    void controller.start();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(
+      window.document.querySelector("[data-device-join] input").value,
+      "12345678",
+    );
+    assert.equal(
+      window.document.querySelector("[data-userscript-setup]"),
+      null,
+    );
+    window.document.querySelector("[data-device-change]").click();
+    assert.ok(window.document.querySelector("[data-userscript-choice]"));
+  } finally {
+    window.close();
+  }
+});
+
 test("a phone opens code entry directly with the requested connection heading", async () => {
   const window = createWindow();
   const controller = createOnboardingController({
@@ -88,7 +269,7 @@ test("a phone opens code entry directly with the requested connection heading", 
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(
       window.document.querySelector("h1").textContent,
-      "Подключение телефона",
+      "Подключение по коду",
     );
     assert.equal(
       window.document.querySelector('[name="code"]').value,
@@ -131,15 +312,12 @@ test("an installed extension with data completes the first-run flow", async () =
   window.close();
 });
 
-test("extension install screen links Chrome and marks Firefox as coming soon", async () => {
+test("extension install screen links to the published Chrome and Firefox stores", async () => {
   const window = createWindow();
   const controller = createOnboardingController({
     root: window.document,
     windowRef: window,
-    storeUrls: {
-      chromium: "https://chromewebstore.google.com/detail/example",
-      firefox: "",
-    },
+    storeUrls: EXTENSION_STORE_URLS,
     presenceCheck: async () => false,
     subscribe: () => () => {},
   });
@@ -151,10 +329,15 @@ test("extension install screen links Chrome and marks Firefox as coming soon", a
   const chrome = window.document.querySelector('a[href*="chromewebstore"]');
   assert.ok(chrome);
   assert.match(chrome.querySelector("img").src, /browser-chrome\.webp$/);
-  assert.match(
-    window.document.querySelector(".extension-store-card.is-unavailable")
-      .textContent,
-    /Появится в ближайшее время/,
+  const firefox = window.document.querySelector(
+    'a[href*="addons.mozilla.org"]',
+  );
+  assert.ok(firefox);
+  assert.match(decodeURI(firefox.href), /school-синхронизация-дневника/);
+  assert.equal(firefox.target, "_blank");
+  assert.equal(
+    window.document.querySelector(".extension-store-card.is-unavailable"),
+    null,
   );
   window.close();
 });

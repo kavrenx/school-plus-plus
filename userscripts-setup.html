@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="robots" content="noindex" />
+    <meta name="theme-color" content="#e8f0eb" />
+    <title>Подключение через Userscripts — School++</title>
+    <script>
+      // Old installed scripts return here; forward before the guide can paint.
+      if (
+        new URLSearchParams(location.search).has("sync") ||
+        new URLSearchParams(location.search).has("returned")
+      ) {
+        document.documentElement.style.visibility = "hidden";
+        location.replace(
+          new URL("./userscripts-sync.html" + location.search, location.href)
+            .href,
+        );
+      }
+    </script>
+    <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body class="ios-setup-page">
+    <header class="onboarding-header">
+      <a class="brand-mark" href="./">SCHOOL++</a>
+      <a class="ios-setup-back" href="./#connect/methods"
+        >Другой способ подключения</a
+      >
+    </header>
+    <main class="ios-setup-card userscripts-setup-card">
+      <h1>Подключение через Userscripts</h1>
+      <div id="userscriptsGuide"></div>
+      <div id="userscriptActions" class="userscripts-actions">
+        <p
+          id="userscriptStatus"
+          class="userscript-action-status"
+          role="status"
+          aria-live="polite"
+        ></p>
+      </div>
+      <details class="userscripts-help">
+        <summary>Нужна помощь?</summary>
+        <p>
+          Если подключение не удалось, проверьте, что Userscripts включён в
+          Safari, а скрипт School++ установлен. Затем попробуйте снова.
+        </p>
+        <button class="onboarding-secondary" type="button" id="checkUserscript">
+          Проверить установку
+        </button>
+        <div
+          id="userscriptConnection"
+          class="userscript-connection"
+          data-state="checking"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <strong data-connection-title>Проверяем Userscripts…</strong>
+          <p data-connection-detail>Проверка займёт несколько секунд.</p>
+        </div>
+      </details>
+      <p><a href="./#connect/methods">Другой способ подключения</a></p>
+    </main>
+    <script type="module" src="./js/userscripts-setup.js"></script>
+  </body>
+</html>

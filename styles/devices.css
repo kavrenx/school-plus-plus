@@ -14,6 +14,10 @@
   font-size: 12px;
   line-height: 1.5;
 }
+.student-sync-button {
+  margin-top: 0;
+  padding-inline: 12px;
+}
 
 .device-modal-card {
   width: min(100%, 540px);

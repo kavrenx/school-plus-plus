@@ -190,6 +190,24 @@
   color: var(--muted);
   font-size: 13px;
 }
+.connection-method-grid {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.connection-method-grid button {
+  min-height: 205px;
+  padding: 20px 14px;
+}
+.connection-method-grid svg {
+  width: 64px;
+  height: 64px;
+  stroke-width: 1.5;
+}
+.connection-method-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  object-fit: contain;
+}
 
 .extension-store-list {
   width: 100%;
@@ -550,7 +568,7 @@
     min-height: 170px;
   }
 
-  .device-choice-grid svg {
+  .device-choice-grid:not(.connection-method-grid) svg {
     height: 72px;
   }
 

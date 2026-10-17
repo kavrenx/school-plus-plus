@@ -36,10 +36,11 @@ function createCloudDiaryRepository(client) {
       if (error) throw error;
       return data;
     },
-    async save(snapshot) {
+    async save(snapshot, { signal, expectedOwner } = {}) {
       const payload = validateSnapshot(snapshot);
       const ownerId = await getOwnerId();
-      const { data, error } = await client
+      if (expectedOwner && ownerId !== expectedOwner) throw new Error("Сеанс School++ изменился. Запусти обновление заново.");
+      let request = client
         .from("diary_snapshots")
         .upsert(
           { owner_id: ownerId, source: SOURCE, schema_version: 1, payload },
@@ -47,8 +48,9 @@ function createCloudDiaryRepository(client) {
             onConflict: "owner_id,source",
           },
         )
-        .select("schema_version, updated_at")
-        .single();
+        .select("schema_version, updated_at");
+      if (signal && request.abortSignal) request = request.abortSignal(signal);
+      const { data, error } = await request.single();
       if (error) throw error;
       return data;
     },

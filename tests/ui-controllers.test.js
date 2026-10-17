@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createModalController } from "../js/modal-controller.js";
 import { createThemeController } from "../js/theme-controller.js";
+import { Window } from "happy-dom";
 
 function createClassList(initial = []) {
   const classes = new Set(initial);
@@ -140,4 +141,35 @@ test("loads and persists the selected color theme", () => {
   assert.equal(values.get("theme"), "light");
   assert.equal(label.textContent, "Тёмная");
   assert.match(icon.innerHTML, /name="contrast-outline"/);
+});
+
+test("a theme toggle synchronizes the document background and Safari viewport edge immediately", () => {
+  const window = new Window();
+  const document = window.document;
+  document.head.innerHTML = '<meta name="theme-color" content="#e8f0eb">';
+  const controller = createThemeController({
+    root: document.body,
+    storage: window.localStorage,
+    storageKey: "theme",
+    translate: (key) => key,
+  });
+  try {
+    controller.apply("dark");
+    assert.equal(document.documentElement.classList.contains("dark"), true);
+    assert.equal(document.documentElement.style.backgroundColor, "#151b18");
+    assert.equal(
+      document.querySelector('meta[name="theme-color"]').content,
+      "#151b18",
+    );
+    controller.toggle();
+    assert.equal(document.documentElement.classList.contains("dark"), false);
+    assert.equal(document.body.style.backgroundColor, "#e8f0eb");
+    assert.equal(
+      document.querySelector('meta[name="theme-color"]').content,
+      "#e8f0eb",
+    );
+    assert.equal(document.querySelectorAll("#browserThemeEdge").length, 1);
+  } finally {
+    window.close();
+  }
 });

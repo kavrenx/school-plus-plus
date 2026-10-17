@@ -51,6 +51,7 @@
   --transition: var(--duration-base) var(--ease-standard);
 }
 
+:root.dark,
 body.dark {
   color-scheme: dark;
   --bg: #151b18;
@@ -79,6 +80,16 @@ html {
   max-width: 100%;
   overflow-x: hidden;
   scroll-behavior: smooth;
+  background-color: var(--bg);
+}
+
+#browserThemeEdge {
+  position: fixed;
+  z-index: 1000;
+  inset: 0 0 auto;
+  height: max(1px, env(safe-area-inset-top));
+  background: var(--bg);
+  pointer-events: none;
 }
 
 body {

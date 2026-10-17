@@ -157,6 +157,23 @@ function halfYearSnapshot({ schedule = true, explicitPeriod = "" } = {}) {
   };
 }
 
+test("class names normalize a letter already present in the source class number", () => {
+  for (const explicit of ["", "8Б «Б»", "8Б", "8 «Б»"]) {
+    const snapshot = halfYearSnapshot();
+    snapshot.pages = {
+      p: { studentIdentity: { name: "Примеров Тимур", classTitle: explicit } },
+    };
+    snapshot.network.classes = record(
+      "/api/v1/education/diary/schools/s/students/u/classes",
+      [{ uuid: "c", class_number: "8Б", label: "Б" }],
+    );
+    assert.equal(
+      adaptESchoolsSnapshot(snapshot).school.users[0].className,
+      "8 «Б»",
+    );
+  }
+});
+
 test("existing snapshots classify once-weekly subjects as half-year and keep frequent subjects quarterly", () => {
   for (const schedule of [true, false]) {
     const adapted = adaptESchoolsSnapshot(halfYearSnapshot({ schedule }));

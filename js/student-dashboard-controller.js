@@ -47,6 +47,7 @@ function createStudentDashboardController({
   coverageNotice = "",
   changeTracker = null,
   readOnlyDevice = false,
+  extensionMaterialsAvailable = true,
 }) {
   diary.weeks = completeAcademicWeeks(diary.weeks, diary.school.academicYear);
   const year = diary.school.academicYear;
@@ -919,6 +920,13 @@ function createStudentDashboardController({
 
   async function downloadESchoolsMaterial(button) {
     if (button.disabled) return;
+    if (!extensionMaterialsAvailable) {
+      const label = button.querySelector("span");
+      const original = label?.textContent;
+      if (label) label.textContent = "Для скачивания этого файла открой e-schools.by.";
+      root.defaultView?.setTimeout(() => { if (label?.isConnected) label.textContent = original; }, 5000);
+      return;
+    }
     if (readOnlyDevice) {
       const label = button.querySelector("span");
       const original = label?.textContent;
@@ -1148,6 +1156,7 @@ function createStudentDashboardController({
   }
 
   async function hydrateVisibleLessonMaterials(lessons) {
+    if (!extensionMaterialsAvailable) return;
     const lessonIds = lessons
       .map((lesson) => String(lesson?.id || "").trim())
       .filter(

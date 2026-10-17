@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="robots" content="noindex" />
+    <meta name="theme-color" content="#e8f0eb" />
+    <title>Синхронизация — School++</title>
+    <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body class="userscript-progress-open">
+    <section
+      id="userscriptProgress"
+      class="userscript-progress"
+      data-state="loading"
+      aria-label="Синхронизация дневника"
+    >
+      <div class="userscript-progress-content">
+        <svg
+          class="userscript-progress-symbol"
+          viewBox="0 0 80 80"
+          aria-hidden="true"
+        >
+          <circle class="userscript-progress-ring" cx="40" cy="40" r="29" />
+        </svg>
+        <p class="userscript-progress-status" role="status">
+          Подключаем дневник…
+        </p>
+      </div>
+    </section>
+    <noscript
+      >Для синхронизации включите JavaScript в Safari.
+      <a href="./userscripts-setup.html">Вернуться к инструкции</a></noscript
+    >
+    <script type="module" src="./js/userscripts-sync.js"></script>
+  </body>
+</html>

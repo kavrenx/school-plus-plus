@@ -82,7 +82,7 @@ function createDiaryHistoryRepository(
         }
         return data;
       }),
-    save: (snapshot) =>
+    save: (snapshot, options = {}) =>
       enqueue(async () => {
         if (!previous) {
           try {
@@ -92,7 +92,8 @@ function createDiaryHistoryRepository(
           }
         }
         const before = previous;
-        const result = await base.save(snapshot);
+        if (options.signal?.aborted) throw new Error("Сохранение отменено.");
+        const result = await base.save(snapshot, options);
         previous = structuredClone(snapshot);
         try {
           const events = await makeSharedEvents(before, snapshot);
