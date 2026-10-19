@@ -127,7 +127,7 @@ function createOnboardingController({
   async function showInitialStep() {
     if (["methods", "device-choice"].includes(initialStep)) { showDeviceChoice(); return; }
     if (pairingCode || initialStep === "mobile-code") { showMobileNotice(); return; }
-    if (initialStep === "mobile" || detectDevice(windowRef.navigator) === "mobile") { showMobileEntry(); return; }
+    if (initialStep === "mobile" || detectDevice(windowRef.navigator) === "mobile") { showDiaryConfirmation(); return; }
     if (session.getItem(CHECK_PENDING_KEY) === "true") {
       session.removeItem(CHECK_PENDING_KEY);
       if (await presenceCheck(windowRef)) {

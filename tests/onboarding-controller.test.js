@@ -59,6 +59,7 @@ test("local Apple preview offers the test guide and a direct code alternative", 
   try {
     void controller.start();
     await new Promise((resolve) => setImmediate(resolve));
+    window.document.querySelector("[data-diary-confirm]").click();
     assert.equal(
       window.document
         .querySelector("[data-shortcut-setup]")
@@ -85,7 +86,7 @@ test("local Apple preview offers the test guide and a direct code alternative", 
   }
 });
 
-test("Apple production entry and QR pairing keep the working code form", async () => {
+test("Apple entry asks about the diary while QR pairing still opens the code form", async () => {
   for (const preview of [false, true]) {
     const window = createWindow();
     Object.defineProperty(window.navigator, "userAgent", { value: "iPad" });
@@ -99,6 +100,11 @@ test("Apple production entry and QR pairing keep the working code form", async (
     try {
       void controller.start();
       await new Promise((resolve) => setImmediate(resolve));
+      if (!preview) {
+        assert.ok(window.document.querySelector("[data-diary-confirm]"));
+        assert.equal(window.document.querySelector("[data-device-join]"), null);
+        window.document.querySelector("[data-diary-confirm]").click();
+      }
       assert.ok(window.document.querySelector("[data-device-join]"));
       assert.equal(
         window.document.querySelector("[data-shortcut-setup]"),
@@ -110,7 +116,7 @@ test("Apple production entry and QR pairing keep the working code form", async (
   }
 });
 
-test("Userscripts entry opens connection method cards before code entry", async () => {
+test("Userscripts entry asks about the diary before showing setup and alternative methods", async () => {
   const window = createWindow();
   Object.defineProperty(window.navigator, "userAgent", { value: "iPhone" });
   const controller = createOnboardingController({
@@ -122,6 +128,15 @@ test("Userscripts entry opens connection method cards before code entry", async 
   try {
     void controller.start();
     await new Promise((resolve) => setImmediate(resolve));
+    assert.ok(window.document.querySelector("[data-diary-confirm]"));
+    assert.equal(
+      window.document.querySelector("[data-userscript-setup]"),
+      null,
+    );
+    window.document.querySelector("[data-diary-unsupported]").click();
+    assert.ok(window.document.querySelector("[data-open-diary-request]"));
+    window.document.querySelector("[data-diary-back]").click();
+    window.document.querySelector("[data-diary-confirm]").click();
     assert.equal(
       window.document.querySelector("[data-userscript-setup]").href,
       "https://schoolpp.com/userscripts-sync.html",
