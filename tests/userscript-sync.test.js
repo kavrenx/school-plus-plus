@@ -3,10 +3,12 @@ import test from "node:test";
 import { Window } from "happy-dom";
 import { createUserscriptSyncController } from "../js/userscript-sync-controller.js";
 import { createUserscriptProgress } from "../js/userscript-progress.js";
+import { runSchoolppUserscript } from "../js/userscript-runtime.js";
 import {
   USERSCRIPT_PENDING,
   USERSCRIPT_CACHE,
   saveUserscriptDiary,
+  createPublicUserscriptClient,
 } from "../js/userscript-client.js";
 
 function sample() {
@@ -266,7 +268,7 @@ test("a session change during the success animation blocks opening the previous 
   }
 });
 
-test("return requests overlap but import waits for both compatibility and the bound result", async () => {
+test("return waits for readiness before requesting the tab-bound result", async () => {
   const f = fixture();
   let resolvePing, resolveReceive;
   const started = [];
@@ -286,11 +288,13 @@ test("return requests overlap but import waits for both compatibility and the bo
     f.pending();
     const receiving = f.controller.receive();
     await new Promise((resolve) => setImmediate(resolve));
-    assert.deepEqual(started, ["ping", "receive"]);
-    resolveReceive({ status: "done", export: sample() });
-    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(started, ["ping"]);
     assert.equal(f.events.includes("commit"), false);
     resolvePing();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(started, ["ping", "receive"]);
+    assert.equal(f.events.includes("commit"), false);
+    resolveReceive({ status: "done", export: sample() });
     await receiving;
     assert.equal(f.events.includes("commit"), true);
   } finally {
@@ -298,8 +302,87 @@ test("return requests overlap but import waits for both compatibility and the bo
   }
 });
 
+test("a late Userscripts injection retries readiness without losing the returned export", async () => {
+  const f = fixture({ cacheOwner: "owner" });
+  const id = "a".repeat(32);
+  const key = `schoolpp_job:${id}`;
+  const result = sample();
+  const jobs = new Map([
+    [
+      key,
+      {
+        id,
+        origin: f.windowRef.location.origin,
+        createdAt: Date.now(),
+        status: "done",
+        export: result,
+      },
+    ],
+  ]);
+  let tab = { schoolppSync: { id } };
+  const gm = {
+    getValue: async (name) => structuredClone(jobs.get(name)),
+    setValue: async (name, value) => jobs.set(name, structuredClone(value)),
+    deleteValue: async (name) => jobs.delete(name),
+    getTab: async () => structuredClone(tab),
+    saveTab: async (value) => {
+      tab = structuredClone(value);
+    },
+  };
+  const scope = {
+    document: f.windowRef.document,
+    location: { origin: f.windowRef.location.origin },
+  };
+  scope.top = scope;
+  const requests = [];
+  let injection;
+  const observe = (event) => {
+    const message = JSON.parse(event.detail);
+    requests.push(message.type);
+    if (requests.length === 1) {
+      assert.equal(message.type, "ping");
+      // The first request is sent before document-idle injection, as on Safari.
+      // Install the real runtime only after that request has been dispatched.
+      injection = Promise.resolve().then(() =>
+        runSchoolppUserscript(scope, gm, null, {
+          origins: [scope.location.origin],
+          version: "1.0.1",
+          transport: "userscript",
+        }),
+      );
+    }
+  };
+  Object.assign(f.client, createPublicUserscriptClient(f.windowRef, 20));
+  f.windowRef.document.addEventListener(
+    "schoolpp-userscript-request-v2",
+    observe,
+  );
+  try {
+    f.pending();
+    await f.controller.receive();
+    await injection;
+    assert.equal(f.progress.element.dataset.state, "success");
+    assert.deepEqual(requests, ["ping", "ping", "receive", "ack"]);
+    assert.ok(f.events.includes("commit"));
+    assert.equal(jobs.has(key), false);
+    assert.equal(f.windowRef.sessionStorage.getItem(USERSCRIPT_PENDING), null);
+    assert.equal(JSON.parse(f.storage.getItem(USERSCRIPT_CACHE)).text, result);
+  } finally {
+    f.windowRef.document.removeEventListener(
+      "schoolpp-userscript-request-v2",
+      observe,
+    );
+    f.close();
+  }
+});
+
 test("a received export cannot bypass a failed compatibility check", async () => {
   const f = fixture();
+  let received = false;
+  f.client.receive = async () => {
+    received = true;
+    return { status: "done", export: sample() };
+  };
   f.client.ping = async () => {
     throw new Error("Unsupported Userscripts");
   };
@@ -309,6 +392,7 @@ test("a received export cannot bypass a failed compatibility check", async () =>
     assert.equal(f.progress.element.dataset.state, "error");
     assert.equal(f.events.includes("commit"), false);
     assert.equal(f.events.includes("ack"), false);
+    assert.equal(received, false);
   } finally {
     f.close();
   }

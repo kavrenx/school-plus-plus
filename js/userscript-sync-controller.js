@@ -202,12 +202,12 @@ function createUserscriptSyncController({
       throw new Error(
         "Время подключения истекло. Вернитесь назад и запустите синхронизацию снова.",
       );
-    // Both are read-only bridge requests. Import still waits for compatibility
-    // AND the tab-bound response; their origin/requestId checks are unchanged.
-    const [, result] = await Promise.all([
-      timings.measure("bridge_ping", () => client.ping()),
-      timings.measure("bridge_receive", () => client.receive(request.id)),
-    ]);
+    // document-idle injection can follow the page module. Ping retries until
+    // the listener exists; a receive sent before that listener would be lost.
+    await timings.measure("bridge_ping", () => client.ping());
+    const result = await timings.measure("bridge_receive", () =>
+      client.receive(request.id),
+    );
     if (result.status === "skipped") {
       if (!(await loadCache(request.userId)))
         throw new Error(
