@@ -84,20 +84,26 @@ function createDiaryHistoryRepository(
       }),
     save: (snapshot, options = {}) =>
       enqueue(async () => {
+        const measure = options.measure || ((_stage, run) => run());
         if (!previous) {
           try {
-            previous = (await base.load())?.payload || null;
+            previous =
+              (await measure("cloud_baseline", () => base.load()))?.payload || null;
           } catch {
             /* Initial imports don't require a baseline. */
           }
         }
         const before = previous;
         if (options.signal?.aborted) throw new Error("Сохранение отменено.");
-        const result = await base.save(snapshot, options);
+        const result = await measure("cloud_snapshot", () =>
+          base.save(snapshot, options),
+        );
         previous = structuredClone(snapshot);
         try {
-          const events = await makeSharedEvents(before, snapshot);
-          await publish(events);
+          const events = await measure("history_compare", () =>
+            makeSharedEvents(before, snapshot),
+          );
+          await measure("history_publish", () => publish(events));
         } catch {
           /* A history error must not undo a successfully saved diary. */
         }

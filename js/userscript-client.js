@@ -201,6 +201,9 @@ function createUserscriptClient(
 }
 
 function readUserscriptDiary(storage, userId, now = Date.now()) {
+  return readDiary(storage, userId, now, readIOSShortcutExport);
+}
+function readDiary(storage, userId, now, parse) {
   if (!userId) return null;
   try {
     const saved = JSON.parse(storage.getItem(USERSCRIPT_CACHE) || "null");
@@ -211,7 +214,7 @@ function readUserscriptDiary(storage, userId, now = Date.now()) {
       saved.savedAt > now
     )
       return null;
-    const parsed = readIOSShortcutExport(saved.text);
+    const parsed = parse(saved.text);
     if (parsed.snapshot?.import?.transport !== "userscript") return null;
     return {
       ...parsed,
@@ -229,8 +232,17 @@ function saveUserscriptDiary(
   text,
   { cloudPending = true, now = Date.now() } = {},
 ) {
+  return saveDiary(
+    storage,
+    userId,
+    text,
+    { cloudPending, now },
+    readIOSShortcutExport,
+  );
+}
+function saveDiary(storage, userId, text, { cloudPending, now }, parse) {
   if (!userId) throw new Error("Не удалось подтвердить сеанс School++.");
-  const parsed = readIOSShortcutExport(text);
+  const parsed = parse(text);
   if (parsed.snapshot?.import?.transport !== "userscript")
     throw new Error(
       "Дневник собран не полностью. Предыдущие данные сохранены.",
@@ -249,6 +261,40 @@ function saveUserscriptDiary(
       "Safari не разрешил сохранить дневник. Освободи место и повтори попытку.",
     );
   return parsed;
+}
+
+// One sync document repeatedly checks the same export. Cache only its parsing;
+// every read still checks the actual stored envelope and current owner/time.
+// Copies prevent callers from changing the privately validated result.
+function createUserscriptDiaryStorage(
+  storage,
+  { measure = (_stage, run) => run() } = {},
+) {
+  let lastText, lastParsed;
+  function parse(text) {
+    if (text !== lastText || !lastParsed) {
+      const parsed = measure("export_parse", () => readIOSShortcutExport(text));
+      lastText = text;
+      lastParsed = parsed;
+    }
+    return lastParsed;
+  }
+  function clear() {
+    lastText = lastParsed = undefined;
+  }
+  return {
+    parse: (text) => structuredClone(parse(text)),
+    read(userId, now = Date.now()) {
+      const result = readDiary(storage, userId, now, parse);
+      if (!result) clear();
+      return result ? structuredClone(result) : null;
+    },
+    save(userId, text, { cloudPending = true, now = Date.now() } = {}) {
+      return structuredClone(
+        saveDiary(storage, userId, text, { cloudPending, now }, parse),
+      );
+    },
+  };
 }
 const createPublicUserscriptClient = (windowRef, timeoutMs) =>
   createUserscriptClient(windowRef, timeoutMs, { publicRelease: true });
@@ -328,6 +374,7 @@ export {
   createPublicUserscriptClient,
   readUserscriptDiary,
   saveUserscriptDiary,
+  createUserscriptDiaryStorage,
   USERSCRIPT_CACHE,
   USERSCRIPT_PENDING,
   USERSCRIPT_ATTEMPT,

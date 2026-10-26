@@ -4,10 +4,12 @@ import {
   USERSCRIPT_PENDING,
   USERSCRIPT_ATTEMPT,
   readUserscriptPending,
-  readUserscriptDiary,
+  createUserscriptDiaryStorage,
   newUserscriptId,
   userscriptMessage,
 } from "./userscript-client.js";
+import { createSyncTimings } from "./sync-timings.js";
+import { writeClipboardText } from "./clipboard.js";
 
 function createUserscriptSyncController({
   windowRef,
@@ -16,6 +18,10 @@ function createUserscriptSyncController({
   importer,
   client,
   progress,
+  timings = createSyncTimings(windowRef),
+  diaryStorage = createUserscriptDiaryStorage(storage, {
+    measure: timings.measure,
+  }),
   wait = (ms) => new Promise((resolve) => windowRef.setTimeout(resolve, ms)),
   navigate = (url) => {
     windowRef.location.href = url;
@@ -36,7 +42,7 @@ function createUserscriptSyncController({
     const user = await services?.auth.getCachedUser();
     cached =
       user?.id && (!expectedOwner || user.id === expectedOwner)
-        ? readUserscriptDiary(storage, user.id)
+        ? timings.measure("cache_read", () => diaryStorage.read(user.id))
         : null;
     cacheOwner = cached ? user.id : "";
     return cached;
@@ -55,7 +61,7 @@ function createUserscriptSyncController({
     const request = pending();
     if (request) {
       try {
-        await client.cancel(request.id);
+        await timings.measure("bridge_cancel", () => client.cancel(request.id));
       } catch {
         /* Local return remains possible. */
       }
@@ -67,10 +73,14 @@ function createUserscriptSyncController({
     navigate(guideUrl);
   }
   function showError(error) {
+    timings.finish("failed");
     progress.error(error.message || "Проверьте интернет и попробуйте снова.", [
       { label: "Вернуться назад", primary: true, run: () => action(back) },
       ...(cached
         ? [{ label: "Открыть без синхронизации", run: () => action(openDiary) }]
+        : []),
+      ...(timings.enabled
+        ? [{ label: "Скопировать замеры", run: copyTimings }]
         : []),
       ...(cached?.cloudPending
         ? [
@@ -89,6 +99,34 @@ function createUserscriptSyncController({
           ]
         : []),
     ]);
+  }
+  async function copyTimings() {
+    const text = timings.text();
+    const detail = progress.element.querySelector(
+      ".userscript-progress-detail",
+    );
+    try {
+      await writeClipboardText(text, windowRef);
+      detail.textContent =
+        "Замеры скопированы. Можно отправить их для проверки скорости.";
+    } catch {
+      let field = progress.element.querySelector("[data-sync-timings]");
+      if (!field) {
+        field = windowRef.document.createElement("textarea");
+        field.readOnly = true;
+        field.rows = 5;
+        field.setAttribute("data-sync-timings", "");
+        field.setAttribute("aria-label", "Замеры синхронизации");
+        progress.element
+          .querySelector(".userscript-progress-content")
+          .append(field);
+      }
+      field.value = text;
+      field.focus();
+      field.select();
+      detail.textContent =
+        "Выделены только длительности этапов. Скопируйте текст вручную.";
+    }
   }
   async function action(fn) {
     if (busy) return;
@@ -111,14 +149,38 @@ function createUserscriptSyncController({
     progress.success();
     // Let the tick finish drawing, then hold it for half a second.
     await wait(850);
+    if (timings.enabled && !(await loadCache(cacheOwner)))
+      throw new Error(
+        "Сохранённого дневника для этого сеанса нет. Выполните синхронизацию заново.",
+      );
+    timings.record("return_total", Date.now() - started);
+    timings.finish("complete");
+    if (timings.enabled) {
+      progress.success(
+        [
+          {
+            label: "Открыть дневник",
+            primary: true,
+            run: () => action(openDiary),
+          },
+          { label: "Скопировать замеры", run: copyTimings },
+        ],
+        "Режим замера: сохранены только длительности этапов.",
+      );
+      return;
+    }
     await openDiary();
   }
   async function startSync() {
+    timings.begin();
+    const started = Date.now();
     await progress.phase("Проверка расширения");
-    await Promise.all([client.ping(), wait(400)]);
+    await Promise.all([
+      timings.measure("bridge_ping", () => client.ping()),
+      wait(400),
+    ]);
     const userId = await importer.prepare();
-    await loadCache(userId);
-    await clearRequest();
+    await Promise.all([loadCache(userId), clearRequest()]);
     const id = newUserscriptId(windowRef);
     windowRef.sessionStorage.setItem(
       USERSCRIPT_PENDING,
@@ -127,7 +189,10 @@ function createUserscriptSyncController({
     storage.setItem(USERSCRIPT_ATTEMPT, String(Date.now()));
     await progress.phase("Открываем ваш дневник…");
     await wait(300);
-    await client.start(id, { allowSkip: Boolean(cached) });
+    await timings.measure("bridge_start", () =>
+      client.start(id, { allowSkip: Boolean(cached) }),
+    );
+    timings.record("start_total", Date.now() - started);
   }
   async function receive() {
     const started = Date.now();
@@ -137,19 +202,24 @@ function createUserscriptSyncController({
       throw new Error(
         "Время подключения истекло. Вернитесь назад и запустите синхронизацию снова.",
       );
-    await client.ping();
-    const result = await client.receive(request.id);
+    // Both are read-only bridge requests. Import still waits for compatibility
+    // AND the tab-bound response; their origin/requestId checks are unchanged.
+    const [, result] = await Promise.all([
+      timings.measure("bridge_ping", () => client.ping()),
+      timings.measure("bridge_receive", () => client.receive(request.id)),
+    ]);
     if (result.status === "skipped") {
       if (!(await loadCache(request.userId)))
         throw new Error(
           "Сохранённого дневника для этого сеанса нет. Запустите синхронизацию снова.",
         );
       try {
-        await client.ack(request.id);
+        await timings.measure("bridge_ack", () => client.ack(request.id));
       } catch {
         /* The local copy is already validated. */
       }
       windowRef.sessionStorage.removeItem(USERSCRIPT_PENDING);
+      timings.finish("skipped");
       await openDiary();
       return;
     }
@@ -161,9 +231,11 @@ function createUserscriptSyncController({
       throw error;
     }
     const imported = await importer.commit(result.export, request.userId);
+    if (imported.summary?.elapsedMs)
+      timings.record("collection", imported.summary.elapsedMs);
     await loadCache(imported.userId);
     try {
-      await client.ack(request.id);
+      await timings.measure("bridge_ack", () => client.ack(request.id));
     } catch {
       /* A saved result is safe; GM data expire. */
     }

@@ -75,9 +75,9 @@ function createUserscriptProgress({
       render("loading", text);
       status.classList.remove("is-changing");
     },
-    success() {
+    success(buttons = [], description = "") {
       revision++;
-      render("success", "Готово!");
+      render("success", "Готово!", description, buttons);
     },
     error(description, buttons) {
       revision++;

@@ -60,9 +60,14 @@ function sample() {
     },
   });
 }
-function fixture({ cacheOwner = "", cloudSaved = true, result } = {}) {
+function fixture({
+  cacheOwner = "",
+  cloudSaved = true,
+  result,
+  timing = false,
+} = {}) {
   const windowRef = new Window({
-    url: "https://schoolpp.com/userscripts-sync.html",
+    url: `https://schoolpp.com/userscripts-sync.html${timing ? "?syncTiming=1" : ""}`,
   });
   windowRef.document.body.innerHTML = "<main>Guide fixture</main>";
   const storage = windowRef.localStorage;
@@ -256,6 +261,111 @@ test("a session change during the success animation blocks opening the previous 
       f.events.some((event) => event[0] === "navigate"),
       false,
     );
+  } finally {
+    f.close();
+  }
+});
+
+test("return requests overlap but import waits for both compatibility and the bound result", async () => {
+  const f = fixture();
+  let resolvePing, resolveReceive;
+  const started = [];
+  f.client.ping = () => {
+    started.push("ping");
+    return new Promise((resolve) => {
+      resolvePing = resolve;
+    });
+  };
+  f.client.receive = () => {
+    started.push("receive");
+    return new Promise((resolve) => {
+      resolveReceive = resolve;
+    });
+  };
+  try {
+    f.pending();
+    const receiving = f.controller.receive();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(started, ["ping", "receive"]);
+    resolveReceive({ status: "done", export: sample() });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(f.events.includes("commit"), false);
+    resolvePing();
+    await receiving;
+    assert.equal(f.events.includes("commit"), true);
+  } finally {
+    f.close();
+  }
+});
+
+test("a received export cannot bypass a failed compatibility check", async () => {
+  const f = fixture();
+  f.client.ping = async () => {
+    throw new Error("Unsupported Userscripts");
+  };
+  try {
+    f.pending();
+    await f.controller.receive();
+    assert.equal(f.progress.element.dataset.state, "error");
+    assert.equal(f.events.includes("commit"), false);
+    assert.equal(f.events.includes("ack"), false);
+  } finally {
+    f.close();
+  }
+});
+
+test("opt-in timings can be copied without diary data and opening still rechecks the owner", async () => {
+  const f = fixture({ timing: true });
+  let copied;
+  Object.defineProperty(f.windowRef, "isSecureContext", { value: true });
+  Object.defineProperty(f.windowRef.navigator, "clipboard", {
+    value: {
+      writeText: async (text) => {
+        copied = text;
+      },
+    },
+  });
+  try {
+    f.pending();
+    await f.controller.receive();
+    assert.equal(f.progress.element.dataset.state, "success");
+    assert.equal(
+      f.events.some((event) => event[0] === "navigate"),
+      false,
+    );
+    const buttons = () => [...f.progress.element.querySelectorAll("button")];
+    buttons()
+      .find((button) => button.textContent === "Скопировать замеры")
+      .click();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(JSON.parse(copied).outcome, "complete");
+    assert.doesNotMatch(
+      copied,
+      /owner|Примеров|Математика|snapshot|export"|https:/,
+    );
+    assert.match(copied, /return_total/);
+    f.setUser("another-user");
+    buttons()
+      .find((button) => button.textContent === "Открыть дневник")
+      .click();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(f.progress.element.dataset.state, "error");
+    assert.equal(
+      f.events.some((event) => event[0] === "navigate"),
+      false,
+    );
+  } finally {
+    f.close();
+  }
+});
+
+test("diagnostic success also rejects a session changed before acknowledgement", async () => {
+  const f = fixture({ timing: true });
+  try {
+    f.pending();
+    f.client.ack = async () => f.setUser("another-user");
+    await f.controller.receive();
+    assert.equal(f.progress.element.dataset.state, "error");
   } finally {
     f.close();
   }

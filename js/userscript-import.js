@@ -1,10 +1,12 @@
-import { readIOSShortcutExport } from "./ios-shortcut-preview.js";
-import {
-  readUserscriptDiary,
-  saveUserscriptDiary,
-} from "./userscript-client.js";
+import { createUserscriptDiaryStorage } from "./userscript-client.js";
 
-function createUserscriptImporter({ services, storage, timeoutMs = 20000 }) {
+function createUserscriptImporter({
+  services,
+  storage,
+  timeoutMs = 20000,
+  measure = (_stage, run) => run(),
+  diaryStorage = createUserscriptDiaryStorage(storage, { measure }),
+}) {
   async function bounded(operation) {
     const controller = new AbortController();
     let timer;
@@ -31,12 +33,16 @@ function createUserscriptImporter({ services, storage, timeoutMs = 20000 }) {
       throw new Error("Подключение сервера не настроено. Попробуй позже.");
     let user, access;
     try {
-      user = await bounded(
-        async () =>
-          (await services.auth.getUser()) ||
-          (await services.auth.signInAnonymously()).user,
+      user = await measure("auth_user", () =>
+        bounded(
+          async () =>
+            (await services.auth.getUser()) ||
+            (await services.auth.signInAnonymously()).user,
+        ),
       );
-      access = await bounded(() => services.devices.access());
+      access = await measure("device_access", () =>
+        bounded(() => services.devices.access()),
+      );
     } catch {
       throw new Error(
         "Не удалось подтвердить подключение School++. Проверь интернет и попробуй снова.",
@@ -55,16 +61,24 @@ function createUserscriptImporter({ services, storage, timeoutMs = 20000 }) {
   }
   async function upload(userId, text, parsed) {
     try {
-      await bounded((signal) =>
-        services.diary.save(parsed.snapshot, { signal, expectedOwner: userId }),
+      await measure("cloud_save", () =>
+        bounded((signal) =>
+          services.diary.save(parsed.snapshot, {
+            signal,
+            expectedOwner: userId,
+            measure,
+          }),
+        ),
       );
       // A new attempt must not be replaced by completion of an older upload.
-      const current = readUserscriptDiary(storage, userId);
+      const current = measure("cache_read", () => diaryStorage.read(userId));
       if (current?.text === text)
-        saveUserscriptDiary(storage, userId, text, {
-          cloudPending: false,
-          now: current.savedAt,
-        });
+        measure("local_save", () =>
+          diaryStorage.save(userId, text, {
+            cloudPending: false,
+            now: current.savedAt,
+          }),
+        );
       return true;
     } catch {
       return false;
@@ -73,19 +87,19 @@ function createUserscriptImporter({ services, storage, timeoutMs = 20000 }) {
   return {
     prepare,
     async commit(text, expectedOwner) {
-      const parsed = readIOSShortcutExport(text);
+      const parsed = diaryStorage.parse(text);
       if (parsed.snapshot?.import?.transport !== "userscript")
         throw new Error(
           "Получен неполный дневник. Предыдущие данные сохранены.",
         );
       const userId = await prepare(expectedOwner);
-      saveUserscriptDiary(storage, userId, text);
+      measure("local_save", () => diaryStorage.save(userId, text));
       const cloudSaved = await upload(userId, text, parsed);
       return { ...parsed, userId, cloudSaved };
     },
     async retryUpload() {
       const userId = await prepare();
-      const cached = readUserscriptDiary(storage, userId);
+      const cached = measure("cache_read", () => diaryStorage.read(userId));
       if (!cached) return false;
       return upload(userId, cached.text, cached);
     },
