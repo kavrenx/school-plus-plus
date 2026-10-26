@@ -3,7 +3,7 @@ import { formatGradeAverage as average } from "./teacher-journal-model.js";
 import {
   getResultDisplayColumns,
   getEffectiveResultColumn,
-  getDisplayFinalAverage,
+  getDisplayAverageSummary,
   getResultCell,
 } from "./result-periods.js";
 import { shortSubjectName } from "./subject-names.js";
@@ -27,6 +27,14 @@ function renderAchievementTable(results, year, behavior = {}) {
         : "Год";
   const cell = (label, value, type = "quarter") =>
     `<td data-period-label="${e(label)}" data-result-period="${e(type)}"><div class="result-period-value" aria-label="${e(label)}">${value}</div></td>`;
+  const summary = (column) => {
+    const value = getDisplayAverageSummary(results, column);
+    const formatted = average(value.average);
+    if (value.average === null) return formatted;
+    return value.isForecast
+      ? `<span class="result-forecast" aria-label="Предварительный средний балл: ${formatted}" title="Для предметов без итоговой отметки текущее среднее округляется до целого.">${formatted}</span>`
+      : `<strong aria-label="Средний балл выставленных итоговых отметок: ${formatted}">${formatted}</strong>`;
+  };
   return `<h2 tabindex="-1" data-achievement-heading>Успеваемость ${e(year.title)}</h2>
     <p class="result-legend"><span class="result-legend-forecast">10,0</span> — прогнозируемая отметка; <strong>10</strong> — выставленная учителем.</p>
     <div class="achievement-scroll" tabindex="0" role="region" aria-label="Отметки за четверти, полугодия и год. Таблицу можно прокручивать горизонтально.">
@@ -46,7 +54,7 @@ function renderAchievementTable(results, year, behavior = {}) {
             .join("")}</tr>`,
       )
       .join("")}
-    <tr class="result-summary"><th scope="row">Средний балл</th>${columns.map((column) => cell(periodName(column), average(getDisplayFinalAverage(results, column)))).join("")}</tr>
+    <tr class="result-summary"><th scope="row">Средний балл</th>${columns.map((column) => cell(periodName(column), summary(column))).join("")}</tr>
     <tr class="result-summary"><th scope="row">Поведение</th>${columns
       .map((column) => {
         const value =

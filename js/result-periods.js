@@ -1,4 +1,5 @@
 import { calculateGradeStats } from "./teacher-journal-model.js";
+import { shortSubjectName } from "./subject-names.js";
 
 function getResultColumns(year) {
   const terms = year.terms;
@@ -133,6 +134,32 @@ function getDisplayFinalAverage(results, displayColumn) {
     }),
   ).average;
 }
+function getDisplayAverageSummary(results, displayColumn) {
+  const grades = [];
+  let isForecast = false;
+  for (const result of results) {
+    const column = getEffectiveResultColumn(result, displayColumn);
+    if (
+      !column ||
+      result.assignment.gradingScale === "pass-fail" ||
+      shortSubjectName(result.assignment.title) === "Искусство"
+    )
+      continue;
+    const value = getResultCell(result, column);
+    const final = calculateGradeStats([{ grades: [value.final] }]).average;
+    if (final !== null) {
+      grades.push(final);
+    } else if (
+      value.final === "" &&
+      column.type !== "year" &&
+      Number.isFinite(value.average)
+    ) {
+      grades.push(Math.round(value.average));
+      isForecast = true;
+    }
+  }
+  return { average: calculateGradeStats([{ grades }]).average, isForecast };
+}
 function getFinalAverage(results, column) {
   return calculateGradeStats(
     results.map((result) => ({
@@ -145,6 +172,7 @@ export {
   getResultDisplayColumns,
   getEffectiveResultColumn,
   getDisplayFinalAverage,
+  getDisplayAverageSummary,
   getResultCell,
   getFinalAverage,
   getCurrentResultPeriod,

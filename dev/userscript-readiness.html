@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Локальная проверка Userscripts — School++</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font:
+          16px/1.5 system-ui,
+          sans-serif;
+      }
+      body {
+        max-width: 680px;
+        margin: auto;
+        padding: 24px 20px;
+      }
+      h1 {
+        font-size: 1.5rem;
+      }
+      button,
+      a {
+        touch-action: manipulation;
+      }
+      button {
+        font: inherit;
+        min-height: 44px;
+        padding: 8px 12px;
+        margin: 4px 8px 4px 0;
+      }
+      pre {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        padding: 12px;
+        border: 1px solid #888;
+      }
+      li {
+        margin-bottom: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Локальная проверка Userscripts</h1>
+    <p>
+      <a href="./userscript-sync.html?syncTiming=1"
+        >Перейти к полной локальной синхронизации</a
+      >
+    </p>
+    <p>
+      Проверяем только скорость связи с расширением. Эта страница не запускает
+      сбор дневника и не обращается к Supabase.
+    </p>
+    <ol>
+      <li>
+        Подключи iPhone и компьютер к одной сети Wi-Fi. Открой страницу в
+        обычном Safari.
+      </li>
+      <li>
+        Один раз открой
+        <a href="/schoolpp-test.user.js">локальный тестовый скрипт</a>
+        и установи его через меню Userscripts. Разреши расширению работу на
+        локальном адресе.
+      </li>
+      <li>
+        Вернись сюда и нажми «Перезагрузить страницу»: так проверяется поздний
+        запуск скрипта.
+      </li>
+      <li>
+        Скопируй отчёт. Повтори полную перезагрузку 2–3 раза. После проверки
+        тестовый скрипт можно выключить.
+      </li>
+    </ol>
+    <p id="status" role="status" aria-live="polite">Проверяем готовность…</p>
+    <button id="reload" type="button">Перезагрузить страницу</button>
+    <button id="check" type="button" disabled>Проверить ещё раз</button>
+    <button id="copy" type="button" disabled>Скопировать отчёт</button>
+    <pre id="report" tabindex="0" aria-label="Отчёт проверки"></pre>
+    <script type="module">
+      import { createUserscriptClient } from "/js/userscript-client.js";
+      import { writeClipboardText } from "/js/clipboard.js";
+
+      const status = document.getElementById("status");
+      const report = document.getElementById("report");
+      const check = document.getElementById("check");
+      const copy = document.getElementById("copy");
+      const client = createUserscriptClient(window);
+      let requests = 0;
+      let busy = false;
+      // Count only known ping messages; neither IDs nor payloads enter the report.
+      document.addEventListener("schoolpp-userscript-request-v2", (event) => {
+        try {
+          const value = JSON.parse(event.detail);
+          if (
+            value.source === "schoolpp-userscript-web-v1" &&
+            value.type === "ping"
+          )
+            requests++;
+        } catch {
+          /* Ignore unrelated events. */
+        }
+      });
+      async function run() {
+        if (busy) return;
+        busy = true;
+        requests = 0;
+        check.disabled = copy.disabled = true;
+        status.textContent = "Проверяем готовность…";
+        const start = performance.now();
+        let result;
+        try {
+          await client.ping();
+          result = { outcome: "ready" };
+          status.textContent =
+            "Userscripts ответил. Сбор дневника не запускался.";
+        } catch (error) {
+          const codes = [
+            "bridge_no_response",
+            "startup_failed",
+            "unsupported_manager",
+          ];
+          result = {
+            outcome: "failed",
+            code: codes.includes(error.code) ? error.code : "unknown",
+            injected: error.diagnostic?.injected === true,
+          };
+          status.textContent =
+            "Ответ не подтверждён. Проверь установку и разрешение Userscripts, затем перезагрузи страницу.";
+        }
+        report.textContent = JSON.stringify(
+          {
+            version: 1,
+            check: "local-readiness",
+            ...result,
+            ms: Math.round((performance.now() - start) * 10) / 10,
+            pingRequests: requests,
+          },
+          null,
+          2,
+        );
+        check.disabled = copy.disabled = false;
+        busy = false;
+      }
+      check.addEventListener("click", () => void run());
+      document
+        .getElementById("reload")
+        .addEventListener("click", () => location.reload());
+      copy.addEventListener("click", async () => {
+        try {
+          await writeClipboardText(report.textContent, window);
+          status.textContent = "Отчёт скопирован.";
+        } catch {
+          const selection = window.getSelection();
+          const range = document.createRange();
+          range.selectNodeContents(report);
+          selection.removeAllRanges();
+          selection.addRange(range);
+          status.textContent = "Отчёт выделен. Скопируй его вручную.";
+        }
+      });
+      void run();
+    </script>
+  </body>
+</html>

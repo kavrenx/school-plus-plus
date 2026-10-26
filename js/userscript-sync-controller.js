@@ -10,6 +10,7 @@ import {
 } from "./userscript-client.js";
 import { createSyncTimings } from "./sync-timings.js";
 import { writeClipboardText } from "./clipboard.js";
+import { isUserscriptUpdateError } from "./userscript-version.js";
 
 function createUserscriptSyncController({
   windowRef,
@@ -134,6 +135,11 @@ function createUserscriptSyncController({
     try {
       await fn();
     } catch (error) {
+      if (isUserscriptUpdateError(error)) {
+        timings.finish("failed");
+        navigate(new URL("./userscripts-setup.html?update=1", windowRef.location.href).href);
+        return;
+      }
       try {
         await loadCache(pending()?.userId);
       } catch {

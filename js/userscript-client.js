@@ -1,4 +1,5 @@
 import { readIOSShortcutExport } from "./ios-shortcut-preview.js";
+import { getUserscriptVersionStatus } from "./userscript-version.js";
 
 const TEST_CACHE = "schoolpp_userscript_test_v1";
 const TEST_PENDING = "schoolpp_userscript_pending_v1";
@@ -8,6 +9,10 @@ const USERSCRIPT_PENDING = "schoolpp_userscript_pending_v2";
 const USERSCRIPT_ATTEMPT = "schoolpp_userscript_attempt_v2";
 const TEST_MAX_AGE = 7 * 86400000;
 const MESSAGES = {
+  script_update_required:
+    "Обновите скрипт School++ в Userscripts, затем повторите синхронизацию.",
+  script_version_unknown:
+    "Не удалось подтвердить версию скрипта School++. Обновите его по инструкции.",
   bridge_no_response:
     "School++ не получил ответ от Userscripts. Проверь установку скрипта, разрешение для этого сайта и перезагрузи страницу.",
   startup_failed:
@@ -111,9 +116,13 @@ function createUserscriptClient(
       cancel: "cleared",
     }[type];
     return new Promise((resolve, reject) => {
-      let timer;
+      let timer, observer;
+      let settled = false;
       function finish(value, error) {
+        if (settled) return;
+        settled = true;
         windowRef.clearTimeout(timer);
+        observer?.disconnect();
         doc.removeEventListener("schoolpp-userscript-response-v2", onMessage);
         if (error) {
           const cause = new Error(userscriptMessage(error));
@@ -155,22 +164,44 @@ function createUserscriptClient(
           ),
         timeoutMs,
       );
-      const event = doc.createEvent("CustomEvent");
-      event.initCustomEvent(
-        "schoolpp-userscript-request-v2",
-        false,
-        false,
-        JSON.stringify({
-          source: webSource,
-          origin: windowRef.location.origin,
-          type,
-          id,
-          ...(type === "start" && options.allowSkip === true
-            ? { allowSkip: true }
-            : {}),
-        }),
-      );
-      doc.dispatchEvent(event);
+      function send() {
+        const event = doc.createEvent("CustomEvent");
+        event.initCustomEvent(
+          "schoolpp-userscript-request-v2",
+          false,
+          false,
+          JSON.stringify({
+            source: webSource,
+            origin: windowRef.location.origin,
+            type,
+            id,
+            ...(type === "start" && options.allowSkip === true
+              ? { allowSkip: true }
+              : {}),
+          }),
+        );
+        doc.dispatchEvent(event);
+      }
+      if (type === "ping" && typeof windowRef.MutationObserver === "function") {
+        let resent = false;
+        observer = new windowRef.MutationObserver(() => {
+          // A late document-idle injection already marks readiness. Treat that
+          // only as a hint to resend ping; the matching bridge response is required.
+          if (
+            !settled &&
+            !resent &&
+            ["ready", "unsupported_manager"].includes(diagnostic().state)
+          ) {
+            resent = true;
+            send();
+          }
+        });
+        observer.observe(doc.documentElement, {
+          attributes: true,
+          attributeFilter: ["data-schoolpp-userscript"],
+        });
+      }
+      send();
     });
   }
   return {
@@ -184,6 +215,18 @@ function createUserscriptClient(
             error.code = "unsupported_manager";
             error.diagnostic = diagnostic();
             throw error;
+          }
+          if (publicRelease) {
+            const status = getUserscriptVersionStatus(result.version);
+            if (status !== "current") {
+              const code = status === "outdated"
+                ? "script_update_required"
+                : "script_version_unknown";
+              const error = new Error(userscriptMessage(code));
+              error.code = code;
+              error.diagnostic = diagnostic();
+              throw error;
+            }
           }
           return result;
         } catch (error) {

@@ -156,6 +156,70 @@ test("sync starts without exposing a guide or allowing a different owner's saved
   }
 });
 
+test("outdated or unconfirmed script versions open the update guide before auth or collection", async () => {
+  for (const code of ["script_update_required", "script_version_unknown"]) {
+    const f = fixture({ cacheOwner: "owner" });
+    try {
+      const before = f.storage.getItem(USERSCRIPT_CACHE);
+      f.client.ping = async () => {
+        throw Object.assign(new Error("synthetic version error"), { code });
+      };
+      f.importer.prepare = () =>
+        assert.fail("no auth before version compatibility");
+      await f.controller.start();
+      assert.ok(
+        f.events.some(
+          (event) =>
+            Array.isArray(event) &&
+            event[0] === "navigate" &&
+            event[1] === "https://schoolpp.com/userscripts-setup.html?update=1",
+        ),
+      );
+      assert.equal(
+        f.events.some((event) => Array.isArray(event) && event[0] === "start"),
+        false,
+      );
+      assert.equal(f.storage.getItem(USERSCRIPT_CACHE), before);
+    } finally {
+      f.close();
+    }
+  }
+});
+
+test("an old script on return opens the update guide without consuming pending or the cached diary", async () => {
+  const f = fixture({ cacheOwner: "owner" });
+  try {
+    f.pending();
+    const before = f.storage.getItem(USERSCRIPT_CACHE);
+    const pending = f.windowRef.sessionStorage.getItem(USERSCRIPT_PENDING);
+    f.client.ping = async () => {
+      throw Object.assign(new Error("synthetic old script"), {
+        code: "script_update_required",
+      });
+    };
+    f.client.receive = () =>
+      assert.fail("no result before version compatibility");
+    await f.controller.receive();
+    assert.ok(
+      f.events.some(
+        (event) =>
+          Array.isArray(event) &&
+          event[0] === "navigate" &&
+          event[1].endsWith("?update=1"),
+      ),
+    );
+    assert.equal(f.events.includes("ack"), false);
+    assert.equal(f.events.includes("commit"), false);
+    assert.equal(f.storage.getItem(USERSCRIPT_CACHE), before);
+    assert.equal(
+      f.windowRef.sessionStorage.getItem(USERSCRIPT_PENDING),
+      pending,
+    );
+  } finally {
+    f.close();
+  }
+});
+
 test("a missing script becomes an actionable error without starting collection", async () => {
   const f = fixture();
   try {

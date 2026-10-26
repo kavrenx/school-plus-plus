@@ -701,12 +701,12 @@ test("public and old test scripts cannot consume each other's jobs or responses"
     page = browser(),
     diary = browser("https://diary.e-schools.by"),
     returned = browser();
-  const production = { ...config, version: "1.0.0", transport: "userscript" };
+  const production = { ...config, version: "1.0.1", transport: "userscript" };
   try {
     await runSchoolppUserscript(page.scope, m.gm, () => {}, config);
     await runSchoolppUserscript(page.scope, m.gm, () => {}, production);
     const client = createPublicUserscriptClient(page.scope, 100);
-    assert.equal((await client.ping()).version, "1.0.0");
+    assert.equal((await client.ping()).version, "1.0.1");
     await client.start(id);
     assert.equal(m.values.has(`schoolpp_job:${id}`), true);
     assert.equal(m.values.has(`schoolpp_test_job:${id}`), false);

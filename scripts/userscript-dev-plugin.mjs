@@ -1,9 +1,10 @@
 import { runSchoolppUserscript } from "../js/userscript-runtime.js";
 import { runIOSShortcutProbe } from "../js/ios-shortcut-probe.js";
 import { runUserscriptLaunchProbe } from "../js/userscript-launch-probe.js";
+import { USERSCRIPT_VERSION } from "../js/userscript-version.js";
 
 const VERSION = "0.1.1-test";
-const PUBLIC_VERSION = "1.0.1";
+const PUBLIC_VERSION = USERSCRIPT_VERSION;
 const PUBLIC_ORIGINS = ["https://schoolpp.com", "https://www.schoolpp.com"];
 function userscriptOrigins(port, configuredOrigin = "") {
   const origins = [`http://localhost:${port}`, `http://127.0.0.1:${port}`];
@@ -124,7 +125,24 @@ function userscriptDevPlugin() {
     },
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
-        const path = new URL(request.url, "http://localhost").pathname;
+        const url = new URL(request.url, "http://localhost");
+        const path = url.pathname;
+        // The existing local test installer returns here. Keep its v1 protocol
+        // out of the production sync page; this middleware runs only in dev.
+        if (
+          (!request.method || request.method === "GET") &&
+          path === "/userscripts-setup.html" &&
+          url.searchParams.get("returned") === "1"
+        ) {
+          response.statusCode = 302;
+          response.setHeader(
+            "Location",
+            "/dev/userscript-sync.html?returned=1&syncTiming=1",
+          );
+          response.setHeader("Cache-Control", "no-store");
+          response.end();
+          return;
+        }
         if (
           ![
             "/schoolpp-test.user.js",

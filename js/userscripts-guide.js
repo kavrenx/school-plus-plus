@@ -65,8 +65,15 @@ const screenshots = [
   ],
 ];
 
-function screenshot(index) {
-  const [src, width, height, alt] = screenshots[index];
+function screenshot(index, reinstall = false) {
+  const [src, width, height, alt] = reinstall
+    ? [
+        new URL("../assets/userscripts-guide/addit-step.jpg", import.meta.url).href,
+        1097,
+        1280,
+        "Предложение обновить установленный скрипт: Tap to re-install",
+      ]
+    : screenshots[index];
   return `<img class="userscripts-guide-image" src="${src}" width="${width}" height="${height}" alt="${alt}" loading="lazy" decoding="async">`;
 }
 
@@ -111,4 +118,23 @@ function renderUserscriptsGuide({ syncUrl = "" } = {}) {
   </div>`;
 }
 
-export { renderUserscriptsGuide, USERSCRIPTS_ICON };
+function renderUserscriptsUpdateGuide() {
+  return `<div class="userscripts-guide">
+    <p class="userscripts-guide-intro">Похоже, у вас старая версия скрипта для нашего дневника. Покажем, как её обновить.</p>
+    <p class="userscripts-install-notice"><strong>Прочтите пункты 1–4, затем откройте код кнопкой ниже.</strong></p>
+    <ol class="userscripts-guide-steps" role="list">
+      <li><p>На странице с кодом через пару секунд появится значок с полосками и пазликом. Нажмите на него.</p>${screenshot(6)}</li>
+      <li><p>Нажмите <strong>Userscripts с синей иконкой</strong>.</p>${screenshot(7)}</li>
+      <li><p>В окне Userscripts нажмите <strong>«Tap to re-install»</strong>.</p>${screenshot(8, true)}</li>
+      <li><p>Пролистните вниз и нажмите <strong>Install</strong>.</p>${screenshot(9)}</li>
+      <li><p>После установки закройте вкладку с кодом и вернитесь сюда.</p></li>
+    </ol>
+    <a id="installUserscript" class="primary-btn userscripts-install" href="./schoolpp.user.js" target="_blank" rel="noopener">Открыть код для обновления</a>
+    <section class="userscripts-ready" aria-labelledby="userscriptsReadyTitle">
+      <h2 id="userscriptsReadyTitle">Готово! Теперь можно снова синхронизировать дневник со School++.</h2>
+      <button class="primary-btn" id="startUserscript" type="button">Синхронизировать дневник</button>
+    </section>
+  </div>`;
+}
+
+export { renderUserscriptsGuide, renderUserscriptsUpdateGuide, USERSCRIPTS_ICON };
