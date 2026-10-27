@@ -1,4 +1,6 @@
 import { addIsoDays, parseIsoDateParts } from "./date-tools.js";
+import { cleanStudentName } from "./student-name.js";
+import { getResultColumns } from "./result-periods.js";
 import {
   normalizeSubjectName,
   shortSubjectName,
@@ -110,6 +112,10 @@ function adaptESchoolsSnapshot(snapshot) {
   const name = splitPersonName(profile);
   const classTitle = formatClassTitle(identity.classTitle, classItem);
   const classTeacher = findClassTeacher(records, snapshot.pages, classItem);
+  const finalGrades = createImportedFinalGrades(
+    records, academicYear, subjectModel,
+    { schoolId, classId, studentId, externalStudentId: ids.studentId },
+  );
 
   const school = {
     school: {
@@ -195,6 +201,7 @@ function adaptESchoolsSnapshot(snapshot) {
       hasBells: bells.length > 0,
     },
     journalEntries: diary.journalEntries,
+    finalGrades,
   };
 }
 
@@ -314,12 +321,14 @@ function createSubjects({
   const assignments = [];
   const scheduleSubjects = [];
   const subjectIdByTitle = new Map();
+  const sourceSubjectIds = new Map();
 
   const addSubject = (id, title, aliases = []) => {
     const titleKey = normalizeSubjectName(shortSubjectName(title));
     const subjectId =
       subjectIdByTitle.get(titleKey) || clean(id) || stableId(title);
     if (!subjectId || !clean(title)) return "";
+    if (clean(id)) sourceSubjectIds.set(clean(id), subjectId);
     if (titleKey) subjectIdByTitle.set(titleKey, subjectId);
     const previous = subjectById.get(subjectId);
     subjectById.set(subjectId, {
@@ -409,6 +418,8 @@ function createSubjects({
       item.school_subject?.as_json?.short_name ||
       item.school_subject?.as_json?.summary;
     const subjectId = addSubject(item.uuid, title);
+    const sourceId = clean(item.school_subject?.as_json?.subject?.as_json?.uuid);
+    if (subjectId && sourceId) sourceSubjectIds.set(sourceId, subjectId);
     asArray(item.templates).forEach((template) => {
       const teacherName = clean(
         [
@@ -465,6 +476,107 @@ function createSubjects({
     scheduleSubjects: mergeScheduleSubjects(scheduleSubjects),
     templateById,
     lessonTemplates,
+    sourceSubjectIds,
+  };
+}
+
+function createImportedFinalGrades(records, year, subjects, context) {
+  const { schoolId, classId, studentId, externalStudentId } = context;
+  if (!externalStudentId) return null;
+  const path = `/api/v1/education/diary/schools/${schoolId}/classes/${classId}/students/${externalStudentId}/final/whole`;
+  const record = records.find((item) => {
+    if (item.method !== "GET") return false;
+    try {
+      const url = new URL(item.url, "https://diary.e-schools.by");
+      return (
+        url.origin === "https://diary.e-schools.by" && url.pathname === path
+      );
+    } catch {
+      return false;
+    }
+  });
+  const marks = record?.body?.marks;
+  if (!marks || typeof marks !== "object" || Array.isArray(marks)) return null;
+  const columns = getResultColumns(year);
+  const quarters = columns.filter((column) => column.type === "quarter");
+  const halves = columns.filter((column) => column.type === "half");
+  const periodMap = new Map([
+    ...[
+      "FIRST_QUARTER",
+      "SECOND_QUARTER",
+      "THIRD_QUARTER",
+      "FOURTH_QUARTER",
+    ].map((key, index) => [key, quarters[index]]),
+    ["FIRST_HALF_YEAR", halves[0]],
+    ["SECOND_HALF_YEAR", halves[1]],
+    ["FIRST_HALF", halves[0]],
+    ["SECOND_HALF", halves[1]],
+    ["YEAR", columns.find((column) => column.type === "year")],
+    ["ANNUAL", columns.find((column) => column.type === "year")],
+  ]);
+  const assignments = [...subjects.assignments];
+  for (const template of subjects.templateById.values()) {
+    if (
+      !assignments.some(
+        (item) =>
+          item.subjectId === template.subjectId &&
+          (item.groupId || "") === (template.groupId || ""),
+      )
+    )
+      assignments.push({
+        id: `${classId}:${template.subjectId}:${template.groupId || ""}`,
+        subjectId: template.subjectId,
+        groupId: template.groupId || "",
+      });
+  }
+  const entries = [],
+    reporting = new Map();
+  for (const [sourceId, values] of Object.entries(marks)) {
+    if (!values || typeof values !== "object" || Array.isArray(values))
+      continue;
+    for (const [key, mark] of Object.entries(values)) {
+      const column = periodMap.get(key);
+      if (!column || !mark || typeof mark !== "object") continue;
+      const subjectId =
+        subjects.sourceSubjectIds.get(clean(mark.subject_id)) ||
+        subjects.sourceSubjectIds.get(sourceId);
+      if (!subjectId) continue;
+      const raw = getMarkValue(mark);
+      const value = /^(?:10|[1-9])$/.test(raw)
+        ? raw
+        : /^зач[её]т$/iu.test(raw)
+          ? "зачёт"
+          : /^незач[её]т$/iu.test(raw)
+            ? "незачёт"
+            : "";
+      if (!value) continue;
+      for (const assignment of assignments.filter(
+        (item) => item.subjectId === subjectId,
+      ))
+        entries.push({
+          termId: column.id,
+          assignmentId: assignment.id,
+          studentId,
+          value,
+        });
+      if (column.type !== "year" && reporting.get(subjectId) !== "quarter")
+        reporting.set(
+          subjectId,
+          column.type === "quarter" ? "quarter" : "half-year",
+        );
+    }
+  }
+  // Actual source finals carry a stronger period signal than timetable heuristics.
+  for (const item of [...subjects.subjects, ...subjects.assignments]) {
+    const period = reporting.get(item.subjectId || item.id);
+    if (period) item.assessmentPeriod = period;
+  }
+  return {
+    loaded: true,
+    studentId,
+    assignmentIds: assignments.map((item) => item.id),
+    periodIds: columns.map((column) => column.id),
+    entries,
   };
 }
 
@@ -1150,7 +1262,7 @@ function getStudentIdentity(pages = {}) {
   if (explicit?.name || explicit?.classTitle)
     return {
       classTitle: clean(explicit.classTitle),
-      name: clean(explicit.name),
+      name: cleanStudentName(explicit.name),
     };
   for (const page of values) {
     for (const heading of page?.headings || []) {
@@ -1160,13 +1272,13 @@ function getStudentIdentity(pages = {}) {
       if (match)
         return {
           classTitle: clean(match[1]),
-          name: clean(match[2]).replace(/[,;:]+$/, ""),
+          name: cleanStudentName(match[2]),
         };
     }
   }
   return {
     classTitle: "",
-    name: clean(values.map((page) => page?.profile?.label).find(Boolean)),
+    name: cleanStudentName(values.map((page) => page?.profile?.label).find(Boolean)),
   };
 }
 

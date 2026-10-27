@@ -437,7 +437,12 @@
       documentRef,
       /электронный дневник обучающегося\s+(\d+\s*[«"']?[А-ЯЁІЎA-Z]{1,3}[»"']?)\s+класса,\s*([А-ЯЁІЎA-Z][А-Яа-яЁёІіЎўA-Za-z'-]+(?:\s+(?:(?:[А-ЯЁІЎA-Z]\.){1,3}|[А-ЯЁІЎA-Z][а-яёіўa-z'-]+(?:\s+[А-ЯЁІЎA-Z][а-яёіўa-z'-]+)?)))/iu,
     );
-    return match ? { classTitle: match[1], name: match[2] } : null;
+    return match
+      ? {
+          classTitle: match[1],
+          name: match[2].replace(/\s*(?:текущие|итоговые)$/iu, "").trim(),
+        }
+      : null;
   }
 
   function collectClassTeacher(documentRef) {
@@ -482,7 +487,12 @@
     );
     if (pageText) candidates.push(pageText);
     for (const text of candidates) {
-      const match = text.match(pattern);
+      const start = text.search(/электронный дневник обучающегося/iu);
+      const section =
+        start < 0
+          ? text
+          : text.slice(start).split(/текущие\s*уроки|итоговые\s*отметки/iu)[0];
+      const match = section.match(pattern);
       if (match) return match;
     }
     return null;

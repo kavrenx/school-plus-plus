@@ -51,6 +51,29 @@ function createJournalStore(storage) {
     return { entry: normalized, persisted };
   }
 
+  // Imported student snapshots arrive together. Read and persist their shared
+  // document once; the existing single-entry mutation remains unchanged.
+  function saveJournalEntries(entries) {
+    const normalized = entries.map((entry) => normalizeEntry(entry));
+    if (!normalized.length) return { entries: normalized, persisted: true };
+    const latest = new Map();
+    const entryKey = (entry) => JSON.stringify([entry.lessonId, entry.studentId]);
+    for (const entry of normalized) {
+      const key = entryKey(entry);
+      latest.delete(key);
+      latest.set(key, entry);
+    }
+    const document = getDocument();
+    STUDENT_COLLECTIONS.forEach((collectionName) => {
+      Object.entries(document[collectionName]).forEach(([id, entity]) => {
+        if (latest.has(entryKey(entity))) delete document[collectionName][id];
+      });
+    });
+    for (const entry of latest.values())
+      replaceStudentLessonEntities(document, entry, false);
+    return { entries: normalized, persisted: saveDocument(document) !== false };
+  }
+
   function getLessonEntries(lessonId) {
     const document = getDocument();
     const studentIds = new Set();
@@ -130,6 +153,7 @@ function createJournalStore(storage) {
     getTermGrades,
     mergeLessonForStudent,
     saveJournalEntry,
+    saveJournalEntries,
     saveLessonWork,
     saveTermGrade,
   };
@@ -215,17 +239,19 @@ function migrateLegacyJournal(entries) {
   return document;
 }
 
-function replaceStudentLessonEntities(document, entry) {
-  STUDENT_COLLECTIONS.forEach((collectionName) => {
-    Object.entries(document[collectionName]).forEach(([id, entity]) => {
-      if (
-        entity.lessonId === entry.lessonId &&
-        entity.studentId === entry.studentId
-      ) {
-        delete document[collectionName][id];
-      }
+function replaceStudentLessonEntities(document, entry, clearExisting = true) {
+  if (clearExisting) {
+    STUDENT_COLLECTIONS.forEach((collectionName) => {
+      Object.entries(document[collectionName]).forEach(([id, entity]) => {
+        if (
+          entity.lessonId === entry.lessonId &&
+          entity.studentId === entry.studentId
+        ) {
+          delete document[collectionName][id];
+        }
+      });
     });
-  });
+  }
 
   entry.grades.forEach((value, index) => {
     const id = getEntityId(entry.lessonId, entry.studentId, "grade", index);

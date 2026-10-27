@@ -13,6 +13,7 @@ import { createPresentationController } from "./js/presentation-controller.js";
 import { createScreenController } from "./js/screen-controller.js";
 import { createSafeStorage, getBrowserStorage } from "./js/safe-storage.js";
 import { createStudentDashboardController } from "./js/student-dashboard-controller.js";
+import { createImportedFinalGradesView } from "./js/imported-final-grades.js";
 import { mount as mountTeacherMode } from "./js/teacher-mode.js";
 import { createThemeController } from "./js/theme-controller.js";
 import { escapeHtml, hideMessage, showMessage } from "./js/ui-utils.js";
@@ -411,7 +412,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     translate: t,
     onLogout: () => openModal(logoutModal),
     onThemeToggle: themeController.toggle,
-    journalStore,
+    journalStore: createImportedFinalGradesView(
+      journalStore, () => localData.finalGrades,
+    ),
     readOnlyDevice: deviceAccess.role === "linked",
     extensionMaterialsAvailable: !userscriptDiary,
     changeTracker,
@@ -751,6 +754,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function importJournalEntries(store, entries = []) {
+    if (typeof store.saveJournalEntries === "function") {
+      store.saveJournalEntries(entries);
+      return;
+    }
     entries.forEach((entry) => store.saveJournalEntry(entry));
   }
 });

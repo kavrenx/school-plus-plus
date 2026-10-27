@@ -1,5 +1,6 @@
 import { registerIcons } from "./icons.js";
 import { createSupabaseServices } from "./supabase-services.js";
+import { cleanStudentName } from "./student-name.js";
 
 const ADMIN_EMAIL = "support@schoolpp.com";
 const NUMBER = new Intl.NumberFormat("ru-RU");
@@ -334,7 +335,7 @@ function renderRegisteredStudents(students = []) {
     const name = document.createElement("strong");
     const className = document.createElement("small");
     const updated = document.createElement("time");
-    name.textContent = student.name || "Ученик";
+    name.textContent = cleanStudentName(student.name) || "Ученик";
     className.textContent = student.className || "Класс не указан";
     updated.dateTime = student.updatedAt || "";
     updated.textContent = student.updatedAt

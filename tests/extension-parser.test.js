@@ -60,6 +60,30 @@ test("extension parser stores each diary week under its own page key", () => {
   assert.match(page.key, /::week:2026-09-14$/);
 });
 
+test("desktop identity stops at navigation after the pupil banner, including joined text", () => {
+  for (const suffix of ["Текущие уроки", " Итоговые отметки", " Текущие"]) {
+    const window = new Window({ url: "https://diary.e-schools.by/#/diary" });
+    try {
+      window.document.body.innerHTML = `<h1>Электронный дневник</h1><div class="diary-wrapper"><nav>Текущие уроки</nav><span>Электронный дневник обучающегося 8 «Б» класса, Тестов Алексей</span><span>${suffix}</span></div>`;
+      const parser = loadGlobal(
+        "../extension/shared/e-schools-parser.js",
+      ).SchoolppEschoolParser;
+      assert.equal(
+        parser.collectStudentIdentity(window.document).name,
+        "Тестов Алексей",
+      );
+      window.document.body.innerHTML =
+        '<div class="diary-wrapper">Электронный дневник обучающегося 8 «Б» класса, Тестов Алексей Сергеевич<span>Текущие уроки</span></div>';
+      assert.equal(
+        parser.collectStudentIdentity(window.document).name,
+        "Тестов Алексей Сергеевич",
+      );
+    } finally {
+      window.close();
+    }
+  }
+});
+
 test("extension parser connects a visible material link to its lesson", () => {
   const window = new Window({ url: "https://diary.e-schools.by/#/diary" });
   window.document.body.innerHTML = `
