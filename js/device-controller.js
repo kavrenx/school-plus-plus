@@ -1,4 +1,3 @@
-import QRCode from "qrcode";
 import { escapeHtml as e } from "./ui-utils.js";
 import { describeDevice } from "./device-repository.js";
 import { createModalController } from "./modal-controller.js";
@@ -31,6 +30,7 @@ function createDeviceController({
   onDisconnected = async () => {},
   origin = windowRef.location.origin,
   now = () => Date.now(),
+  loadQrCode = async () => (await import("qrcode")).default,
 }) {
   const wrapper = root.createElement("div");
   wrapper.className = "modal-overlay hidden device-modal";
@@ -99,19 +99,43 @@ function createDeviceController({
     }
   }
   async function createPair() {
-    const pair = await (await getRepository()).createPairing();
-    ownerPair = pair;
-    const url = pairingUrl(origin, pair.code);
-    const qr = await QRCode.toString(url, {
-      type: "svg",
-      width: 240,
-      margin: 4,
-      errorCorrectionLevel: "M",
-      color: { dark: "#202721", light: "#fffdf8" },
-    });
-    content.innerHTML = `<div class="device-pair-code"><p>Отсканируй QR камерой телефона или введи код на сайте.</p><div class="device-qr">${qr}</div><strong>${e(pair.code.slice(0, 4))} ${e(pair.code.slice(4))}</strong><p class="device-expiry" data-device-expiry></p><a href="${e(url)}" target="_blank" rel="noreferrer">Открыть ссылку подключения</a><button class="onboarding-secondary" type="button" data-device-cancel>Отменить подключение</button></div>`;
-    updateExpiry();
-    start();
+    const button = content.querySelector("[data-device-create]");
+    const label = button?.textContent;
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Готовим QR-код…";
+    }
+    try {
+      let QRCode;
+      try {
+        QRCode = await loadQrCode();
+      } catch {
+        throw new Error(
+          "Не удалось загрузить QR-код. Проверь интернет и попробуй снова.",
+        );
+      }
+      // Closing or reopening the panel during the download cancels this action
+      // before any pairing request is created on the server.
+      if (!isOpen() || !button?.isConnected) return;
+      const pair = await (await getRepository()).createPairing();
+      ownerPair = pair;
+      const url = pairingUrl(origin, pair.code);
+      const qr = await QRCode.toString(url, {
+        type: "svg",
+        width: 240,
+        margin: 4,
+        errorCorrectionLevel: "M",
+        color: { dark: "#202721", light: "#fffdf8" },
+      });
+      content.innerHTML = `<div class="device-pair-code"><p>Отсканируй QR камерой телефона или введи код на сайте.</p><div class="device-qr">${qr}</div><strong>${e(pair.code.slice(0, 4))} ${e(pair.code.slice(4))}</strong><p class="device-expiry" data-device-expiry></p><a href="${e(url)}" target="_blank" rel="noreferrer">Открыть ссылку подключения</a><button class="onboarding-secondary" type="button" data-device-cancel>Отменить подключение</button></div>`;
+      updateExpiry();
+      start();
+    } finally {
+      if (button?.isConnected) {
+        button.disabled = false;
+        button.textContent = label;
+      }
+    }
   }
   function updateExpiry() {
     const node = content.querySelector("[data-device-expiry]");

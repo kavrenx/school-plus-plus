@@ -24,6 +24,118 @@ function environment() {
 }
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
+function lazyQrEnvironment(loadQrCode) {
+  const window = environment();
+  let created = 0;
+  const repository = {
+    list: async () => ({ access: { role: "owner" }, devices: [] }),
+    createPairing: async () => {
+      created++;
+      return {
+        id: "synthetic-pair",
+        status: "waiting",
+        code: "12345678",
+        expiresAt: new Date(Date.now() + 300000).toISOString(),
+      };
+    },
+  };
+  const controller = createDeviceController({
+    root: window.document,
+    windowRef: window,
+    repositoryProvider: async () => repository,
+    loadQrCode,
+  });
+  controller.bind();
+  return { window, controller, created: () => created };
+}
+
+test("QR code loads only after an explicit create action; pending download cannot create duplicate pairings", async () => {
+  let loads = 0,
+    resolveQr;
+  const f = lazyQrEnvironment(() => {
+    loads++;
+    return new Promise((resolve) => {
+      resolveQr = resolve;
+    });
+  });
+  try {
+    await f.controller.open();
+    assert.equal(loads, 0);
+    const button = f.window.document.querySelector("[data-device-create]");
+    button.click();
+    await flush();
+    assert.equal(loads, 1);
+    assert.equal(f.created(), 0);
+    assert.equal(button.disabled, true);
+    button.dispatchEvent(new f.window.MouseEvent("click", { bubbles: true }));
+    assert.equal(loads, 1);
+    resolveQr({
+      toString: async () => '<svg aria-label="synthetic QR"></svg>',
+    });
+    await flush();
+    assert.equal(f.created(), 1);
+    assert.ok(f.window.document.querySelector(".device-qr svg"));
+  } finally {
+    f.controller.stop();
+    await f.window.happyDOM.close();
+  }
+});
+
+test("failed QR download keeps pairing uncreated, shows a safe error and permits retry", async () => {
+  let loads = 0;
+  const f = lazyQrEnvironment(async () => {
+    if (++loads === 1) throw new Error("private loader details");
+    return { toString: async () => "<svg></svg>" };
+  });
+  try {
+    await f.controller.open();
+    const button = f.window.document.querySelector("[data-device-create]");
+    button.click();
+    await flush();
+    assert.equal(f.created(), 0);
+    assert.equal(button.disabled, false);
+    const message = f.window.document.querySelector(
+      "[data-device-error]",
+    ).textContent;
+    assert.match(message, /Не удалось загрузить QR-код/);
+    assert.doesNotMatch(message, /private loader/);
+    button.click();
+    await flush();
+    assert.equal(loads, 2);
+    assert.equal(f.created(), 1);
+    assert.ok(f.window.document.querySelector(".device-qr svg"));
+  } finally {
+    f.controller.stop();
+    await f.window.happyDOM.close();
+  }
+});
+
+test("closing or reopening the device panel cancels a pending QR download before the server mutation", async () => {
+  for (const reopen of [false, true]) {
+    let resolveQr;
+    const f = lazyQrEnvironment(
+      () =>
+        new Promise((resolve) => {
+          resolveQr = resolve;
+        }),
+    );
+    try {
+      await f.controller.open();
+      f.window.document.querySelector("[data-device-create]").click();
+      await flush();
+      f.window.document.querySelector("[data-device-close]").click();
+      if (reopen) await f.controller.open();
+      resolveQr({ toString: async () => "<svg></svg>" });
+      await flush();
+      assert.equal(f.created(), 0);
+      assert.equal(f.window.document.querySelector(".device-qr"), null);
+    } finally {
+      f.controller.stop();
+      await f.window.happyDOM.close();
+    }
+  }
+});
+
 test("pairing links preserve local address, replace old routes and reject unsafe origins", () => {
   assert.equal(
     pairingUrl("http://192.168.0.138:5174/?preview=diary#results", "12345678"),

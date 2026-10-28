@@ -65,23 +65,40 @@ function createDiaryHistoryRepository(
     await devices.saveEvents(batch);
     if (identity) storage?.removeItem(key(identity));
   }
+  function load(onSnapshot) {
+    return enqueue(async () => {
+      const data = await base.load();
+      previous = data?.payload ? structuredClone(data.payload) : null;
+      // Only the startup observer receives an early copy. Keep the existing
+      // queue and outbox -> history order, including for subsequent saves.
+      if (onSnapshot) onSnapshot(structuredClone(data));
+      try {
+        if (data) await publish();
+      } catch {
+        /* Retry the durable history queue on a later visit. */
+      }
+      try {
+        if (data) data.changes = await devices.history();
+      } catch {
+        /* Old servers still load personal diaries. */
+      }
+      return data;
+    });
+  }
   return {
-    load: () =>
-      enqueue(async () => {
-        const data = await base.load();
-        previous = data?.payload ? structuredClone(data.payload) : null;
-        try {
-          if (data) await publish();
-        } catch {
-          /* Retry the durable history queue on a later visit. */
-        }
-        try {
-          if (data) data.changes = await devices.history();
-        } catch {
-          /* Old servers still load personal diaries. */
-        }
-        return data;
-      }),
+    load: () => load(),
+    loadProgressively() {
+      let resolveSnapshot, rejectSnapshot;
+      const snapshot = new Promise((resolve, reject) => {
+        resolveSnapshot = resolve;
+        rejectSnapshot = reject;
+      });
+      const complete = load(resolveSnapshot);
+      // A failed initial read must reject both phases. Register the handler now
+      // even when startup chooses the extension and never awaits completion.
+      complete.catch(rejectSnapshot);
+      return { snapshot, complete };
+    },
     save: (snapshot, options = {}) =>
       enqueue(async () => {
         const measure = options.measure || ((_stage, run) => run());

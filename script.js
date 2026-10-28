@@ -25,6 +25,8 @@ import {
   subscribeToExtensionSnapshots,
 } from "./js/extension-import.js";
 import { adaptESchoolsSnapshot } from "./js/e-schools-adapter.js";
+import { requestStartupExtensionSnapshot } from "./js/startup-diary-source.js";
+import { createStartupDiaryLoad } from "./js/startup-history.js";
 import { createDiaryChangeTracker } from "./js/diary-changes.js";
 import { createAnalyticsPreviewData, createPreviewChangeBaseline } from "./js/analytics-preview.js";
 import {
@@ -298,6 +300,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     "Сохранённые данные останутся в School++ и в расширении.";
   confirmLogoutBtn.textContent = "Продолжить";
 
+  let startupDiaryLoadReady = null;
+  let startupHistoryCancelled = false;
+  window.addEventListener("pagehide", (event) => {
+    // BFCache pauses this document; the read rechecks its owner when resumed.
+    if (event.persisted) return;
+    startupHistoryCancelled = true;
+    void startupDiaryLoadReady?.then((load) => load?.cancel()).catch(() => {});
+  });
   let localData = await loadAppData();
   const analyticsPreview = mode === "local" && relayParams.get("preview") === "analytics";
   const previewValues = new Map();
@@ -434,6 +444,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   let teacherMode = null;
 
   init();
+  if (startupDiaryLoadReady) {
+    const scope = changeTracker.getState().scope;
+    void startupDiaryLoadReady.then((load) => load?.finish({
+      isSameDiary: () => changeTracker.getState().scope === scope,
+      onChanges: (changes) => {
+        if (changes.length) changeTracker.importShared(changes);
+      },
+      onState: (state) => studentDashboardController.refreshChanges(state),
+    })).catch(() => { console.warn("Не удалось загрузить историю изменений."); });
+  }
   const devicesButton = document.getElementById("studentDevicesButton");
   if (devicesButton) devicesButton.hidden = !diaryNetworkEnabled || deviceAccess.role === "linked";
   setDiaryFreshness();
@@ -693,13 +713,18 @@ document.addEventListener("DOMContentLoaded", async () => {
       throw new Error("Не удалось загрузить подключённый дневник.");
     }
     if (userscriptDiary) return { ...userscriptDiary.data, rawSnapshot: userscriptDiary.snapshot, hasSyncedData: true };
+    if (diaryNetworkEnabled) {
+      startupDiaryLoadReady = ensureCloudUser().then((owner) => {
+        if (startupHistoryCancelled) return null;
+        return createStartupDiaryLoad({
+          repository: services.diary, auth: services.auth, ownerId: owner.id,
+        });
+      });
+    }
     const savedDiaryPromise =
       diaryNetworkEnabled
         ? settleWithin(
-            (async () => {
-              await ensureCloudUser();
-              return services.diary.load();
-            })(),
+            startupDiaryLoadReady.then((load) => load?.snapshot),
             5_000,
             null,
           ).catch((error) => {
@@ -708,7 +733,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           })
         : Promise.resolve(null);
     try {
-      const snapshot = await requestExtensionSnapshot(window, 2_500);
+      const snapshot = await requestStartupExtensionSnapshot(window);
       if (snapshot) {
         if (diaryNetworkEnabled) {
           void (async () => {

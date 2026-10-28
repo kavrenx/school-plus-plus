@@ -7,6 +7,16 @@ import {
 import { createDiaryChangeTracker } from "../js/diary-changes.js";
 import { adaptESchoolsSnapshot } from "../js/e-schools-adapter.js";
 
+function deferred() {
+  let resolve, reject;
+  const promise = new Promise((yes, no) => {
+    resolve = yes;
+    reject = no;
+  });
+  return { promise, resolve, reject };
+}
+const flush = () => new Promise((resolve) => setImmediate(resolve));
+
 function snapshot(mark = "8", capturedAt = "2026-10-14T09:00:00Z") {
   return {
     source: "e-schools.by",
@@ -170,4 +180,110 @@ test("a failed history upload survives a repository restart and stays scoped to 
   assert.equal(received.length, 1);
   assert.equal(values.size, 0);
   assert.deepEqual(received[0].after, ["9"]);
+});
+
+test("progressive startup returns an isolated snapshot while retaining outbox, history and save ordering", async () => {
+  const upload = deferred(),
+    history = deferred(),
+    calls = [],
+    batches = [];
+  const values = new Map([
+    [
+      "schoolpp_changes_outbox_v1:owner",
+      JSON.stringify([{ id: "queued", type: "grades" }]),
+    ],
+  ]);
+  const original = snapshot();
+  const repository = createDiaryHistoryRepository(
+    {
+      load: async () => {
+        calls.push("load");
+        return { payload: original };
+      },
+      save: async () => {
+        calls.push("save");
+        return "saved";
+      },
+    },
+    {
+      saveEvents: async (events) => {
+        calls.push("publish");
+        batches.push(structuredClone(events));
+        await upload.promise;
+      },
+      history: async () => {
+        calls.push("history");
+        return history.promise;
+      },
+    },
+    {
+      getIdentity: async () => "owner",
+      storage: {
+        getItem: (key) => values.get(key),
+        setItem: (key, value) => values.set(key, value),
+        removeItem: (key) => values.delete(key),
+      },
+    },
+  );
+  const read = repository.loadProgressively();
+  const early = await read.snapshot;
+  early.payload.network.lessons.body[0].slots[0].lesson_marks[0].mark = "1";
+  const saving = repository.save(snapshot("9", "2026-10-14T10:00:00Z"));
+  await flush();
+  assert.deepEqual(calls, ["load", "publish"]);
+  assert.equal(values.size, 1);
+  upload.resolve();
+  await flush();
+  assert.deepEqual(calls, ["load", "publish", "history"]);
+  assert.equal(values.size, 0);
+  history.resolve([{ id: "shared" }]);
+  const complete = await read.complete;
+  assert.deepEqual(complete.changes, [{ id: "shared" }]);
+  assert.equal(
+    complete.payload.network.lessons.body[0].slots[0].lesson_marks[0].mark,
+    "8",
+  );
+  assert.equal(early.changes, undefined);
+  assert.equal(await saving, "saved");
+  assert.deepEqual(calls, ["load", "publish", "history", "save", "publish"]);
+  assert.deepEqual(batches[1][0].before, ["8"]);
+  assert.deepEqual(batches[1][0].after, ["9"]);
+});
+
+test("progressive failures reject both phases and an empty snapshot does not request history", async () => {
+  const failed = createDiaryHistoryRepository(
+    {
+      load: async () => {
+        throw Error("unavailable");
+      },
+    },
+    {},
+  );
+  const read = failed.loadProgressively();
+  await Promise.all([
+    assert.rejects(read.snapshot, /unavailable/),
+    assert.rejects(read.complete, /unavailable/),
+  ]);
+  const empty = createDiaryHistoryRepository(
+    { load: async () => null },
+    { history: async () => assert.fail("no snapshot") },
+  );
+  const missing = empty.loadProgressively();
+  assert.equal(await missing.snapshot, null);
+  assert.equal(await missing.complete, null);
+});
+
+test("a failed history request keeps the early snapshot usable and its failure does not break the queue", async () => {
+  const repository = createDiaryHistoryRepository(
+    { load: async () => ({ payload: snapshot() }) },
+    {
+      history: async () => {
+        throw Error("network");
+      },
+    },
+  );
+  const read = repository.loadProgressively();
+  assert.ok((await read.snapshot).payload);
+  assert.equal((await read.complete).changes, undefined);
+  assert.ok((await repository.load()).payload);
 });

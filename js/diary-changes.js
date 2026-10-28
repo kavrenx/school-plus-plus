@@ -263,21 +263,31 @@ function renderDiaryChangeGroups(
     today = "",
     timeZone = "Europe/Minsk",
     expandedDays = new Map(),
+    status = "ready",
   } = {},
 ) {
   const groups = groupDiaryChanges(state.changes, query, timeZone);
   const searching = Boolean(query.trim());
+  const notice =
+    status === "loading"
+      ? '<p class="achievement-note" role="status">Загружаем историю изменений…</p>'
+      : status === "unavailable"
+        ? '<p class="achievement-note" role="status">Не удалось обновить историю. Сохранённые изменения остаются доступны.</p>'
+        : "";
   const count = groups.reduce(
     (total, group) => total + group.changes.length,
     0,
   );
   if (!groups.length)
-    return searching
-      ? '<p class="diary-change-search-count" role="status">Ничего не найдено</p><p class="achievement-note">Попробуй другой предмет, отметку или название файла.</p>'
-      : '<div class="diary-changes-empty"><h3>Пока без изменений</h3><p>После следующей синхронизации здесь появятся новые отметки, задания и материалы.</p></div>';
+    return (
+      notice ||
+      (searching
+        ? '<p class="diary-change-search-count" role="status">Ничего не найдено</p><p class="achievement-note">Попробуй другой предмет, отметку или название файла.</p>'
+        : '<div class="diary-changes-empty"><h3>Пока без изменений</h3><p>После следующей синхронизации здесь появятся новые отметки, задания и материалы.</p></div>')
+    );
   const card = (change) =>
     `<li${change.read ? "" : ' class="is-new"'}><button type="button" class="diary-change-card" data-change-date="${e(change.date)}"><span class="diary-change-kind">${e(CHANGE_KINDS[change.type])}${change.read ? "" : " · новое"}</span><strong class="diary-change-subject">${e(change.subject)}</strong><span class="diary-change-lesson"><time datetime="${e(change.date)}">${e(formatDate(change.date))}</time> · ${e(change.number)} урок</span>${change.type === "materials" ? `<span class="diary-change-text">${e((change.after || []).join(", ") || "Добавлены прикреплённые материалы")}</span>` : `${change.before?.length ? `<span class="diary-change-text diary-change-before">Было: ${e(displayChangeValue(change.before))}</span>` : ""}<span class="diary-change-text">${change.before?.length ? "Стало" : "Добавлено"}: <strong>${e(displayChangeValue(change.after))}</strong></span>`}</button></li>`;
-  return `${searching ? `<p class="diary-change-search-count" role="status">Найдено: ${count}</p>` : ""}<div class="diary-change-days">${groups
+  return `${notice}${searching ? `<p class="diary-change-search-count" role="status">Найдено: ${count}</p>` : ""}<div class="diary-change-days">${groups
     .map(({ day, changes }) => {
       const expanded = searching || (expandedDays.get(day) ?? day === today);
       const id = `changes-day-${day}`;

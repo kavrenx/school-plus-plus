@@ -374,3 +374,68 @@ test("updates have unread badge, mark read on opening and link to lesson day", a
     await f.window.happyDOM.close();
   }
 });
+
+test("late history updates preserve the selected date, open search field and subject tools", async () => {
+  const f = fixture(390);
+  try {
+    const shared = f.changes.getState().changes;
+    f.changes.importShared([]);
+    f.controller.refreshChanges("loading");
+    const date = f.$("#studentDatePicker").value;
+    f.$("#studentChangesButton").click();
+    assert.ok(f.$("[data-changes-results] [role=status]"));
+    assert.equal(f.$(".diary-changes-empty"), null);
+    const search = f.$("[data-changes-search-input]");
+    search.focus();
+    search.value = shared[0].subject;
+    search.dispatchEvent(new f.window.Event("input", { bubbles: true }));
+    f.changes.importShared(shared);
+    f.controller.refreshChanges("ready");
+    assert.equal(f.$("[data-changes-search-input]"), search);
+    assert.equal(f.window.document.activeElement, search);
+    assert.equal(search.value, shared[0].subject);
+    assert.ok(f.$(".diary-change-card"));
+    assert.equal(f.$("#studentDatePicker").value, date);
+    assert.equal(f.$("#studentChangesCount").hidden, true);
+    assert.ok(f.changes.getState().changes.every((change) => change.read));
+    f.$("button.subject-detail-close[data-changes-close]").click();
+    f.$("#studentAchievementsButton").click();
+    f.$('[data-achievement-subject="assignment_mathematics_7b"]').click();
+    const goal = f.$("[data-grade-goal]");
+    goal.value = "8";
+    f.changes.importShared([
+      ...shared,
+      { ...shared[0], id: "late-synthetic-event" },
+    ]);
+    f.controller.refreshChanges("unavailable");
+    assert.equal(f.$("[data-grade-goal]"), goal);
+    assert.equal(goal.value, "8");
+    assert.equal(f.$("#studentChangesPanel").hidden, true);
+    assert.equal(f.$("#studentChangesCount").hidden, false);
+  } finally {
+    f.controller.destroy();
+    await f.window.happyDOM.close();
+  }
+});
+
+test("loading and failed history keep cached changes available and a successful retry clears the notice", async () => {
+  const f = fixture();
+  try {
+    f.controller.refreshChanges("loading");
+    f.$("#studentChangesButton").click();
+    assert.ok(f.$(".diary-change-card"));
+    assert.ok(f.$("[data-changes-results] .achievement-note[role=status]"));
+    f.controller.refreshChanges("unavailable");
+    assert.ok(f.$(".diary-change-card"));
+    assert.ok(f.$("[data-changes-results] .achievement-note[role=status]"));
+    f.controller.refreshChanges("ready");
+    assert.ok(f.$(".diary-change-card"));
+    assert.equal(
+      f.$("[data-changes-results] .achievement-note[role=status]"),
+      null,
+    );
+  } finally {
+    f.controller.destroy();
+    await f.window.happyDOM.close();
+  }
+});

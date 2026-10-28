@@ -147,6 +147,7 @@ function createStudentDashboardController({
   const changesButton = root.getElementById("studentChangesButton");
   const changesCount = root.getElementById("studentChangesCount");
   let displayedChanges = { changes: [] };
+  let changesStatus = "ready";
   const changeExpandedDays = new Map();
   const diaryButton = root.getElementById("studentDiaryButton");
   const achievementButton = root.getElementById("studentAchievementsButton");
@@ -654,6 +655,7 @@ function createStudentDashboardController({
 
   function changeGroupOptions() {
     return {
+      status: changesStatus,
       today: getSchoolDateIso(now()),
       timeZone: diary.school.timezone || "Europe/Minsk",
       expandedDays: changeExpandedDays,
@@ -680,6 +682,16 @@ function createStudentDashboardController({
       changeGroupOptions(),
     );
     updateChangeSearchAppearance();
+  }
+
+  function refreshChanges(status = "ready") {
+    changesStatus = status;
+    if (changesPanel && !changesPanel.hidden) {
+      displayedChanges = changeTracker?.getState() || { changes: [] };
+      refreshChangeSearch();
+      changeTracker?.markRead();
+    }
+    updateChangesCount();
   }
 
   function renderSchedule() {
@@ -1366,15 +1378,10 @@ function createStudentDashboardController({
     else if (selectedSection === "schedule") renderSchedule();
     else if (selectedSection === "diary") renderDiary();
     if (selectedSubjectId && selectedSection !== "results") renderSubjectPanel();
-    if (changesPanel && !changesPanel.hidden) {
-      displayedChanges = changeTracker?.getState() || { changes: [] };
-      refreshChangeSearch();
-      changeTracker?.markRead();
-    }
-    updateChangesCount();
+    refreshChanges();
   }
 
-  return { bind, destroy, show, showSection, updateUser, updateDiary };
+  return { bind, destroy, show, showSection, updateUser, updateDiary, refreshChanges };
 }
 
 function mergeMaterialLists(...collections) {
