@@ -27,6 +27,8 @@ import {
 import { adaptESchoolsSnapshot } from "./js/e-schools-adapter.js";
 import { requestStartupExtensionSnapshot } from "./js/startup-diary-source.js";
 import { createStartupDiaryLoad } from "./js/startup-history.js";
+import { createOwnerOperation } from "./js/owner-operation.js";
+import { createStudentStorage, studentSourceContext, isSameStudentSource } from "./js/student-storage.js";
 import { createDiaryChangeTracker } from "./js/diary-changes.js";
 import { createAnalyticsPreviewData, createPreviewChangeBaseline } from "./js/analytics-preview.js";
 import {
@@ -41,6 +43,7 @@ import { formatDiaryFreshness } from "./js/diary-freshness.js";
 import { readIOSPreview } from "./js/ios-shortcut-preview.js";
 import { createUserscriptClient, readUserscriptCache, readUserscriptDiary, shouldRefreshUserscript, USERSCRIPT_CACHE } from "./js/userscript-client.js";
 import { createUserscriptImporter } from "./js/userscript-import.js";
+import { requiresFreshDiarySync } from "./js/diary-write-context.js";
 import { createUserscriptAutoSync } from "./js/userscript-auto-sync.js";
 import { transitionToUserscriptSync } from "./js/userscript-progress.js";
 import { EXTENSION_STORE_URLS } from "./js/release-config.js";
@@ -74,6 +77,40 @@ document.addEventListener("DOMContentLoaded", async () => {
   let authUser = null;
   const browserStorage = createSafeStorage(getBrowserStorage(window));
   const linkedCache = createLinkedDiaryCache(browserStorage);
+  let studentStorage = null;
+  let studentSession = null;
+  let sessionOwner = "";
+  let sessionInvalidated = false;
+  let startupDiaryLoadReady = null;
+  let startupHistoryCancelled = false;
+
+  function invalidateStudentSession() {
+    if (sessionInvalidated) return;
+    sessionInvalidated = true;
+    studentStorage?.invalidate();
+    startupHistoryCancelled = true;
+    diaryRevisionWatcher?.stop();
+    deviceController?.stop();
+    const status = document.createElement("p");
+    status.setAttribute("role", "status");
+    status.textContent = "Сеанс изменился. Открываем актуальные данные…";
+    document.body.replaceChildren(status);
+    window.location.reload();
+  }
+
+  function bindStudentSession(user) {
+    if (mode !== "cloud" || !user?.id) return;
+    if (sessionOwner && sessionOwner !== user.id) invalidateStudentSession();
+    if (sessionInvalidated) throw new Error("Сеанс School++ изменился.");
+    if (studentSession) return;
+    sessionOwner = user.id;
+    studentSession = createOwnerOperation({
+      expectedOwner: sessionOwner,
+      getIdentity: async () => (await services.auth.getCachedUser())?.id || "",
+      subscribe: services.auth.onChange,
+    });
+    studentSession.signal.addEventListener("abort", invalidateStudentSession, { once: true });
+  }
 
   function settleWithin(promise, duration, fallback) {
     return Promise.race([
@@ -101,12 +138,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   async function ensureCloudUser() {
     if (!services) throw new Error("Подключение сервера не настроено.");
+    if (sessionInvalidated) throw new Error("Сеанс School++ изменился.");
     if (!cloudUserPromise) {
       cloudUserPromise = (async () => {
         const current = await services.auth.getUser();
-        if (current) return current;
-        const result = await services.auth.signInAnonymously();
-        return result.user;
+        if (sessionInvalidated) throw new Error("Сеанс School++ изменился.");
+        const user = current || (await services.auth.signInAnonymously()).user;
+        bindStudentSession(user);
+        return user;
       })().catch((error) => {
         cloudUserPromise = null;
         throw error;
@@ -125,6 +164,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const relayParams = new URLSearchParams(window.location.search);
   let userscriptOwner;
   try { userscriptOwner = await services?.auth.getCachedUser(); } catch { /* Cached data remain scoped to a known session. */ }
+  bindStudentSession(userscriptOwner);
   const userscriptDiary = readUserscriptDiary(browserStorage, userscriptOwner?.id);
   const userscriptCache = import.meta.env.DEV && !userscriptDiary ? readUserscriptCache(browserStorage) : null;
   const iosPreviewRequested = import.meta.env.DEV && relayParams.get("ios-import") === "preview";
@@ -142,14 +182,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.body.innerHTML =
       '<main class="relay-status" role="status">Обновляем School++…</main>';
     try {
-      await ensureCloudUser();
+      const relayUser = await ensureCloudUser();
       if (relayAction === "delete") {
-        await services.diary.remove();
+        await services.diary.remove({ expectedOwner: relayUser.id, signal: studentSession?.signal });
         browserStorage.removeItem(USERSCRIPT_CACHE);
       } else {
         const snapshot = await requestExtensionSnapshot(window, 4_000);
         if (!snapshot) throw new Error("Расширение не передало данные.");
-        await services.diary.save(snapshot);
+        await services.diary.save(snapshot, { expectedOwner: relayUser.id, signal: studentSession?.signal });
         void reportActivity("sync_received");
       }
       notifyExtensionImported(window);
@@ -157,7 +197,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     } catch (error) {
       console.warn("Не удалось сохранить фоновое обновление.", error);
       document.querySelector(".relay-status").textContent =
-        "Не удалось обновить данные";
+        requiresFreshDiarySync(error) ? error.message : "Не удалось обновить данные";
     }
     return;
   }
@@ -234,15 +274,21 @@ document.addEventListener("DOMContentLoaded", async () => {
       const access = await services.devices.access();
       if (access.role === "linked") return;
       const snapshot = await requestExtensionSnapshot(window, 2_500) || localData.rawSnapshot;
-      if (snapshot) await services.diary.save(snapshot);
+      if (snapshot) await services.diary.save(snapshot, {
+        expectedOwner: authUser.id, signal: studentSession?.signal,
+        ...(snapshot === localData.rawSnapshot && userscriptDiary
+          ? { writeContext: userscriptDiary.writeContext ?? { version: 1 } } : {}),
+      });
       const events = changeTracker.getState().changes;
-      if (events.length && !(await services.devices.history()).length) await services.devices.saveEvents(events.map(({ read: _read, ...event }) => event));
+      const ownerOptions = { expectedOwner: authUser.id, signal: studentSession?.signal };
+      if (events.length && !(await services.devices.history(ownerOptions)).length) await services.devices.saveEvents(events.map(({ read: _read, ...event }) => event), ownerOptions);
       deviceAccess = await services.devices.access();
     },
     onPaired: async () => {
       authUser = await ensureCloudUser();
       deviceAccess = await services.devices.access();
       const snapshot = await services.devices.readLinked();
+      if (studentSession) await studentSession.assertCurrent();
       if (!adaptESchoolsSnapshot(snapshot?.payload)?.diary?.weeks?.length) throw new Error("Дневник пока не готов. Обнови данные на компьютере и попробуй снова.");
       linkedCache.save(authUser.id, deviceAccess, snapshot);
       onboarding.complete();
@@ -300,19 +346,41 @@ document.addEventListener("DOMContentLoaded", async () => {
     "Сохранённые данные останутся в School++ и в расширении.";
   confirmLogoutBtn.textContent = "Продолжить";
 
-  let startupDiaryLoadReady = null;
-  let startupHistoryCancelled = false;
   window.addEventListener("pagehide", (event) => {
     // BFCache pauses this document; the read rechecks its owner when resumed.
     if (event.persisted) return;
+    studentSession?.dispose();
+    studentStorage?.invalidate();
     startupHistoryCancelled = true;
     void startupDiaryLoadReady?.then((load) => load?.cancel()).catch(() => {});
   });
   let localData = await loadAppData();
+  if (studentSession) {
+    try { await studentSession.assertCurrent(); }
+    catch {
+      if (!studentSession.signal.aborted) {
+        const status = document.createElement("p");
+        status.setAttribute("role", "status");
+        status.textContent = "Не удалось подтвердить сеанс. Проверьте соединение и обновите страницу.";
+        document.body.replaceChildren(status);
+      }
+      return;
+    }
+  }
+  if (!sessionOwner && diaryNetworkEnabled) {
+    try { bindStudentSession(await services.auth.getCachedUser()); } catch { /* Unidentified local data stay in memory only. */ }
+  }
   const analyticsPreview = mode === "local" && relayParams.get("preview") === "analytics";
   const previewValues = new Map();
   if (iosPreview) previewValues.set(STORAGE_KEYS.theme, browserStorage.getItem(STORAGE_KEYS.theme));
-  const changeTracker = createDiaryChangeTracker(analyticsPreview || iosPreview ? { getItem: (key) => previewValues.get(key), setItem: (key, value) => previewValues.set(key, value) } : createSafeStorage(getBrowserStorage(window)));
+  if (mode === "cloud" && !isLocalPreview) {
+    studentStorage = createStudentStorage(browserStorage, {
+      viewerId: sessionOwner || "",
+      ownerId: deviceAccess.role === "linked" ? deviceAccess.ownerId : sessionOwner || "",
+      ...studentSourceContext(localData),
+    });
+  }
+  const changeTracker = createDiaryChangeTracker(analyticsPreview || iosPreview ? { getItem: (key) => previewValues.get(key), setItem: (key, value) => previewValues.set(key, value) } : studentStorage || browserStorage);
   if (analyticsPreview) {
     const previewNow = Date.now();
     const baseline = createPreviewChangeBaseline(localData);
@@ -346,15 +414,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (Date.now() - lastExtensionRefresh < 2_000) return;
     lastExtensionRefresh = Date.now();
     const nextImport = adaptESchoolsSnapshot(snapshot);
-    if (nextImport?.diary?.weeks?.length) changeTracker.record(nextImport);
+    if (nextImport?.diary?.weeks?.length && isSameStudentSource(localData, nextImport)) changeTracker.record(nextImport);
     if (diaryNetworkEnabled) {
       try {
-        await ensureCloudUser();
-        await services.diary.save(snapshot);
+        const cloudUser = await ensureCloudUser();
+        await services.diary.save(snapshot, { expectedOwner: cloudUser.id, signal: studentSession?.signal });
         void reportActivity("sync_received");
         notifyExtensionImported(window);
       } catch (error) {
         console.warn("Не удалось сохранить обновление дневника.", error);
+        showDiarySaveFailure(error);
         return;
       }
     }
@@ -376,7 +445,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     storage,
     storageKeys: STORAGE_KEYS,
   });
-  const journalStore = repositories.journal;
+  const studentRepositories = studentStorage ? createDemoRepositories({
+    storage: createPreviewStorage(studentStorage), storageKeys: STORAGE_KEYS,
+  }) : repositories;
+  const journalStore = studentRepositories.journal;
   importJournalEntries(journalStore, localData.journalEntries);
   const modalController = createModalController();
   connectionStatusText.textContent = t("connectionOffline");
@@ -432,7 +504,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   const profileController = createProfileController({
     root: document,
-    avatarRepository: repositories.avatars,
+    avatarRepository: studentRepositories.avatars,
     translate: t,
     modal: { close: closeModal, open: openModal },
     feedback: { hide: hideMessage, show: showMessage },
@@ -461,8 +533,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       initialRevision: localData.cloudUpdatedAt,
       onUpdate: async (access) => {
         const saved = access.role === "linked" ? await services.devices.readLinked() : await services.diary.load();
+        if (studentSession) await studentSession.assertCurrent();
         const imported = adaptESchoolsSnapshot(saved?.payload);
         if (!imported?.diary?.weeks?.length) return;
+        if (studentStorage && !isSameStudentSource(localData, imported)) {
+          notificationController.show("На сервере изменился дневник. Запустите синхронизацию, чтобы открыть актуальные данные.");
+          return;
+        }
         if (access.role === "linked") linkedCache.save(authUser?.id, access, saved);
         if (!localData.importedAt || !imported.importedAt || imported.importedAt >= localData.importedAt) {
           localData = { ...imported, rawSnapshot: saved.payload, hasSyncedData: true, cloudUpdatedAt: saved.updated_at };
@@ -490,12 +567,22 @@ document.addEventListener("DOMContentLoaded", async () => {
     node.classList.toggle("is-unavailable", unavailable);
   }
 
+  function showDiarySaveFailure(error) {
+    if (!requiresFreshDiarySync(error) || sessionInvalidated) return;
+    const status = document.getElementById("studentSyncStatus");
+    if (status) {
+      status.hidden = false;
+      status.textContent = "Облачный дневник уже изменился. Обнови страницу и выполни синхронизацию заново.";
+    }
+  }
+
   async function disconnectLinkedDevice() {
     diaryRevisionWatcher?.stop(); deviceController?.stop();
     linkedCache.clear();
     browserStorage.removeItem(ONBOARDING_KEY);
-    browserStorage.removeItem("schoolpp_empty_schoolPlusPlus_journalEntries");
-    browserStorage.removeItem("schoolpp_diary_changes_v1");
+    (studentStorage || browserStorage).removeItem("schoolpp_empty_schoolPlusPlus_journalEntries");
+    (studentStorage || browserStorage).removeItem("schoolpp_diary_changes_v1");
+    studentStorage?.invalidate();
     window.history.replaceState(null, "", "#connect/mobile");
     window.location.reload();
   }
@@ -508,9 +595,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (update) { update.hidden = false; update.addEventListener("click", synchronize); }
       if (userscriptDiary.cloudPending) {
         if (syncStatus) { syncStatus.hidden = false; syncStatus.textContent = "Дневник сохранён на телефоне. Ожидаем подтверждение сервера…"; }
-        void createUserscriptImporter({ services, storage: browserStorage }).retryUpload().then((saved) => {
+        void createUserscriptImporter({ services, storage: browserStorage }).retryUpload(userscriptOwner.id).then((saved) => {
           if (syncStatus) { syncStatus.hidden = saved; syncStatus.textContent = saved ? "" : "Дневник доступен на телефоне. Сохранение на сервере можно повторить кнопкой синхронизации."; }
-        }).catch(() => { if (syncStatus) syncStatus.textContent = "Дневник доступен на телефоне. Для сохранения на сервере проверь соединение."; });
+        }).catch((error) => { if (syncStatus) syncStatus.textContent = requiresFreshDiarySync(error) ? error.message : "Дневник доступен на телефоне. Для сохранения на сервере проверь соединение."; });
       }
       createUserscriptAutoSync({
         windowRef: window, ownerId: userscriptOwner.id,
@@ -622,7 +709,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     teacherMode = mountTeacherMode(teacherScreen, {
       user,
       model: diary,
-      store: journalStore,
+      store: repositories.journal,
       onLogout: () => openModal(logoutModal),
       onThemeToggle: themeController.toggle,
       syncTheme: () => themeController.syncControl(teacherScreen),
@@ -737,11 +824,12 @@ document.addEventListener("DOMContentLoaded", async () => {
             try {
               const cloudUser = await settleWithin(ensureCloudUser(), 5_000, null);
               if (!cloudUser) return;
-              await settleWithin(services.diary.save(snapshot), 7_000, null);
+              await services.diary.save(snapshot, { expectedOwner: cloudUser.id, signal: studentSession?.signal });
               void reportActivity("sync_received");
               notifyExtensionImported(window);
             } catch (error) {
               console.warn("Не удалось сохранить данные расширения в облаке.", error);
+              showDiarySaveFailure(error);
             }
           })();
         }

@@ -1,4 +1,5 @@
 import { readIOSShortcutExport } from "./ios-shortcut-preview.js";
+import { validateDiaryWriteContext } from "./diary-write-context.js";
 import { getUserscriptVersionStatus } from "./userscript-version.js";
 
 const TEST_CACHE = "schoolpp_userscript_test_v1";
@@ -219,9 +220,10 @@ function createUserscriptClient(
           if (publicRelease) {
             const status = getUserscriptVersionStatus(result.version);
             if (status !== "current") {
-              const code = status === "outdated"
-                ? "script_update_required"
-                : "script_version_unknown";
+              const code =
+                status === "outdated"
+                  ? "script_update_required"
+                  : "script_version_unknown";
               const error = new Error(userscriptMessage(code));
               error.code = code;
               error.diagnostic = diagnostic();
@@ -264,6 +266,9 @@ function readDiary(storage, userId, now, parse) {
       text: saved.text,
       savedAt: saved.savedAt,
       cloudPending: saved.cloudPending === true,
+      ...(saved.writeContext === undefined
+        ? {}
+        : { writeContext: saved.writeContext }),
     };
   } catch {
     return null;
@@ -273,17 +278,23 @@ function saveUserscriptDiary(
   storage,
   userId,
   text,
-  { cloudPending = true, now = Date.now() } = {},
+  { cloudPending = true, now = Date.now(), writeContext } = {},
 ) {
   return saveDiary(
     storage,
     userId,
     text,
-    { cloudPending, now },
+    { cloudPending, now, writeContext },
     readIOSShortcutExport,
   );
 }
-function saveDiary(storage, userId, text, { cloudPending, now }, parse) {
+function saveDiary(
+  storage,
+  userId,
+  text,
+  { cloudPending, now, writeContext },
+  parse,
+) {
   if (!userId) throw new Error("Не удалось подтвердить сеанс School++.");
   const parsed = parse(text);
   if (parsed.snapshot?.import?.transport !== "userscript")
@@ -295,6 +306,9 @@ function saveDiary(storage, userId, text, { cloudPending, now }, parse) {
     text,
     savedAt: now,
     cloudPending,
+    ...(writeContext === undefined
+      ? {}
+      : { writeContext: validateDiaryWriteContext(writeContext) }),
   });
   if (
     storage.setItem(USERSCRIPT_CACHE, serialized) === false ||
@@ -332,9 +346,19 @@ function createUserscriptDiaryStorage(
       if (!result) clear();
       return result ? structuredClone(result) : null;
     },
-    save(userId, text, { cloudPending = true, now = Date.now() } = {}) {
+    save(
+      userId,
+      text,
+      { cloudPending = true, now = Date.now(), writeContext } = {},
+    ) {
       return structuredClone(
-        saveDiary(storage, userId, text, { cloudPending, now }, parse),
+        saveDiary(
+          storage,
+          userId,
+          text,
+          { cloudPending, now, writeContext },
+          parse,
+        ),
       );
     },
   };

@@ -16,6 +16,7 @@ const STAGES = new Set([
   "cloud_baseline",
   "cloud_snapshot",
   "cloud_write_auth",
+  "cloud_write_context",
   "cloud_upsert",
   "history_compare",
   "history_publish",

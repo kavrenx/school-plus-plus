@@ -20,7 +20,18 @@ const DEVICE_MESSAGES = {
 };
 
 function createDeviceRepository(client, { timeoutMs = 12_000 } = {}) {
-  async function call(name, params = {}) {
+  async function call(name, params = {}, options = {}) {
+    if (options.signal?.aborted)
+      throw options.signal.reason || new Error("Сохранение отменено.");
+    const check = () => {
+      if (options.signal?.aborted)
+        throw options.signal.reason || new Error("Сохранение отменено.");
+      if (
+        options.expectedOwner &&
+        auth?.data?.user?.id !== options.expectedOwner
+      )
+        throw new Error("Сеанс School++ изменился. Запусти обновление заново.");
+    };
     let timer, auth;
     try {
       auth = await Promise.race([
@@ -41,10 +52,23 @@ function createDeviceRepository(client, { timeoutMs = 12_000 } = {}) {
       clearTimeout(timer);
     }
     if (!auth.data?.user) throw new Error(DEVICE_MESSAGES.sign_in_required);
+    check();
     let request = client.rpc(name, params);
-    if (request.abortSignal && globalThis.AbortSignal?.timeout)
-      request = request.abortSignal(AbortSignal.timeout(timeoutMs));
-    const { data, error } = await request;
+    const controller = new AbortController();
+    const abort = () => controller.abort(options.signal.reason);
+    options.signal?.addEventListener("abort", abort, { once: true });
+    if (options.signal?.aborted) abort();
+    const requestTimer = setTimeout(() => controller.abort(), timeoutMs);
+    let result;
+    try {
+      if (request.abortSignal) request = request.abortSignal(controller.signal);
+      result = await request;
+      check();
+    } finally {
+      clearTimeout(requestTimer);
+      options.signal?.removeEventListener("abort", abort);
+    }
+    const { data, error } = result;
     if (error) {
       const unavailable = new Error(
         "Подключение устройств временно недоступно. Проверь соединение и попробуй снова.",
@@ -80,9 +104,9 @@ function createDeviceRepository(client, { timeoutMs = 12_000 } = {}) {
     revoke: (id) => call("revoke_diary_device", { p_id: id }),
     revision: () => call("get_my_diary_revision"),
     readLinked: () => call("get_linked_diary_snapshot"),
-    history: () => call("get_my_diary_changes"),
-    saveEvents: (events) =>
-      call("save_diary_change_events", { p_events: events }),
+    history: (options) => call("get_my_diary_changes", {}, options),
+    saveEvents: (events, options) =>
+      call("save_diary_change_events", { p_events: events }, options),
   });
 }
 
@@ -162,8 +186,7 @@ function createDiaryRevisionWatcher({
       }
       if (
         next.updatedAt &&
-        (next.updatedAt !== revision ||
-          nextChangesRevision !== changesRevision)
+        (next.updatedAt !== revision || nextChangesRevision !== changesRevision)
       ) {
         await onUpdate(next.access);
         if (!running || currentGeneration !== generation) return;

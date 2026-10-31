@@ -11,6 +11,7 @@ import {
 import { createSyncTimings } from "./sync-timings.js";
 import { writeClipboardText } from "./clipboard.js";
 import { isUserscriptUpdateError } from "./userscript-version.js";
+import { requiresFreshDiarySync } from "./diary-write-context.js";
 
 function createUserscriptSyncController({
   windowRef,
@@ -75,22 +76,32 @@ function createUserscriptSyncController({
   }
   function showError(error) {
     timings.finish("failed");
+    const fresh = requiresFreshDiarySync(error);
     progress.error(error.message || "Проверьте интернет и попробуйте снова.", [
-      { label: "Вернуться назад", primary: true, run: () => action(back) },
+      ...(fresh
+        ? [
+            {
+              label: "Синхронизировать заново",
+              primary: true,
+              run: () => action(startSync),
+            },
+          ]
+        : []),
+      { label: "Вернуться назад", primary: !fresh, run: () => action(back) },
       ...(cached
         ? [{ label: "Открыть без синхронизации", run: () => action(openDiary) }]
         : []),
       ...(timings.enabled
         ? [{ label: "Скопировать замеры", run: copyTimings }]
         : []),
-      ...(cached?.cloudPending
+      ...(!fresh && cached?.cloudPending
         ? [
             {
               label: "Повторить сохранение",
               run: () =>
                 action(async () => {
                   await progress.phase("Финальные штрихи…");
-                  if (!(await importer.retryUpload()))
+                  if (!(await importer.retryUpload(cacheOwner)))
                     throw new Error(
                       "Сервер пока недоступен. Дневник сохранён на телефоне.",
                     );
@@ -137,7 +148,10 @@ function createUserscriptSyncController({
     } catch (error) {
       if (isUserscriptUpdateError(error)) {
         timings.finish("failed");
-        navigate(new URL("./userscripts-setup.html?update=1", windowRef.location.href).href);
+        navigate(
+          new URL("./userscripts-setup.html?update=1", windowRef.location.href)
+            .href,
+        );
         return;
       }
       try {
@@ -186,11 +200,21 @@ function createUserscriptSyncController({
       wait(400),
     ]);
     const userId = await importer.prepare();
+    const writeContext = importer.getWriteContext
+      ? await timings.measure("cloud_write_context", () =>
+          importer.getWriteContext(userId),
+        )
+      : undefined;
     await Promise.all([loadCache(userId), clearRequest()]);
     const id = newUserscriptId(windowRef);
     windowRef.sessionStorage.setItem(
       USERSCRIPT_PENDING,
-      JSON.stringify({ id, userId, createdAt: Date.now() }),
+      JSON.stringify({
+        id,
+        userId,
+        createdAt: Date.now(),
+        ...(writeContext === undefined ? {} : { writeContext }),
+      }),
     );
     storage.setItem(USERSCRIPT_ATTEMPT, String(Date.now()));
     await progress.phase("Открываем ваш дневник…");
@@ -236,7 +260,9 @@ function createUserscriptSyncController({
       error.code = result.code || "collection_failed";
       throw error;
     }
-    const imported = await importer.commit(result.export, request.userId);
+    const imported = await importer.commit(result.export, request.userId, {
+      writeContext: request.writeContext,
+    });
     if (imported.summary?.elapsedMs)
       timings.record("collection", imported.summary.elapsedMs);
     await loadCache(imported.userId);

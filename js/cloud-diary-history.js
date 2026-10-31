@@ -1,12 +1,17 @@
 import { adaptESchoolsSnapshot } from "./e-schools-adapter.js";
+import { createOwnerOperation } from "./owner-operation.js";
+import { isSameStudentSource } from "./student-storage.js";
 import {
   createChangeSnapshot,
   compareChangeSnapshots,
 } from "./diary-changes.js";
 
 async function makeSharedEvents(previous, snapshot) {
-  const old = createChangeSnapshot(adaptESchoolsSnapshot(previous));
-  const next = createChangeSnapshot(adaptESchoolsSnapshot(snapshot));
+  const before = adaptESchoolsSnapshot(previous);
+  const after = adaptESchoolsSnapshot(snapshot);
+  if (!isSameStudentSource(before, after)) return [];
+  const old = createChangeSnapshot(before);
+  const next = createChangeSnapshot(after);
   if (!old || !next || old.scope !== next.scope) return [];
   const syncedAt = snapshot.capturedAt || new Date().toISOString();
   const differences = compareChangeSnapshots(old.rows, next.rows).changes;
@@ -30,18 +35,52 @@ async function makeSharedEvents(previous, snapshot) {
 function createDiaryHistoryRepository(
   base,
   devices,
-  { storage, getIdentity = async () => "" } = {},
+  { storage, getIdentity, subscribeIdentity, timeoutMs = 20_000 } = {},
 ) {
   let previous = null;
+  let previousOwner = "";
   let pendingOperation = Promise.resolve();
-  function enqueue(operation) {
-    const result = pendingOperation.then(operation);
+  function enqueue(operation, options = {}) {
+    const scope = createOwnerOperation({
+      getIdentity,
+      subscribe: subscribeIdentity,
+      expectedOwner: options.expectedOwner,
+      signal: options.signal,
+      timeoutMs,
+    });
+    const result = pendingOperation.then(async () => {
+      try {
+        const identity = await scope.assertCurrent();
+        if (identity !== previousOwner) {
+          previous = null;
+          previousOwner = identity;
+        }
+        return await operation(scope, identity);
+      } finally {
+        scope.dispose();
+      }
+    });
     pendingOperation = result.catch(() => {});
     return result;
   }
   const key = (id) => `schoolpp_changes_outbox_v1:${id}`;
-  async function publish(events = []) {
-    const identity = await getIdentity();
+  async function metadataOperation(scope, identity, run) {
+    // A history timeout must not undo an acknowledged snapshot.
+    scope.clearDeadline();
+    const metadata = createOwnerOperation({
+      getIdentity,
+      expectedOwner: identity,
+      signal: scope.signal,
+      timeoutMs,
+    });
+    try {
+      return await run(metadata);
+    } finally {
+      metadata.dispose();
+    }
+  }
+  async function publish(scope, identity, events = []) {
+    await scope.assertCurrent();
     let pending = [];
     try {
       pending = JSON.parse(storage?.getItem(key(identity)) || "[]");
@@ -61,31 +100,68 @@ function createDiaryHistoryRepository(
       batch.pop();
     if (!batch.length) return;
     // Persist before sending so the next visit can retry a failed history upload.
-    if (identity) storage?.setItem(key(identity), JSON.stringify(batch));
-    await devices.saveEvents(batch);
-    if (identity) storage?.removeItem(key(identity));
+    const serialized = JSON.stringify(batch);
+    if (identity) storage?.setItem(key(identity), serialized);
+    await scope.wait(
+      devices.saveEvents(batch, {
+        expectedOwner: identity,
+        signal: scope.signal,
+      }),
+    );
+    await scope.assertCurrent();
+    // Another tab may have appended events while this request was in flight.
+    if (identity && storage?.getItem(key(identity)) === serialized)
+      storage?.removeItem(key(identity));
   }
   function load(onSnapshot) {
-    return enqueue(async () => {
-      const data = await base.load();
+    return enqueue(async (scope, identity) => {
+      const data = await scope.wait(
+        base.load({ expectedOwner: identity, signal: scope.signal }),
+      );
+      await scope.assertCurrent();
       previous = data?.payload ? structuredClone(data.payload) : null;
       // Only the startup observer receives an early copy. Keep the existing
       // queue and outbox -> history order, including for subsequent saves.
       if (onSnapshot) onSnapshot(structuredClone(data));
-      try {
-        if (data) await publish();
-      } catch {
-        /* Retry the durable history queue on a later visit. */
-      }
-      try {
-        if (data) data.changes = await devices.history();
-      } catch {
-        /* Old servers still load personal diaries. */
-      }
+      if (data)
+        await metadataOperation(scope, identity, async (metadata) => {
+          try {
+            await publish(metadata, identity);
+          } catch {
+            await scope.assertCurrent();
+            /* Retry the durable history queue on a later visit. */
+          }
+          try {
+            await metadata.assertCurrent();
+            const changes = await metadata.wait(
+              devices.history({
+                expectedOwner: identity,
+                signal: metadata.signal,
+              }),
+            );
+            await scope.assertCurrent();
+            data.changes = changes;
+          } catch {
+            await scope.assertCurrent();
+            /* Old servers still load personal diaries. */
+          }
+        });
       return data;
     });
   }
   return {
+    getWriteContext: (options = {}) =>
+      enqueue(async (scope, identity) => {
+        if (!base.getWriteContext) return { version: 1 };
+        const context = await scope.wait(
+          base.getWriteContext({
+            expectedOwner: identity || options.expectedOwner,
+            signal: scope.signal,
+          }),
+        );
+        await scope.assertCurrent();
+        return context;
+      }, options),
     load: () => load(),
     loadProgressively() {
       let resolveSnapshot, rejectSnapshot;
@@ -99,40 +175,76 @@ function createDiaryHistoryRepository(
       complete.catch(rejectSnapshot);
       return { snapshot, complete };
     },
-    save: (snapshot, options = {}) =>
-      enqueue(async () => {
+    save(snapshot, options = {}) {
+      const captured = structuredClone(snapshot);
+      return enqueue(async (scope, identity) => {
         const measure = options.measure || ((_stage, run) => run());
+        async function check() {
+          await scope.assertCurrent();
+          if (options.isCurrent && !(await options.isCurrent()))
+            throw new Error(
+              "Сохранение отменено: получен более новый дневник.",
+            );
+        }
+        await check();
         if (!previous) {
           try {
-            previous =
-              (await measure("cloud_baseline", () => base.load()))?.payload || null;
+            const baseline = await measure("cloud_baseline", () =>
+              scope.wait(
+                base.load({ expectedOwner: identity, signal: scope.signal }),
+              ),
+            );
+            await check();
+            previous = baseline?.payload
+              ? structuredClone(baseline.payload)
+              : null;
           } catch {
+            await check();
             /* Initial imports don't require a baseline. */
           }
         }
         const before = previous;
-        if (options.signal?.aborted) throw new Error("Сохранение отменено.");
+        await check();
         const result = await measure("cloud_snapshot", () =>
-          base.save(snapshot, options),
+          scope.wait(
+            base.save(captured, {
+              ...options,
+              expectedOwner: identity || options.expectedOwner,
+              signal: scope.signal,
+            }),
+          ),
         );
-        previous = structuredClone(snapshot);
+        await scope.assertCurrent();
+        previous = structuredClone(captured);
         try {
-          const events = await measure("history_compare", () =>
-            makeSharedEvents(before, snapshot),
-          );
-          await measure("history_publish", () => publish(events));
+          await metadataOperation(scope, identity, async (metadata) => {
+            const events = await measure("history_compare", () =>
+              metadata.wait(makeSharedEvents(before, captured)),
+            );
+            await measure("history_publish", () =>
+              publish(metadata, identity, events),
+            );
+          });
         } catch {
+          await scope.assertCurrent();
           /* A history error must not undo a successfully saved diary. */
         }
         return result;
-      }),
-    remove: () =>
-      enqueue(async () => {
-        await base.remove();
+      }, options);
+    },
+    remove: (options = {}) =>
+      enqueue(async (scope, identity) => {
+        await scope.wait(
+          base.remove({
+            ...options,
+            expectedOwner: identity || options.expectedOwner,
+            signal: scope.signal,
+          }),
+        );
+        await scope.assertCurrent();
         previous = null;
-        const identity = await getIdentity();
         if (identity) storage?.removeItem(key(identity));
-      }),
+      }, options),
   };
 }
 

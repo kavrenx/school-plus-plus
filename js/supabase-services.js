@@ -24,11 +24,13 @@ function createSupabaseServices(env = {
     },
   });
   const devices = createDeviceRepository(client);
+  const auth = createCloudAuth(client);
   return Object.freeze({
-    auth: createCloudAuth(client),
+    auth,
     diary: createDiaryHistoryRepository(createCloudDiaryRepository(client), devices, {
       storage: createSafeStorage(getBrowserStorage(globalThis.window)),
       getIdentity: async () => (await client.auth.getSession()).data?.session?.user?.id || "",
+      subscribeIdentity: auth.onChange,
     }),
     devices,
     support: createSupportRepository(client),

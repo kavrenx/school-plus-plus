@@ -7,6 +7,12 @@ import {
   USERSCRIPT_CACHE,
 } from "../js/userscript-client.js";
 import { createCloudDiaryRepository } from "../js/cloud-diary-repository.js";
+import { createDiaryHistoryRepository } from "../js/cloud-diary-history.js";
+import {
+  createOwnerSession,
+  deferred,
+  flush,
+} from "./helpers/owner-session.js";
 
 function sampleExport() {
   const record = (url, body) => ({ url, body, method: "GET", status: 200 });
@@ -169,4 +175,216 @@ test("the database repository rechecks the expected owner before issuing an upse
     repository.save({ source: "e-schools.by" }, { expectedOwner: "owner" }),
     /Сеанс School/,
   );
+});
+
+test("a timed-out auth read cannot later create an anonymous account", async () => {
+  const auth = deferred();
+  const f = fixture();
+  f.services.auth.getUser = () => auth.promise;
+  await assert.rejects(
+    createUserscriptImporter({ ...f, timeoutMs: 15 }).prepare(),
+    /не ответил/,
+  );
+  auth.resolve(null);
+  await flush();
+  assert.equal(f.values.size, 0);
+});
+
+test("a changed session during access validation cannot replace the local diary", async () => {
+  const f = fixture();
+  const session = createOwnerSession("owner");
+  f.services.auth.getCachedUser = async () => ({
+    id: await session.getIdentity(),
+  });
+  f.services.auth.onChange = session.subscribeIdentity;
+  f.services.devices.access = async () => {
+    session.change("another-owner");
+    session.change("owner");
+    return { role: "owner" };
+  };
+  saveUserscriptDiary(f.storage, "owner", sampleExport());
+  const before = f.values.get(USERSCRIPT_CACHE);
+  await assert.rejects(
+    createUserscriptImporter(f).commit(sampleExport(), "owner"),
+    /Сеанс/,
+  );
+  assert.equal(f.values.get(USERSCRIPT_CACHE), before);
+  assert.equal(session.active, 0);
+});
+
+test("an older preparation finishing late cannot overwrite a newer import from another importer", async () => {
+  const auth = deferred();
+  let calls = 0,
+    writes = 0;
+  const f = fixture({ save: async () => writes++ });
+  f.services.auth.getUser = () =>
+    ++calls === 1 ? auth.promise : Promise.resolve({ id: "owner" });
+  const first = createUserscriptImporter(f).commit(sampleExport(), "owner");
+  const rejection = assert.rejects(first, /новая попытка/);
+  await flush();
+  const next = JSON.parse(sampleExport());
+  next.snapshot.network.lessons.body[0].slots[0].lesson_mark.mark = "10";
+  const text = JSON.stringify(next);
+  await createUserscriptImporter(f).commit(text, "owner");
+  auth.resolve({ id: "owner" });
+  await rejection;
+  assert.equal(readUserscriptDiary(f.storage, "owner").text, text);
+  assert.equal(writes, 1);
+});
+
+test("a late successful upload cannot clear the pending state of a newer failed upload", async () => {
+  const upload = deferred();
+  let calls = 0;
+  const f = fixture({
+    save: async () => {
+      if (++calls === 1) return upload.promise;
+      throw new Error("offline");
+    },
+  });
+  const old = createUserscriptImporter(f).commit(sampleExport(), "owner");
+  await flush();
+  const value = JSON.parse(sampleExport());
+  value.snapshot.network.lessons.body[0].slots[0].lesson_mark.mark = "10";
+  const text = JSON.stringify(value);
+  const next = await createUserscriptImporter(f).commit(text, "owner");
+  assert.equal(next.cloudSaved, false);
+  upload.resolve();
+  await old;
+  const cached = readUserscriptDiary(f.storage, "owner");
+  assert.equal(cached.text, text);
+  assert.equal(cached.cloudPending, true);
+});
+
+test("timing out a queued cloud auth read releases the queue; retry uploads once and late auth cannot write", async () => {
+  const auth = deferred();
+  const f = fixture();
+  const session = createOwnerSession("owner");
+  let authCalls = 0,
+    writes = 0,
+    databaseCalls = 0;
+  const baseline = JSON.parse(sampleExport()).snapshot;
+  baseline.network.lessons.body[0].slots[0].lesson_mark.mark = "8";
+  const base = createCloudDiaryRepository({
+    auth: {
+      getUser: () =>
+        ++authCalls === 1
+          ? auth.promise
+          : Promise.resolve({ data: { user: { id: "owner" } } }),
+    },
+    from() {
+      databaseCalls++;
+      const query = {
+        select: () => query,
+        eq: () => query,
+        abortSignal: () => query,
+        maybeSingle: async () => ({ data: { payload: baseline }, error: null }),
+        upsert: () => query,
+        single: async () => {
+          writes++;
+          return { data: {}, error: null };
+        },
+      };
+      return query;
+    },
+  });
+  f.services.diary = createDiaryHistoryRepository(
+    base,
+    { history: async () => [], saveEvents: async () => {} },
+    session,
+  );
+  const importer = createUserscriptImporter({ ...f, timeoutMs: 25 });
+  const first = await importer.commit(sampleExport(), "owner");
+  assert.equal(first.cloudSaved, false);
+  assert.equal(readUserscriptDiary(f.storage, "owner").cloudPending, true);
+  assert.equal(await importer.retryUpload(), true);
+  auth.resolve({ data: { user: { id: "owner" } } });
+  await flush();
+  assert.equal(writes, 1);
+  assert.equal(databaseCalls, 2);
+  assert.equal(readUserscriptDiary(f.storage, "owner").cloudPending, false);
+  assert.equal(session.active, 0);
+});
+
+test("retrying from the previous owner's screen cannot submit the next owner's cache", async () => {
+  const f = fixture({ save: () => assert.fail("foreign retry") });
+  f.services.auth.getUser = async () => ({ id: "owner-b" });
+  saveUserscriptDiary(f.storage, "owner-b", sampleExport());
+  const previous = f.values.get(USERSCRIPT_CACHE);
+  await assert.rejects(
+    createUserscriptImporter(f).retryUpload("owner-a"),
+    /Сеанс/,
+  );
+  assert.equal(f.values.get(USERSCRIPT_CACHE), previous);
+});
+
+test("the pre-collection revision persists across importer recreation and offline retry without rebasing", async () => {
+  const context = {
+    version: 2,
+    revision: "00000000-0000-4000-8000-000000000001",
+  };
+  const writes = [];
+  let offline = true;
+  const f = fixture({
+    save: async (_snapshot, options) => {
+      writes.push(options.writeContext);
+      if (offline) throw new TypeError("synthetic offline");
+    },
+  });
+  f.services.diary.getWriteContext = async () => context;
+  const importer = createUserscriptImporter(f);
+  assert.deepEqual(await importer.getWriteContext("owner"), context);
+  assert.equal(
+    (await importer.commit(sampleExport(), "owner", { writeContext: context }))
+      .cloudSaved,
+    false,
+  );
+  assert.deepEqual(
+    readUserscriptDiary(f.storage, "owner").writeContext,
+    context,
+  );
+  f.services.diary.getWriteContext = () =>
+    assert.fail("retry must not adopt a new revision");
+  offline = false;
+  assert.equal(await createUserscriptImporter(f).retryUpload("owner"), true);
+  assert.deepEqual(writes, [context, context]);
+  assert.equal(readUserscriptDiary(f.storage, "owner").cloudPending, false);
+  assert.deepEqual(
+    readUserscriptDiary(f.storage, "owner").writeContext,
+    context,
+  );
+});
+
+test("a revision conflict preserves the local export and remains actionable rather than claiming an offline success", async () => {
+  const context = { version: 2, revision: null };
+  const text = sampleExport();
+  const f = fixture({
+    save: async () => {
+      throw Object.assign(new Error("synthetic conflict"), {
+        code: "diary_snapshot_conflict",
+      });
+    },
+  });
+  await assert.rejects(
+    createUserscriptImporter(f).commit(text, "owner", {
+      writeContext: context,
+    }),
+    { code: "diary_snapshot_conflict" },
+  );
+  const cached = readUserscriptDiary(f.storage, "owner");
+  assert.equal(cached.cloudPending, true);
+  assert.equal(cached.text, text);
+  assert.deepEqual(cached.writeContext, context);
+  await assert.rejects(createUserscriptImporter(f).retryUpload("owner"), {
+    code: "diary_snapshot_conflict",
+  });
+});
+
+test("an old pending export is explicitly tagged as legacy so the new server can reject blind retries", async () => {
+  const writes = [];
+  const f = fixture({
+    save: async (_snapshot, options) => writes.push(options.writeContext),
+  });
+  saveUserscriptDiary(f.storage, "owner", sampleExport());
+  assert.equal(await createUserscriptImporter(f).retryUpload("owner"), true);
+  assert.deepEqual(writes, [{ version: 1 }]);
 });

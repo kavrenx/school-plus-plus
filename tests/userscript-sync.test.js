@@ -518,3 +518,81 @@ test("diagnostic success also rejects a session changed before acknowledgement",
     f.close();
   }
 });
+
+test("sync pins the server revision before opening the source and restores it on return", async () => {
+  const f = fixture();
+  const context = {
+    version: 2,
+    revision: "00000000-0000-4000-8000-000000000001",
+  };
+  try {
+    f.importer.getWriteContext = async (owner) => {
+      assert.equal(owner, "owner");
+      f.events.push("revision");
+      return context;
+    };
+    const commit = f.importer.commit;
+    f.importer.commit = async (text, owner, options) => {
+      assert.deepEqual(options.writeContext, context);
+      return commit(text, owner);
+    };
+    await f.controller.start();
+    const pending = JSON.parse(
+      f.windowRef.sessionStorage.getItem(USERSCRIPT_PENDING),
+    );
+    assert.deepEqual(pending.writeContext, context);
+    assert.ok(
+      f.events.indexOf("revision") <
+        f.events.findIndex((event) => event[0] === "start"),
+    );
+    await f.controller.receive();
+    assert.equal(f.progress.element.dataset.state, "success");
+    assert.equal(f.windowRef.sessionStorage.getItem(USERSCRIPT_PENDING), null);
+  } finally {
+    f.close();
+  }
+});
+
+test("a failed revision check does not open the source or discard the cached diary", async () => {
+  const f = fixture({ cacheOwner: "owner" });
+  try {
+    const cached = f.storage.getItem(USERSCRIPT_CACHE);
+    f.importer.getWriteContext = async () => {
+      throw new Error("synthetic offline");
+    };
+    await f.controller.start();
+    assert.equal(f.progress.element.dataset.state, "error");
+    assert.equal(
+      f.events.some((event) => event[0] === "start"),
+      false,
+    );
+    assert.equal(f.storage.getItem(USERSCRIPT_CACHE), cached);
+  } finally {
+    f.close();
+  }
+});
+
+test("a conflict offers a fresh sync and local diary, without acknowledgement or blind upload retry", async () => {
+  const f = fixture({ cacheOwner: "owner" });
+  try {
+    f.pending();
+    f.importer.commit = async (text, owner) => {
+      saveUserscriptDiary(f.storage, owner, text);
+      throw Object.assign(new Error("Обновлено на другом устройстве"), {
+        code: "diary_snapshot_conflict",
+      });
+    };
+    await f.controller.receive();
+    assert.equal(f.progress.element.dataset.state, "error");
+    const labels = [...f.progress.element.querySelectorAll("button")].map(
+      (button) => button.textContent,
+    );
+    assert.ok(labels.includes("Синхронизировать заново"));
+    assert.ok(labels.includes("Открыть без синхронизации"));
+    assert.equal(labels.includes("Повторить сохранение"), false);
+    assert.equal(f.events.includes("ack"), false);
+    assert.ok(f.windowRef.sessionStorage.getItem(USERSCRIPT_PENDING));
+  } finally {
+    f.close();
+  }
+});
