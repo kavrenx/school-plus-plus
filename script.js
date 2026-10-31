@@ -393,9 +393,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         })
       : null;
   siteStatusWatcher?.start(initialSiteStatus);
-  window.addEventListener("pagehide", () => siteStatusWatcher?.stop(), {
-    once: true,
-  });
   const connectionController = createConnectionController({
     element: connectionStatus,
     windowRef: window,

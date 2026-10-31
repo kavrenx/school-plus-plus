@@ -3,7 +3,7 @@ import test from "node:test";
 import vm from "node:vm";
 import { webcrypto } from "node:crypto";
 import { Window } from "happy-dom";
-import { createLocalUserscriptRoundtrip } from "../dev/userscript-roundtrip.js";
+import { createLocalUserscriptRoundtrip } from "./helpers/userscript-roundtrip.js";
 import {
   createUserscriptClient,
   TEST_PENDING,

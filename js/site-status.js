@@ -28,6 +28,8 @@ function createSiteStatusWatcher({
   let running = false;
   let checking = false;
   let maintenanceEnabled = false;
+  let suspended = false;
+  let generation = 0;
 
   function clearTimer() {
     if (timerId === null) return;
@@ -37,16 +39,18 @@ function createSiteStatusWatcher({
 
   function schedule() {
     clearTimer();
-    if (!running) return;
+    if (!running || suspended || checking || windowRef.document.hidden) return;
     timerId = windowRef.setTimeout(() => void check(), intervalMs);
   }
 
   async function check() {
-    if (!running || checking) return null;
+    if (!running || suspended || checking || windowRef.document.hidden) return null;
+    const currentGeneration = generation;
     checking = true;
     clearTimer();
     try {
       const status = await repository.get();
+      if (!running || currentGeneration !== generation) return null;
       if (status.maintenanceEnabled !== maintenanceEnabled) {
         maintenanceEnabled = status.maintenanceEnabled;
         onChange(status);
@@ -55,13 +59,29 @@ function createSiteStatusWatcher({
     } catch {
       return null;
     } finally {
-      checking = false;
-      schedule();
+      if (currentGeneration === generation) {
+        checking = false;
+        schedule();
+      }
     }
   }
 
   function handleVisibilityChange() {
+    clearTimer();
     if (!windowRef.document.hidden) void check();
+  }
+
+  function handlePageHide() {
+    suspended = true;
+    generation++;
+    checking = false;
+    clearTimer();
+  }
+
+  function handlePageShow(event) {
+    if (!event.persisted) return;
+    suspended = false;
+    void check();
   }
 
   function start(initialStatus = {}) {
@@ -72,17 +92,26 @@ function createSiteStatusWatcher({
       "visibilitychange",
       handleVisibilityChange,
     );
+    windowRef.addEventListener("pagehide", handlePageHide);
+    windowRef.addEventListener("pageshow", handlePageShow);
+    windowRef.addEventListener("online", handleVisibilityChange);
     schedule();
   }
 
   function stop() {
     if (!running) return;
     running = false;
+    suspended = false;
+    generation++;
+    checking = false;
     clearTimer();
     windowRef.document.removeEventListener(
       "visibilitychange",
       handleVisibilityChange,
     );
+    windowRef.removeEventListener("pagehide", handlePageHide);
+    windowRef.removeEventListener("pageshow", handlePageShow);
+    windowRef.removeEventListener("online", handleVisibilityChange);
   }
 
   return Object.freeze({ check, start, stop });

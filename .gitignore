@@ -10,3 +10,12 @@ coverage/
 .DS_Store
 Thumbs.db
 .release-backups/
+
+# Local handoffs, diagnostics and generated store previews.
+/AGENTS.md
+/PROJECT_CONTEXT.md
+/docs/
+/dev/
+/store-assets/
+/ios-setup.html
+/js/ios-shortcut-setup.js

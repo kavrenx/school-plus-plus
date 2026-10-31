@@ -129,21 +129,28 @@ function createDiaryRevisionWatcher({
     checking = false,
     timer;
   let revision = initialRevision,
-    changesRevision = initialChangesRevision;
+    changesRevision = initialChangesRevision ?? "";
   let access = initialAccess;
+  let generation = 0;
   function schedule() {
     windowRef.clearTimeout(timer);
-    if (running) timer = windowRef.setTimeout(check, intervalMs);
+    if (running && !checking && !windowRef.document.hidden)
+      timer = windowRef.setTimeout(check, intervalMs);
   }
   async function check() {
     if (!running || checking || windowRef.document.hidden) {
       schedule();
       return;
     }
+    const currentGeneration = generation;
+    windowRef.clearTimeout(timer);
     checking = true;
     try {
       const next = await repository.revision();
-      if (!running) return;
+      if (!running || currentGeneration !== generation) return;
+      // The SQL RPC returns null before the first history row exists.
+      // Treat absent revisions alike without hiding a real history change.
+      const nextChangesRevision = next.changesUpdatedAt ?? "";
       if (
         access?.role === "linked" &&
         (next.access?.role !== "linked" ||
@@ -156,23 +163,26 @@ function createDiaryRevisionWatcher({
       if (
         next.updatedAt &&
         (next.updatedAt !== revision ||
-          next.changesUpdatedAt !== changesRevision)
+          nextChangesRevision !== changesRevision)
       ) {
         await onUpdate(next.access);
-        if (!running) return;
+        if (!running || currentGeneration !== generation) return;
         revision = next.updatedAt;
-        changesRevision = next.changesUpdatedAt;
+        changesRevision = nextChangesRevision;
       }
       access = next.access;
       onHealthy();
     } catch (error) {
-      if (running) onError(error);
+      if (running && currentGeneration === generation) onError(error);
     } finally {
-      checking = false;
-      schedule();
+      if (currentGeneration === generation) {
+        checking = false;
+        schedule();
+      }
     }
   }
   function wake() {
+    windowRef.clearTimeout(timer);
     if (!windowRef.document.hidden) void check();
   }
   function start() {
@@ -184,6 +194,8 @@ function createDiaryRevisionWatcher({
   }
   function stop() {
     running = false;
+    generation++;
+    checking = false;
     windowRef.clearTimeout(timer);
     windowRef.document.removeEventListener("visibilitychange", wake);
     windowRef.removeEventListener("online", wake);

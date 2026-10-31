@@ -258,7 +258,8 @@ function createDeviceController({
     }
   }
   function schedule() {
-    if (running)
+    windowRef.clearTimeout(timer);
+    if (running && !watching && !windowRef.document.hidden)
       timer = windowRef.setTimeout(
         watch,
         clientPair || ownerPair ? 2000 : 10000,
@@ -421,6 +422,7 @@ function createDeviceController({
     });
     windowRef.document.addEventListener("visibilitychange", () => {
       tickExpiry();
+      windowRef.clearTimeout(timer);
       if (!windowRef.document.hidden && running) void watch();
     });
   }

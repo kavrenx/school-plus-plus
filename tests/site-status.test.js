@@ -39,6 +39,8 @@ test("site status watcher reports maintenance transitions without duplicates", a
   const changes = [];
   const statuses = [true, true, false];
   const windowRef = {
+    addEventListener() {},
+    removeEventListener() {},
     clearTimeout() {},
     setTimeout() {
       return 1;

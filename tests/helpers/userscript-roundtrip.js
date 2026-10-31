@@ -4,8 +4,8 @@ import {
   readUserscriptPending,
   saveUserscriptCache,
   userscriptMessage,
-} from "../js/userscript-client.js";
-import { createSyncTimings } from "../js/sync-timings.js";
+} from "../../js/userscript-client.js";
+import { createSyncTimings } from "../../js/sync-timings.js";
 
 // Local v1 test protocol only. No Supabase services, production keys or
 // conversion of a test export into a production snapshot.
