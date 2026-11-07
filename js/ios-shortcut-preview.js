@@ -25,7 +25,7 @@ const RESULTS = new Set([
 const positive = (value) =>
   Number.isInteger(value) && value >= 0 && value <= 10000000 ? value : 0;
 
-function readIOSShortcutExport(text) {
+function readIOSShortcutExport(text, transport) {
   if (
     typeof text !== "string" ||
     new TextEncoder().encode(text).length > MAX_BYTES
@@ -82,10 +82,15 @@ function readIOSShortcutExport(text) {
   );
   const scopes = new Set(lessons.map((record) => record.url.split("?")[0]));
   const uniqueWeeks = new Set(lessons.map((record) => record.url));
+  const transportAllowed = transport
+    ? snapshot.import?.transport === transport
+    : ["ios-shortcut", "userscript-test", "userscript"].includes(
+        snapshot.import?.transport,
+      );
   if (
     snapshot.source !== "e-schools.by" ||
     snapshot.schemaVersion !== 1 ||
-    !["ios-shortcut", "userscript-test", "userscript"].includes(snapshot.import?.transport) ||
+    !transportAllowed ||
     snapshot.import.complete !== true ||
     !summary.expectedWeeks ||
     summary.expectedWeeks > 60 ||

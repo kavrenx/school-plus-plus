@@ -14,6 +14,7 @@ export default defineConfig({
           "userscripts-setup.html",
         ),
         userscriptsSync: resolve(import.meta.dirname, "userscripts-sync.html"),
+        androidSync: resolve(import.meta.dirname, "android-sync.html"),
         privacy: resolve(import.meta.dirname, "privacy.html"),
         support: resolve(import.meta.dirname, "support.html"),
         control: resolve(import.meta.dirname, "control.html"),

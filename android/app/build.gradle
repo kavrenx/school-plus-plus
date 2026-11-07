@@ -1,0 +1,38 @@
+plugins {
+    id 'com.android.application' version '9.2.0'
+}
+
+android {
+    namespace 'com.schoolpp.android.probe'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.schoolpp.android.probe'
+        minSdk 26
+        targetSdk 36
+        versionCode 3
+        versionName '0.2.0-preview'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+def repoRoot = rootProject.projectDir.parentFile
+def generatedAssets = layout.buildDirectory.dir('generated/androidProbe/assets')
+def generateAndroidProbe = tasks.register('generateAndroidProbe', Exec) {
+    workingDir repoRoot
+    inputs.files(
+        new File(repoRoot, 'android/probe-script.mjs'),
+        new File(repoRoot, 'js/ios-shortcut-probe.js')
+    )
+    outputs.dir(generatedAssets)
+    commandLine 'node', 'android/probe-script.mjs', generatedAssets.get().asFile.absolutePath
+}
+
+android.sourceSets.main.assets.srcDir(generatedAssets)
+tasks.matching { it.name == 'preBuild' }.configureEach {
+    dependsOn generateAndroidProbe
+}
