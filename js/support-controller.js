@@ -47,6 +47,7 @@ function createSupportController({
   let conversations = [];
   let selectedId = "";
   let agent = false;
+  let selectLatestForAgent = true;
   let unsubscribe = () => {};
   let refreshTimer = 0;
   let refreshGeneration = 0;
@@ -70,7 +71,7 @@ function createSupportController({
     syncComposerHeight();
   }
 
-  async function open() {
+  async function open({ conversationId = "", selectLatest = true } = {}) {
     panel.hidden = false;
     backdrop.hidden = false;
     panel.setAttribute("aria-hidden", "false");
@@ -85,8 +86,14 @@ function createSupportController({
         if (!agent) selectedId = readSelectedConversation();
         unsubscribe = repository.subscribe(scheduleRefresh);
       }
+      if (agent) {
+        selectLatestForAgent = selectLatest && !conversationId;
+        if (!selectLatestForAgent) selectedId = conversationId;
+      }
       await refresh();
-      input.focus();
+      if (agent && conversationId && !selectedId)
+        showStatus("Обращение по ссылке недоступно.", true);
+      if (selectLatest) input.focus();
     } catch {
       showStatus(
         "Поддержка сейчас недоступна. Проверьте соединение и попробуйте ещё раз.",
@@ -114,7 +121,8 @@ function createSupportController({
       selectedId = "";
       rememberSelectedConversation("");
     }
-    if (agent && !selectedId) selectedId = conversations[0]?.id || "";
+    if (agent && selectLatestForAgent && !selectedId)
+      selectedId = conversations[0]?.id || "";
     renderConversationList();
     await renderConversation();
   }

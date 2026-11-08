@@ -1,6 +1,7 @@
 import { registerIcons } from "./icons.js";
 import { createSupabaseServices } from "./supabase-services.js";
 import { createSupportController } from "./support-controller.js";
+import { parseSupportConsoleTarget } from "./support-console-route.js";
 
 const OPERATOR_EMAIL = "support@schoolpp.com";
 
@@ -24,6 +25,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const requestList = document.getElementById("supportRequestList");
   const requestView = document.getElementById("supportRequestView");
   const requestEmpty = document.getElementById("supportRequestEmpty");
+  const requestEmptyTitle = requestEmpty.querySelector("h2");
   const requestCard = document.getElementById("supportRequestCard");
   const requestName = document.getElementById("supportRequestName");
   const requestUrl = document.getElementById("supportRequestUrl");
@@ -56,21 +58,29 @@ document.addEventListener("DOMContentLoaded", async () => {
   controller.bind();
   let requests = [];
   let selectedRequestId = "";
+  let linkedRequestId = "";
+  let startConversationsWhenShown = false;
+  let requestGeneration = 0;
   let requestsUnsubscribe = () => {};
   let activeView = "conversations";
 
   async function refreshRequests() {
+    const generation = ++requestGeneration;
     try {
-      requests = await services.support.listDiaryRequests();
+      const nextRequests = await services.support.listDiaryRequests();
+      if (generation !== requestGeneration || activeView !== "requests") return;
+      requests = nextRequests;
       if (
         selectedRequestId &&
         !requests.some((request) => request.id === selectedRequestId)
       )
         selectedRequestId = "";
-      if (!selectedRequestId) selectedRequestId = requests[0]?.id || "";
+      if (!selectedRequestId)
+        selectedRequestId = linkedRequestId || requests[0]?.id || "";
       renderRequestList();
       renderRequest();
     } catch {
+      if (generation !== requestGeneration || activeView !== "requests") return;
       requestList.replaceChildren();
       const message = document.createElement("p");
       message.className = "support-menu-empty";
@@ -107,6 +117,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     requestEmpty.hidden = Boolean(request);
     requestCard.hidden = !request;
     requestFeedback.hidden = true;
+    requestEmptyTitle.textContent = linkedRequestId
+      ? "Заявка по ссылке недоступна"
+      : "Выберите заявку";
     if (!request) return;
     requestName.textContent = request.requester_name;
     requestUrl.textContent = request.diary_url;
@@ -152,23 +165,36 @@ document.addEventListener("DOMContentLoaded", async () => {
     login.hidden = true;
     workspace.hidden = false;
     document.getElementById("supportMenu").hidden = false;
-    await controller.open();
+    const target = parseSupportConsoleTarget(window.location.hash);
+    linkedRequestId = target?.kind === "request" ? target.id : "";
+    startConversationsWhenShown = Boolean(linkedRequestId);
+    selectedRequestId = linkedRequestId;
+    setView(linkedRequestId ? "requests" : "conversations");
+    await controller.open({
+      conversationId: target?.kind === "conversation" ? target.id : "",
+      selectLatest: !linkedRequestId,
+    });
     requestsUnsubscribe();
     requestsUnsubscribe = services.support.subscribe(() => {
       if (activeView === "requests") void refreshRequests();
     });
-    setView("conversations");
   }
 
   viewButtons.forEach((button) => {
-    button.addEventListener("click", () =>
-      setView(button.dataset.supportConsoleView),
-    );
+    button.addEventListener("click", () => {
+      const view = button.dataset.supportConsoleView;
+      setView(view);
+      if (startConversationsWhenShown && view === "conversations") {
+        startConversationsWhenShown = false;
+        void controller.open();
+      }
+    });
   });
 
   requestList.addEventListener("click", (event) => {
     const button = event.target.closest("[data-support-request]");
     if (!button) return;
+    linkedRequestId = "";
     selectedRequestId = button.dataset.supportRequest;
     renderRequestList();
     renderRequest();
@@ -176,7 +202,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   requestCard.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-request-status]");
-    if (!button || !selectedRequestId) return;
+    if (!button || !requests.some((request) => request.id === selectedRequestId))
+      return;
     button.disabled = true;
     requestFeedback.hidden = true;
     try {

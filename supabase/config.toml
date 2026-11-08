@@ -1,0 +1,4 @@
+project_id = "schoolpp"
+
+[functions.support-notifications]
+verify_jwt = false

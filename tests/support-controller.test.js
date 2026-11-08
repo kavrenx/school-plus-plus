@@ -117,6 +117,58 @@ test("support creates a private conversation and sends the first message", async
   await window.happyDOM.close();
 });
 
+test("operator notification opens only the linked conversation", async (t) => {
+  const window = new Window({ url: "https://schoolpp.com/support.html" });
+  createMarkup(window.document);
+  const listed = [];
+  const read = [];
+  const repository = {
+    getUser: async () => ({ id: "operator" }),
+    isAgent: async () => true,
+    listConversations: async () => [
+      { id: "latest", status: "open" },
+      { id: "linked", status: "open" },
+    ],
+    async listMessages(id) {
+      listed.push(id);
+      return [
+        { id: 1, body: "Synthetic incoming message", sender_id: "student" },
+      ];
+    },
+    async markConversationRead(id) {
+      read.push(id);
+    },
+    subscribe: () => () => {},
+  };
+  const controller = createSupportController({
+    root: window.document,
+    windowRef: window,
+    repositoryProvider: async () => repository,
+  });
+  t.after(async () => {
+    controller.destroy();
+    await window.happyDOM.close();
+  });
+  controller.bind();
+
+  await controller.open({ selectLatest: false });
+  await controller.open({ conversationId: "unavailable" });
+  assert.match(
+    window.document.getElementById("supportStatus").textContent,
+    /недоступно/,
+  );
+  assert.deepEqual(listed, []);
+  assert.deepEqual(read, []);
+
+  await controller.open({ conversationId: "linked" });
+  assert.deepEqual(listed, ["linked"]);
+  assert.deepEqual(read, ["linked"]);
+  assert.match(
+    window.document.getElementById("supportMessages").textContent,
+    /Synthetic incoming message/,
+  );
+});
+
 test("support marks incoming messages as read and shows receipts on own messages", async () => {
   const window = new Window({ url: "https://schoolpp.com/" });
   createMarkup(window.document);
