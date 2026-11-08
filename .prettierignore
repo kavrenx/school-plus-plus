@@ -1,6 +1,7 @@
 coverage/
 dist/
 node_modules/
+/android/**/build/
 
 # Legacy source is formatted gradually to keep refactoring diffs reviewable.
 data/

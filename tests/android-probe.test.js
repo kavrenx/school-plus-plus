@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
-import { createAndroidProbeScript } from "../android/probe-script.mjs";
+import {
+  createAndroidProbeScript,
+  createAndroidReadinessScript,
+} from "../android/probe-script.mjs";
 
 const key = `__schoolppAndroidProbe_${"a".repeat(32)}`;
 const origin = "https://diary.e-schools.by";
@@ -74,6 +77,36 @@ function run(scope, runKey = key) {
 async function settle() {
   await new Promise((resolve) => setImmediate(resolve));
 }
+
+test("Android waits for a same-origin successful week after sign-in", () => {
+  const { scope, calls } = fixture();
+  const entries = [
+    {
+      name:
+        "https://elsewhere.invalid" + lessonPath + "?week_activity_uuid=week-1",
+    },
+    { name: origin + lessonPath },
+    {
+      name: origin + lessonPath + "?week_activity_uuid=week-1",
+      responseStatus: 401,
+    },
+  ];
+  scope.performance.getEntriesByType = () => entries;
+  const ready = () =>
+    vm.runInNewContext(createAndroidReadinessScript(), { window: scope, URL });
+  assert.equal(ready(), false);
+  entries.push({
+    name: origin + lessonPath + "?week_activity_uuid=week-1",
+    responseStatus: 200,
+  });
+  assert.equal(ready(), true);
+  scope.top = {};
+  assert.equal(ready(), false);
+  scope.top = scope;
+  scope.location.origin = "https://oauth.rios.unibel.by";
+  assert.equal(ready(), false);
+  assert.deepEqual(calls, []);
+});
 
 test("the Android asset reports counts and retains a complete export separately", async () => {
   const { scope, calls } = fixture();

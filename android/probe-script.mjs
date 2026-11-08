@@ -3,6 +3,30 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { runIOSShortcutProbe } from "../js/ios-shortcut-probe.js";
 
+function hasAndroidDiaryWeek(scope) {
+  if (
+    scope.location.origin !== "https://diary.e-schools.by" ||
+    scope.top !== scope
+  )
+    return false;
+  const resources = scope.performance?.getEntriesByType("resource") || [];
+  return resources.slice(-1000).some((entry) => {
+    try {
+      const url = new URL(entry.name, scope.location.origin);
+      return (
+        url.origin === scope.location.origin &&
+        (!entry.responseStatus || entry.responseStatus === 200) &&
+        /^\/api\/v1\/education\/diary\/schools\/[\w-]{1,80}\/classes\/[\w-]{1,80}\/students\/[\w-]{1,80}\/lessons$/.test(
+          url.pathname,
+        ) &&
+        /^[\w-]{1,80}$/.test(url.searchParams.get("week_activity_uuid") || "")
+      );
+    } catch {
+      return false;
+    }
+  });
+}
+
 // Serialized into an Android asset and evaluated only on the diary origin.
 function startAndroidDiaryProbe(scope, collect, key) {
   if (
@@ -96,6 +120,10 @@ function createAndroidProbeScript() {
   return `(function (key) { return (${startAndroidDiaryProbe.toString()})(window, (${runIOSShortcutProbe.toString()}), key); })`;
 }
 
+function createAndroidReadinessScript() {
+  return `(${hasAndroidDiaryWeek.toString()})(window)`;
+}
+
 if (
   process.argv[1] &&
   import.meta.url === pathToFileURL(resolve(process.argv[1])).href
@@ -103,7 +131,10 @@ if (
   const output = process.argv[2];
   if (!output) throw new Error("Pass the generated Android asset directory.");
   await mkdir(output, { recursive: true });
-  await writeFile(join(output, "diary-probe.js"), createAndroidProbeScript());
+  await Promise.all([
+    writeFile(join(output, "diary-probe.js"), createAndroidProbeScript()),
+    writeFile(join(output, "diary-ready.js"), createAndroidReadinessScript()),
+  ]);
 }
 
-export { createAndroidProbeScript };
+export { createAndroidProbeScript, createAndroidReadinessScript };

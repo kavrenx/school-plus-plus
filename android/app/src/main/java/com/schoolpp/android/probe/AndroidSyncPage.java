@@ -17,10 +17,9 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 
 final class AndroidSyncPage {
-    private static final String HOST = "schoolpp.com";
-    private static final String ORIGIN = "https://" + HOST;
+    static final String HOST = "schoolpp.com";
+    static final String ORIGIN = "https://" + HOST;
     private static final String SYNC_URL = ORIGIN + "/android-sync.html";
-    private static final String DIARY_URL = ORIGIN + "/#diary";
     private final FrameLayout layout;
     private final Handler handler;
     private final Runnable timeout = () -> fail("Сервер School++ не ответил. Попробуй снова.");
@@ -61,17 +60,6 @@ final class AndroidSyncPage {
         saving = true;
         handler.postDelayed(timeout, 30_000);
         port.postMessage(new WebMessage(export));
-    }
-
-    void openDiary() {
-        cancel();
-        WebView browser = browser();
-        browser.setVisibility(View.VISIBLE);
-        browser.loadUrl(DIARY_URL);
-    }
-
-    void hide() {
-        if (view != null) view.setVisibility(View.GONE);
     }
 
     void cancel() {
@@ -127,6 +115,7 @@ final class AndroidSyncPage {
                     port = null;
                     attempt = null;
                     ready = saving = false;
+                    dispose();
                     completed.onSaved();
                 } else if (data.startsWith("error:")) {
                     fail(errorMessage(data));
@@ -160,8 +149,7 @@ final class AndroidSyncPage {
     }
 
     private boolean allows(String url) {
-        return listener != null ? SYNC_URL.equals(url)
-            : DiaryProbeActivity.isHttpsUrlOnHost(url, HOST);
+        return listener != null && SYNC_URL.equals(url);
     }
 
     private final class Client extends WebViewClient {
@@ -172,9 +160,8 @@ final class AndroidSyncPage {
 
         @Override
         public WebResourceResponse shouldInterceptRequest(WebView browser, WebResourceRequest request) {
-            if (request.isForMainFrame() && !DiaryProbeActivity.isHttpsUrlOnHost(
-                request.getUrl().toString(), HOST
-            )) return new WebResourceResponse("text/plain", "UTF-8", null);
+            if (request.isForMainFrame() && !SYNC_URL.equals(request.getUrl().toString()))
+                return new WebResourceResponse("text/plain", "UTF-8", null);
             return null;
         }
 

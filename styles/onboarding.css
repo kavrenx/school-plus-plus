@@ -111,6 +111,11 @@
   grid-template-columns: 1fr;
 }
 
+.onboarding-sync-note {
+  margin-top: 8px;
+  font-size: 14px;
+}
+
 .onboarding-actions .primary-btn,
 .onboarding-secondary,
 .onboarding-sticky-action,

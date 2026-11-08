@@ -3,8 +3,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:allowBackup="false"
+        android:icon="@drawable/ic_schoolpp"
         android:label="School++"
-        android:theme="@android:style/Theme.Material.Light.NoActionBar"
+        android:theme="@style/SchoolppTheme"
         android:usesCleartextTraffic="false">
         <activity
             android:name="com.schoolpp.android.probe.DiaryProbeActivity"

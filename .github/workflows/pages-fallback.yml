@@ -43,6 +43,7 @@ jobs:
       - name: Build School++
         env:
           VITE_APP_MODE: cloud
+          VITE_ANDROID_PLAY_AVAILABLE: ${{ vars.VITE_ANDROID_PLAY_AVAILABLE }}
           VITE_BASE_PATH: /school-plus-plus/
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}

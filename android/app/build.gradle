@@ -7,11 +7,17 @@ android {
     compileSdk 36
 
     defaultConfig {
-        applicationId 'com.schoolpp.android.probe'
+        applicationId 'com.schoolpp.android'
         minSdk 26
         targetSdk 36
-        versionCode 3
-        versionName '0.2.0-preview'
+        versionCode 4
+        versionName '1.0.0'
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix '.probe'
+        }
     }
 
     compileOptions {

@@ -9,6 +9,7 @@ import {
 import { normalizeDiaryData } from "./js/diary-model.js";
 import { createModalController } from "./js/modal-controller.js";
 import { createProfileController } from "./js/profile-controller.js";
+import { ANDROID_SYNC_LINK, isSchoolppAndroidApp } from "./js/android-app.js";
 import { createPresentationController } from "./js/presentation-controller.js";
 import { createScreenController } from "./js/screen-controller.js";
 import { createSafeStorage, getBrowserStorage } from "./js/safe-storage.js";
@@ -59,6 +60,7 @@ import {
 registerIcons();
 
 document.addEventListener("DOMContentLoaded", async () => {
+  const androidApp = isSchoolppAndroidApp(window.navigator);
   const mobileViewport = createMobileViewportController(window);
   mobileViewport.start();
   window.addEventListener("pagehide", mobileViewport.stop);
@@ -256,6 +258,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     initialStep: pairingCode ? "mobile" : readRoute().area === "connect" ? readRoute().page : "",
     shortcutSetupUrl: import.meta.env.DEV ? new URL("ios-setup.html", window.location.href).href : "",
     userscriptSetupUrl: new URL("userscripts-setup.html", window.location.href).href,
+    androidPlayAvailable: import.meta.env.VITE_ANDROID_PLAY_AVAILABLE === "true",
     pairingCode,
     onMobileOpen: () => void deviceController?.resumeClient(),
     requestSubmitter: async (request) => {
@@ -495,7 +498,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       journalStore, () => localData.finalGrades,
     ),
     readOnlyDevice: deviceAccess.role === "linked",
-    extensionMaterialsAvailable: !userscriptDiary,
+    extensionMaterialsAvailable: !userscriptDiary && !androidApp,
     changeTracker,
     coverageNotice: localData.coverage && !localData.coverage.hasSchedule ? "Расписание получено не полностью. Количество оставшихся уроков может быть неточным." : "",
     onSectionChange: (section) => {
@@ -588,7 +591,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function init() {
-    if (userscriptDiary && deviceAccess.role !== "linked" && !iosPreview) {
+    if (androidApp && deviceAccess.role !== "linked") {
+      const update = document.getElementById("studentAndroidSync");
+      if (update) { update.href = ANDROID_SYNC_LINK; update.hidden = false; }
+    } else if (userscriptDiary && deviceAccess.role !== "linked" && !iosPreview) {
       const update = document.getElementById("studentSyncButton");
       const syncStatus = document.getElementById("studentSyncStatus");
       const synchronize = () => void transitionToUserscriptSync(window, new URL("userscripts-sync.html", window.location.href).href);
@@ -817,7 +823,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           })
         : Promise.resolve(null);
     try {
-      const snapshot = await requestStartupExtensionSnapshot(window);
+      const snapshot = androidApp ? null : await requestStartupExtensionSnapshot(window);
       if (snapshot) {
         if (diaryNetworkEnabled) {
           void (async () => {

@@ -6,6 +6,7 @@ import {
 import { renderDeviceJoin } from "./device-controller.js";
 import { renderUserscriptsGuide, USERSCRIPTS_ICON } from "./userscripts-guide.js";
 import { transitionToUserscriptSync } from "./userscript-progress.js";
+import { ANDROID_PLAY_URL, ANDROID_SYNC_LINK, isAndroid, isSchoolppAndroidApp } from "./android-app.js";
 
 const ONBOARDING_KEY = "schoolpp_onboarding_complete_v1";
 const CHECK_PENDING_KEY = "schoolpp_extension_check_pending";
@@ -63,12 +64,15 @@ function createOnboardingController({
   pairingCode = "",
   shortcutSetupUrl = "",
   userscriptSetupUrl = "",
+  androidPlayAvailable = false,
   onMobileOpen = () => {},
 }) {
   const screen = root.getElementById("onboardingScreen");
   const content = root.getElementById("onboardingContent");
   const storage = windowRef.localStorage;
   const session = windowRef.sessionStorage;
+  const androidApp = isSchoolppAndroidApp(windowRef.navigator);
+  const offerAndroid = isAndroid(windowRef.navigator) && androidPlayAvailable;
   const requestUi = createDiaryRequestPanel(root);
   let finish;
   let unsubscribe = () => {};
@@ -119,12 +123,17 @@ function createOnboardingController({
     completePromise = new Promise((resolve) => {
       finish = resolve;
     });
-    unsubscribe = subscribe(windowRef, () => showSynchronized());
+    if (!androidApp) unsubscribe = subscribe(windowRef, () => showSynchronized());
     void showInitialStep();
     return completePromise;
   }
 
   async function showInitialStep() {
+    if (initialStep === "unsupported") { showUnsupportedDiary(); return; }
+    if (initialStep === "android" && (androidApp || offerAndroid) && !pairingCode) {
+      showAndroidEntry();
+      return;
+    }
     if (["methods", "device-choice"].includes(initialStep)) { showDeviceChoice(); return; }
     if (pairingCode || initialStep === "mobile-code") { showMobileNotice(); return; }
     if (initialStep === "mobile" || detectDevice(windowRef.navigator) === "mobile") { showDiaryConfirmation(); return; }
@@ -180,6 +189,7 @@ function createOnboardingController({
   }
 
   function showMobileEntry() {
+    if (!pairingCode && (androidApp || offerAndroid)) { showAndroidEntry(); return; }
     if (!canTestShortcut() || pairingCode) { showMobileNotice(); return; }
     announceStep("mobile");
     if (userscriptSetupUrl) {
@@ -196,6 +206,27 @@ function createOnboardingController({
       <p class="ios-shortcut-status">Это тест: данные пока не переносятся в School++. Для готового дневника используй подключение по коду.</p>
       <div class="onboarding-actions onboarding-actions-single"><a class="primary-btn" data-shortcut-setup>Настроить тестовую Команду</a><button class="onboarding-secondary" type="button" data-mobile-code>Другой способ подключения</button></div>`;
     content.querySelector("[data-shortcut-setup]").href = shortcutSetupUrl;
+  }
+
+  function showAndroidEntry() {
+    announceStep("android");
+    content.innerHTML = androidApp ? `
+      <p class="onboarding-eyebrow">Подключение дневника</p>
+      <h1>Готовы синхронизировать дневник?</h1>
+      <p>Войдите в <span class="service-domain">e&#8209;schools.by</span>, и School++ перенесёт уроки и оценки.</p>
+      <p class="onboarding-sync-note">В дальнейшем дневник будет обновляться автоматически, когда приложение открыто.</p>
+      <div class="onboarding-actions onboarding-actions-single">
+        <a class="primary-btn" href="${ANDROID_SYNC_LINK}">Синхронизировать</a>
+        <button class="onboarding-secondary" type="button" data-diary-back>Вернуться</button>
+      </div>` : `
+      <p class="onboarding-eyebrow">School++ для Android</p>
+      <h1>Скачайте приложение</h1>
+      <p>В приложении можно подключить <span class="service-domain">e&#8209;schools.by</span> и обновлять дневник прямо с телефона.</p>
+      <div class="onboarding-actions onboarding-actions-single">
+        <a class="primary-btn" href="${ANDROID_PLAY_URL}">Скачать в Google Play</a>
+        <button class="onboarding-secondary" type="button" data-mobile-code>Подключить по коду</button>
+        <button class="onboarding-about" type="button" data-diary-back>Вернуться</button>
+      </div>`;
   }
 
   async function showDesktopFlow() {
@@ -343,6 +374,7 @@ function createOnboardingController({
     else if (step === "device-mobile") showMobileNotice();
     else if (step === "device-desktop") void showDesktopFlow();
     else if (step === "mobile") showMobileEntry();
+    else if (step === "android" && (androidApp || offerAndroid) && !pairingCode) showAndroidEntry();
     else if (step === "mobile-code") showMobileNotice();
     else if (step === "extension") void showDesktopFlow();
     else if (step === "guide") void showGuide();

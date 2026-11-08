@@ -19,6 +19,13 @@
   padding-inline: 12px;
 }
 
+a.student-sync-button:not([hidden]) {
+  display: grid;
+  place-items: center;
+  text-align: center;
+  text-decoration: none;
+}
+
 .device-modal-card {
   width: min(100%, 540px);
   max-height: calc(100dvh - 40px);

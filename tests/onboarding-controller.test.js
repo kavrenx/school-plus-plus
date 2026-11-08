@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { Window } from "happy-dom";
 import { EXTENSION_STORE_URLS } from "../js/release-config.js";
+import { ANDROID_PLAY_URL, ANDROID_SYNC_LINK } from "../js/android-app.js";
 
 import {
   ONBOARDING_KEY,
@@ -20,6 +21,51 @@ function createWindow() {
     </section>`;
   return window;
 }
+
+test("Android onboarding distinguishes an installed app, a released app, and a browser before release", () => {
+  for (const { userAgent, androidPlayAvailable, href } of [
+    {
+      userAgent: "Android 16 SchoolppAndroid/1",
+      androidPlayAvailable: false,
+      href: ANDROID_SYNC_LINK,
+    },
+    {
+      userAgent: "Android 16",
+      androidPlayAvailable: true,
+      href: ANDROID_PLAY_URL,
+    },
+    { userAgent: "Android 16", androidPlayAvailable: false, href: null },
+  ]) {
+    const window = createWindow();
+    Object.defineProperty(window.navigator, "userAgent", { value: userAgent });
+    const controller = createOnboardingController({
+      root: window.document,
+      windowRef: window,
+      storeUrls: {},
+      androidPlayAvailable,
+    });
+    try {
+      void controller.start();
+      const content = window.document.querySelector("#onboardingContent");
+      assert.match(content.querySelector("h1").textContent, /Ваш дневник/);
+      content.querySelector("[data-diary-unsupported]").click();
+      assert.ok(content.querySelector("[data-open-diary-request]"));
+      content.querySelector("[data-diary-back]").click();
+      content.querySelector("[data-diary-confirm]").click();
+      const primary = content.querySelector("a.primary-btn");
+      if (href) assert.equal(primary.getAttribute("href"), href);
+      else assert.ok(content.querySelector("[data-device-join]"));
+      if (href === ANDROID_SYNC_LINK)
+        assert.match(content.textContent, /автоматически/);
+      if (href === ANDROID_PLAY_URL) {
+        content.querySelector("[data-mobile-code]").click();
+        assert.ok(content.querySelector("[data-device-join]"));
+      }
+    } finally {
+      window.close();
+    }
+  }
+});
 
 test("onboarding detects the device and recommends its browser store", () => {
   assert.equal(isAppleMobile({ userAgent: "iPhone" }), true);
